@@ -25,6 +25,7 @@ module.exports = {
         }
 
         const petVariants = [
+            `**${senderName}** gives **${recipientName}** a gentle pat on the head, letting them know they are a good being! <:purocute:1536367584369180803>`, 
             `**${senderName}** gently pats **${recipientName}** on the head. Good job!`,
             `**${senderName}** gives **${recipientName}** soft and cozy headpats!`,
             `**${senderName}** aggressively pets **${recipientName}**! *Pat pat pat pat!*`,
