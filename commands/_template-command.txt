@@ -1,3 +1,4 @@
+// file extenction has to be .js
 const { SlashCommandBuilder } = require('discord.js');
 
 // Helper function to pick a random message variant
