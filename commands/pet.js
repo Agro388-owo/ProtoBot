@@ -13,6 +13,17 @@ module.exports = {
         .addUserOption(option => option.setName('target').setDescription('Who gets pats?').setRequired(true)),
 
     async execute(interaction, senderName, recipientName) {
+        const targetUser = interaction.options.getUser('target');
+
+        if (interaction.user.id === targetUser.id) {
+            const selfVariants = [
+                `🫳 ${senderName} patted their own head. Self-care is important!`,
+                `✨ ${senderName} gives themselves gently pats. You're doing great!`,
+                `👑 ${senderName} adjusts their own hair and gives themselves a pat on the head.`
+            ];
+            return getRandomMessage(selfVariants);
+        }
+
         const petVariants = [
             `🫳 **${senderName}** gently pats **${recipientName}** on the head. Good job!`,
             `✨ **${senderName}** gives **${recipientName}** soft and cozy headpats!`,
