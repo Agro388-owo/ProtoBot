@@ -27,7 +27,7 @@ module.exports = {
         // 🔒 OWNER-ONLY CHECK
         if (interaction.user.id !== botConfig.OWNER_ID) {
             await interaction.reply({
-                content: '❌ Only the bot owner can use `/config` commands!',
+                content: 'Only the bot owner can use `/config` commands!',
                 ephemeral: true
             });
             return null; // Don't send public message
@@ -41,7 +41,7 @@ module.exports = {
             const stateText = botConfig.kidnapRestricted ? '🔒 **ENABLED** (Restricted to allowed IDs)' : '🔓 **DISABLED** (Everyone can use /kidnap)';
 
             await interaction.reply({
-                content: `⚙️ **/kidnap restriction mode** updated: ${stateText}`,
+                content: `**/kidnap restriction mode** updated: ${stateText}`,
                 ephemeral: true
             });
             return null;
@@ -52,7 +52,7 @@ module.exports = {
             const userList = botConfig.allowedUsers.length > 0 ? botConfig.allowedUsers.map(id => `<@${id}>`).join(', ') : 'None (Everyone allowed if toggle is off)';
 
             await interaction.reply({
-                content: `📊 **Kidnap Config Status:**\n- **Restriction Toggle:** ${stateText}\n- **Allowed Users:** ${userList}`,
+                content: `**Kidnap Config Status:**\n- **Restriction Toggle:** ${stateText}\n- **Allowed Users:** ${userList}`,
                 ephemeral: true
             });
             return null;
