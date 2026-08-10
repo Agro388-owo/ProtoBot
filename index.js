@@ -8,7 +8,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
-    res.send('Bot is active and running 24/7!');
+    res.send('Bot is active and running!');
 });
 
 app.listen(PORT, () => {
@@ -66,39 +66,76 @@ client.once('ready', async () => {
     }
 });
 
+// Helper function to pick a random message variant
+function getRandomMessage(array) {
+    return array[Math.floor(Math.random() * array.length)];
+}
+
 // Handle Slash Command Interactions
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
 
     const { commandName, user } = interaction;
     const target = interaction.options.getUser('target');
+    const recipientName = target ? target.username : 'themselves';
 
     if (commandName === 'bap') {
+        const bapVariants = [
+            `💥 **${user.username}** baps **${target.username}** on the head with a rolled-up newspaper!`,
+            `🥖 **${user.username}** swiftly baps **${target.username}** across the snout with a baguette!`,
+            `🐾 **${user.username}** reaches out and gives **${target.username}** a quick *BAP* on the forehead!`,
+            `🗞️ *BOOP!* **${user.username}** lightly bapped **${target.username}**. No thoughts, empty head.`,
+            `💥 **${user.username}** hits **${target.username}** with a squeaky toy bap! *SQUEAK!*`
+        ];
+
         const embed = new EmbedBuilder()
             .setColor(0xFFA500)
-            .setDescription(`💥 **${user.username}** baps **${target.username}** on the head with a rolled-up newspaper!`);
+            .setDescription(getRandomMessage(bapVariants));
         await interaction.reply({ embeds: [embed] });
     }
 
     else if (commandName === 'pet') {
+        const petVariants = [
+            `🫳 **${user.username}** gently pats **${target.username}** on the head. Good job!`,
+            `✨ **${user.username}** gives **${target.username}** soft and cozy headpats!`,
+            `😸 **${user.username}** aggressively pets **${target.username}**! *Pat pat pat pat!*`,
+            `💖 **${user.username}** places a hand on **${target.username}**'s head and pets them carefully.`,
+            `👑 **${user.username}** adjusts **${target.username}**'s hair and gives them gentle pats.`
+        ];
+
         const embed = new EmbedBuilder()
             .setColor(0xFFC0CB)
-            .setDescription(`🫳 **${user.username}** gently pats **${target.username}** on the head. Good job!`);
+            .setDescription(getRandomMessage(petVariants));
         await interaction.reply({ embeds: [embed] });
     }
 
     else if (commandName === 'blow-up') {
+        const blowUpVariants = [
+            `💥 💣 **${user.username}** threw a bomb at **${target.username}**! *BOOM!*`,
+            `🚀 **${user.username}** launched **${target.username}** directly into the stratosphere! *KABOOM!*`,
+            `🧨 **${user.username}** lit a fuse right under **${target.username}**! Disintegrated into dust!`,
+            `💥 **${user.username}** pressed the red button... **${target.username}** instantly blew up into tiny pixels!`,
+            `⚡ **${user.username}** summoned a tactical strike on **${target.username}**'s position! Zero remains found.`
+        ];
+
         const embed = new EmbedBuilder()
             .setColor(0xFF0000)
-            .setDescription(`💥 💣 **${user.username}** threw a bomb at **${target.username}**! *BOOM!*`);
+            .setDescription(getRandomMessage(blowUpVariants));
         await interaction.reply({ embeds: [embed] });
     }
 
     else if (commandName === 'hamburger') {
-        const recipient = target ? target.username : 'themselves';
+        const hamburgerVariants = [
+            `🍔 **${user.username}** served a nice, warm hamburger to **${recipientName}**! Bon appétit!`,
+            `🍔 **${user.username}** slides a double cheeseburger over to **${recipientName}**! Enjoy!`,
+            `🍔 **${user.username}** cooked a fresh gourmet burger with extra cheese for **${recipientName}**!`,
+            `🍔 **${user.username}** hands **${recipientName}** a mysterious, delicious-looking hamburger!`,
+            `🍔 **${user.username}** threw a whole hamburger directly into **${recipientName}**'s hands!`
+        ];
+
         const embed = new EmbedBuilder()
             .setColor(0x8B4513)
-            .setDescription(`🍔 **${user.username}** served a nice, warm hamburger to **${recipient}**! Bon appétit!`);
+            .setDescription(getRandomMessage(hamburgerVariants));
         await interaction.reply({ embeds: [embed] });
     }
 });
