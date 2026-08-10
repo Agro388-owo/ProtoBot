@@ -13,6 +13,17 @@ module.exports = {
         .addUserOption(option => option.setName('target').setDescription('Target to explode').setRequired(true)),
 
     async execute(interaction, senderName, recipientName) {
+        const targetUser = interaction.options.getUser('target');
+
+        if (interaction.user.id === targetUser.id) {
+            const selfVariants = [
+                `💣 ${senderName} held onto the grenade for too long! *BOOM!*`,
+                `🧨 ${senderName} accidentally lit the fuse backwards...`,
+                `💥 ${senderName} stepped on a landmine!`
+            ];
+            return getRandomMessage(selfVariants);
+        }
+
         const blowUpVariants = [
             `💥 💣 **${senderName}** threw a bomb at **${recipientName}**! *BOOM!*`,
             `🚀 **${senderName}** launched **${recipientName}** directly into the stratosphere! *KABOOM!*`,
