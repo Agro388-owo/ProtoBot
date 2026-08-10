@@ -22,9 +22,9 @@ module.exports = {
         // Self-Target Variants
         if (interaction.user.id === targetUser.id) {
             const selfVariants = [
-                `${senderName} ambushed equipped a frilly black-and-white maid dress!`,
-                `${senderName} tossed a magical maid outfit directly at themselves.`,
-                `${senderName} shipped a high-priority delivery straight to themselves... It's a maid uniform! No turning back now.`,
+                `${senderName} equipped a frilly black-and-white maid dress! <:purocute:1536367584369180803>`,
+                `${senderName} tossed a magical maid outfit directly at themselves. <:puronervous:1536367581995335750>`,
+                `${senderName} shipped a high-priority delivery straight to themselves... It's a maid uniform! No turning back now. <:puroshock:1536366927230799972>`,
                 `${senderName} forced themselves into a maid dress. Look at that pristine apron! <:puroblush:1536364136613806090>`
             ];
             return getRandomMessage(selfVariants);
@@ -32,10 +32,10 @@ module.exports = {
 
         // Standard Maid Dress Variants
         const dressVariants = [
-            `${senderName} ambushed ${recipientName} and forcefully equipped them with a frilly black-and-white maid dress!`,
-            `${senderName} tossed a magical maid outfit at ${recipientName}.`,
-            `${senderName} shipped a high-priority delivery straight to ${recipientName}... It's a maid uniform! They have no choice now.`,
-            `${senderName} forced ${recipientName} into a maid dress. Look at that pristine apron!`
+            `${senderName} ambushed ${recipientName} and forcefully equipped them with a frilly black-and-white maid dress! <:puroadorable:1536364133392457818>`,
+            `${senderName} tossed a magical maid outfit at ${recipientName}. <:puroneutral:1536364135342669824>`,
+            `${senderName} shipped a high-priority delivery straight to ${recipientName}... It's a maid uniform! They have no choice now. <:purocute:1536367584369180803>`,
+            `${senderName} forced ${recipientName} into a maid dress. Look at that pristine apron! <:puroblush:1536364136613806090>`
         ];
 
         return getRandomMessage(dressVariants);
