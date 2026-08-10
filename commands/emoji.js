@@ -1,6 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
 
-// Map of available custom emoji names to their full Discord string format
 const emojiMap = {
     'maiddress': '<:maiddress:1536430032572911646>',
     'protogenirl': '<:protogenirl:1536430038751121499>',
@@ -40,10 +39,10 @@ module.exports = {
         const emojiString = emojiMap[emojiName];
 
         if (!emojiString) {
-            return interaction.reply({ content: 'Emoji not found!', ephemeral: true });
+            return 'Emoji not found!';
         }
 
+        // Return the raw emoji string directly so it renders correctly
         return emojiString;
     }
 };
-
