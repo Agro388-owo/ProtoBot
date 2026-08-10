@@ -17,19 +17,19 @@ module.exports = {
 
         if (interaction.user.id === targetUser.id) {
             const selfVariants = [
-                `🤦 ${senderName} bapped themselves on the forehead! *Ouch!*`,
-                `🗞️ ${senderName} hit themselves with a rolled-up newspaper out of pure confusion!`,
-                `💥 ${senderName} bapped their own head! Self-inflicted boop!`
+                `${senderName} bapped themselves on the forehead! *Ouch!*`,
+                `${senderName} hit themselves with a rolled-up newspaper out of pure confusion!`,
+                `${senderName} bapped their own head! Self-inflicted boop!`
             ];
             return getRandomMessage(selfVariants);
         }
 
         const bapVariants = [
-            `💥 **${senderName}** baps **${recipientName}** on the head with a rolled-up newspaper!`,
-            `🥖 **${senderName}** swiftly baps **${recipientName}** across the snout with a baguette!`,
-            `🐾 **${senderName}** reaches out and gives **${recipientName}** a quick *BAP* on the forehead!`,
-            `🗞️ *BOOP!* **${senderName}** lightly bapped **${recipientName}**. No thoughts, empty head.`,
-            `💥 **${senderName}** hits **${recipientName}** with a squeaky toy bap! *SQUEAK!*`
+            `**${senderName}** baps **${recipientName}** on the head with a rolled-up newspaper!`,
+            `**${senderName}** swiftly baps **${recipientName}** across the snout with a baguette!`,
+            `**${senderName}** reaches out and gives **${recipientName}** a quick *BAP* on the forehead!`,
+            `*BOOP!* **${senderName}** lightly bapped **${recipientName}**. No thoughts, empty head.`,
+            `**${senderName}** hits **${recipientName}** with a squeaky toy bap! *SQUEAK!*`
         ];
         return getRandomMessage(bapVariants);
     }
