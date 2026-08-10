@@ -8,7 +8,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
-    res.send('Bot is active and running 24/7!');
+    res.send('ProtoBot v0.0.1 is active and running 24/7!');
 });
 
 app.listen(PORT, () => {
@@ -18,7 +18,6 @@ app.listen(PORT, () => {
 // ==========================================
 // 2. DISCORD BOT SETUP
 // ==========================================
-// Added GuildMessageReactions intent so the bot can see when you react with ❌
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -29,32 +28,40 @@ const client = new Client({
 
 const TOKEN = process.env.TOKEN;
 
-// Define Slash Commands
+// Define Slash Commands (Configured for Guild + User Account Install)
 const commands = [
     new SlashCommandBuilder()
         .setName('bap')
         .setDescription('Playfully bap someone on the head!')
+        .setIntegrationTypes([0, 1]) // 0 = Guild, 1 = User App
+        .setContexts([0, 1, 2])       // 0 = Guilds, 1 = Bot DMs, 2 = Private Channels / DMs
         .addUserOption(option => option.setName('target').setDescription('Who do you want to bap?').setRequired(true)),
 
     new SlashCommandBuilder()
         .setName('pet')
         .setDescription('Give someone headpats!')
+        .setIntegrationTypes([0, 1])
+        .setContexts([0, 1, 2])
         .addUserOption(option => option.setName('target').setDescription('Who gets pats?').setRequired(true)),
 
     new SlashCommandBuilder()
         .setName('blow-up')
         .setDescription('Explode someone into tiny pieces!')
+        .setIntegrationTypes([0, 1])
+        .setContexts([0, 1, 2])
         .addUserOption(option => option.setName('target').setDescription('Target to explode').setRequired(true)),
 
     new SlashCommandBuilder()
         .setName('hamburger')
         .setDescription('Give someone a delicious hamburger!')
+        .setIntegrationTypes([0, 1])
+        .setContexts([0, 1, 2])
         .addUserOption(option => option.setName('target').setDescription('Who gets a hamburger?').setRequired(false))
 ];
 
 // Register Commands Globally on Startup
 client.once('ready', async () => {
-    console.log(`Logged in as ${client.user.tag}!`);
+    console.log(`ProtoBot v0.0.1 logged in as ${client.user.tag}!`);
 
     if (!TOKEN) {
         console.error('ERROR: TOKEN environment variable is missing!');
@@ -63,7 +70,7 @@ client.once('ready', async () => {
 
     const rest = new REST({ version: '10' }).setToken(TOKEN);
     try {
-        console.log('Registering slash commands...');
+        console.log('Registering slash commands for Guild & User Apps...');
         await rest.put(
             Routes.applicationCommands(client.user.id),
             { body: commands }
