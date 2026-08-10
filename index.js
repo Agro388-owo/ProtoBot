@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder } = require('discord.js');
 const express = require('express');
 
 // ==========================================
@@ -8,7 +8,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
-    res.send('Bot is active and running!');
+    res.send('Bot is active and running 24/7!');
 });
 
 app.listen(PORT, () => {
@@ -18,8 +18,16 @@ app.listen(PORT, () => {
 // ==========================================
 // 2. DISCORD BOT SETUP
 // ==========================================
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
-const TOKEN = process.env.TOKEN; // Retrieved safely from Render's Environment Variables
+// Added GuildMessageReactions intent so the bot can see when you react with ❌
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.GuildMessageReactions
+    ]
+});
+
+const TOKEN = process.env.TOKEN;
 
 // Define Slash Commands
 const commands = [
@@ -75,69 +83,78 @@ function getRandomMessage(array) {
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
 
-    const { commandName, user } = interaction;
-    const target = interaction.options.getUser('target');
-    const recipientName = target ? target.username : 'themselves';
+    const { commandName, member, user } = interaction;
+    
+    // Get Display Names (falls back to global displayName or username)
+    const senderName = member?.displayName || user.displayName || user.username;
+
+    const targetUser = interaction.options.getUser('target');
+    const targetMember = interaction.options.getMember('target');
+    const recipientName = targetMember?.displayName || targetUser?.displayName || targetUser?.username || 'themselves';
+
+    let selectedMessage = '';
 
     if (commandName === 'bap') {
         const bapVariants = [
-            `💥 **${user.username}** baps **${target.username}** on the head with a rolled-up newspaper!`,
-            `🥖 **${user.username}** swiftly baps **${target.username}** across the snout with a baguette!`,
-            `🐾 **${user.username}** reaches out and gives **${target.username}** a quick *BAP* on the forehead!`,
-            `🗞️ *BOOP!* **${user.username}** lightly bapped **${target.username}**. No thoughts, empty head.`,
-            `💥 **${user.username}** hits **${target.username}** with a squeaky toy bap! *SQUEAK!*`
+            `💥 **${senderName}** baps **${recipientName}** on the head with a rolled-up newspaper!`,
+            `🥖 **${senderName}** swiftly baps **${recipientName}** across the snout with a baguette!`,
+            `🐾 **${senderName}** reaches out and gives **${recipientName}** a quick *BAP* on the forehead!`,
+            `🗞️ *BOOP!* **${senderName}** lightly bapped **${recipientName}**. No thoughts, empty head.`,
+            `💥 **${senderName}** hits **${recipientName}** with a squeaky toy bap! *SQUEAK!*`
         ];
-
-        const embed = new EmbedBuilder()
-            .setColor(0xFFA500)
-            .setDescription(getRandomMessage(bapVariants));
-        await interaction.reply({ embeds: [embed] });
+        selectedMessage = getRandomMessage(bapVariants);
     }
 
     else if (commandName === 'pet') {
         const petVariants = [
-            `🫳 **${user.username}** gently pats **${target.username}** on the head. Good job!`,
-            `✨ **${user.username}** gives **${target.username}** soft and cozy headpats!`,
-            `😸 **${user.username}** aggressively pets **${target.username}**! *Pat pat pat pat!*`,
-            `💖 **${user.username}** places a hand on **${target.username}**'s head and pets them carefully.`,
-            `👑 **${user.username}** adjusts **${target.username}**'s hair and gives them gentle pats.`
+            `🫳 **${senderName}** gently pats **${recipientName}** on the head. Good job!`,
+            `✨ **${senderName}** gives **${recipientName}** soft and cozy headpats!`,
+            `😸 **${senderName}** aggressively pets **${recipientName}**! *Pat pat pat pat!*`,
+            `💖 **${senderName}** places a hand on **${recipientName}**'s head and pets them carefully.`,
+            `👑 **${senderName}** adjusts **${recipientName}**'s hair and gives them gentle pats.`
         ];
-
-        const embed = new EmbedBuilder()
-            .setColor(0xFFC0CB)
-            .setDescription(getRandomMessage(petVariants));
-        await interaction.reply({ embeds: [embed] });
+        selectedMessage = getRandomMessage(petVariants);
     }
 
     else if (commandName === 'blow-up') {
         const blowUpVariants = [
-            `💥 💣 **${user.username}** threw a bomb at **${target.username}**! *BOOM!*`,
-            `🚀 **${user.username}** launched **${target.username}** directly into the stratosphere! *KABOOM!*`,
-            `🧨 **${user.username}** lit a fuse right under **${target.username}**! Disintegrated into dust!`,
-            `💥 **${user.username}** pressed the red button... **${target.username}** instantly blew up into tiny pixels!`,
-            `⚡ **${user.username}** summoned a tactical strike on **${target.username}**'s position! Zero remains found.`
+            `💥 💣 **${senderName}** threw a bomb at **${recipientName}**! *BOOM!*`,
+            `🚀 **${senderName}** launched **${recipientName}** directly into the stratosphere! *KABOOM!*`,
+            `🧨 **${senderName}** lit a fuse right under **${recipientName}**! Disintegrated into dust!`,
+            `💥 **${senderName}** pressed the red button... **${recipientName}** instantly blew up into tiny pixels!`,
+            `⚡ **${senderName}** summoned a tactical strike on **${recipientName}**'s position! Zero remains found.`
         ];
-
-        const embed = new EmbedBuilder()
-            .setColor(0xFF0000)
-            .setDescription(getRandomMessage(blowUpVariants));
-        await interaction.reply({ embeds: [embed] });
+        selectedMessage = getRandomMessage(blowUpVariants);
     }
 
     else if (commandName === 'hamburger') {
         const hamburgerVariants = [
-            `🍔 **${user.username}** served a nice, warm hamburger to **${recipientName}**! Bon appétit!`,
-            `🍔 **${user.username}** slides a double cheeseburger over to **${recipientName}**! Enjoy!`,
-            `🍔 **${user.username}** cooked a fresh gourmet burger with extra cheese for **${recipientName}**!`,
-            `🍔 **${user.username}** hands **${recipientName}** a mysterious, delicious-looking hamburger!`,
-            `🍔 **${user.username}** threw a whole hamburger directly into **${recipientName}**'s hands!`
+            `🍔 **${senderName}** served a nice, warm hamburger to **${recipientName}**! Bon appétit!`,
+            `🍔 **${senderName}** slides a double cheeseburger over to **${recipientName}**! Enjoy!`,
+            `🍔 **${senderName}** cooked a fresh gourmet burger with extra cheese for **${recipientName}**!`,
+            `🍔 **${senderName}** hands **${recipientName}** a mysterious, delicious-looking hamburger!`,
+            `🍔 **${senderName}** threw a whole hamburger directly into **${recipientName}**'s hands!`
         ];
-
-        const embed = new EmbedBuilder()
-            .setColor(0x8B4513)
-            .setDescription(getRandomMessage(hamburgerVariants));
-        await interaction.reply({ embeds: [embed] });
+        selectedMessage = getRandomMessage(hamburgerVariants);
     }
+
+    // Send reply as plain text and wait for message object
+    const responseMessage = await interaction.reply({ content: selectedMessage, fetchReply: true });
+
+    // Set up reaction collector: Only the author can delete it using ❌
+    const filter = (reaction, reactUser) => {
+        return (reaction.emoji.name === '❌' || reaction.emoji.name === '✖️') && reactUser.id === user.id;
+    };
+
+    const collector = responseMessage.createReactionCollector({ filter, time: 60000 }); // Active for 60 seconds
+
+    collector.on('collect', async () => {
+        try {
+            await interaction.deleteReply();
+        } catch (error) {
+            console.error('Failed to delete message:', error);
+        }
+    });
 });
 
 // Log into Discord
