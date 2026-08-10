@@ -1,7 +1,13 @@
-const express = require('express');
-const app = express();
-
-// Basic web server so Render doesn't shut down the service
-app.get('/', (req, res) => res.send('Bot is active!'));
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`HTTP keep-alive listening on port ${PORT}`));
+{
+  "name": "ProtoBot",
+  "version": "0.0.1",
+  "description": "A silly ProtoBot. ",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "express": "^4.18.2"
+  }
+}
