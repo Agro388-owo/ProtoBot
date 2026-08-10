@@ -49,8 +49,8 @@ for (const file of commandFiles) {
     }
 }
 
-// Register Commands Globally on Startup
-client.once('ready', async () => {
+// Register Commands Globally on Startup (Using clientReady)
+client.once('clientReady', async () => {
     console.log(`ProtoBot v0.0.1 logged in as ${client.user.tag}!`);
 
     if (!TOKEN) {
@@ -78,13 +78,13 @@ client.on('interactionCreate', async interaction => {
     const command = client.commands.get(interaction.commandName);
     if (!command) return;
 
-    const { member, user } = interaction;
+    const { user } = interaction;
     
-    // Get Display Names
-    const senderName = member?.displayName || user.displayName || user.username;
+    // Tag users via Discord Mention format (<@ID>)
+    const senderName = `<@${user.id}>`;
+    
     const targetUser = interaction.options.getUser('target');
-    const targetMember = interaction.options.getMember('target');
-    const recipientName = targetMember?.displayName || targetUser?.displayName || targetUser?.username || 'themselves';
+    const recipientName = targetUser ? `<@${targetUser.id}>` : 'themselves';
 
     try {
         const selectedMessage = await command.execute(interaction, senderName, recipientName);
