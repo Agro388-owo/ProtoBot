@@ -17,19 +17,19 @@ module.exports = {
 
         if (interaction.user.id === targetUser.id) {
             const selfVariants = [
-                `☠️ ${senderName} jumped off a cliff!`,
-                `🗡️ ${senderName} tripped over their own sword! Ouch...`,
-                `🩸 ${senderName} killed themselves. WHY?`
+                `${senderName} jumped off a cliff!`,
+                `${senderName} tripped over their own weapon! Ouch...`,
+                `${senderName} killed themselves. WHY?`
             ];
             return getRandomMessage(selfVariants);
         }
 
         const murderVariants = [
-            `🔪 ${senderName} snuck up behind ${recipientName} and finished them off in cold blood!`,
-            `☠️ ${senderName} cast a lethal curse on ${recipientName}! Out cold instantly!`,
-            `🎯 ${senderName} hit a 360 no-scope on ${recipientName}! Elimination confirmed!`,
-            `🗡️ ${senderName} challenged ${recipientName} to a duel and left them lying in the dust!`,
-            `🩸 ${senderName} eliminated ${recipientName}! Zero health points remaining.`
+            `${senderName} snuck up behind ${recipientName} and finished them off in cold blood!`,
+            `${senderName} cast a lethal curse on ${recipientName}! Out cold instantly!`,
+            `${senderName} hit a 360 no-scope on ${recipientName}! Elimination confirmed!`,
+            `${senderName} challenged ${recipientName} to a duel and left them lying in the dust!`,
+            `${senderName} eliminated ${recipientName}! Zero health points remaining.`
         ];
         return getRandomMessage(murderVariants);
     }
