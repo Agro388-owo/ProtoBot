@@ -1,5 +1,9 @@
 const { SlashCommandBuilder } = require('discord.js');
 
+function getRandomMessage(array) {
+    return array[Math.floor(Math.random() * array.length)];
+}
+
 const emojiMap = {
     'maiddress': '<:maiddress:1536430032572911646>',
     'protogenirl': '<:protogenirl:1536430038751121499>',
@@ -22,12 +26,12 @@ const emojiMap = {
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('emoji')
-        .setDescription('Send one of your custom bot emojis!')
+        .setDescription('Send a custom emoji with a blank space prefix!')
         .setIntegrationTypes([0, 1])
         .setContexts([0, 1, 2])
-        .addStringOption(option =>
+        .addStringOption(option => 
             option.setName('name')
-                  .setDescription('The name of the emoji')
+                  .setDescription('Which emoji to send?')
                   .setRequired(true)
                   .addChoices(
                       ...Object.keys(emojiMap).slice(0, 25).map(name => ({ name, value: name }))
@@ -42,7 +46,10 @@ module.exports = {
             return 'Emoji not found!';
         }
 
-        // Return the raw emoji string directly so it renders correctly
-        return emojiString;
+        const emojiVariants = [
+            ` ${emojiString}`
+        ];
+
+        return getRandomMessage(emojiVariants);
     }
 };
