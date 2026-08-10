@@ -17,19 +17,19 @@ module.exports = {
 
         if (interaction.user.id === targetUser.id) {
             const selfVariants = [
-                `✨ ${senderName} used a Revive Potion on themselves...`,
-                `⚡ ${senderName} shocked themselves with the defibrillator!`,
-                `🟩 ${senderName} self-revived!`
+                `${senderName} used a Revive Potion on themselves...`,
+                `${senderName} shocked themselves with the defibrillator!`,
+                `${senderName} self-revived!`
             ];
             return getRandomMessage(selfVariants);
         }
 
         const reviveVariants = [
-            `✨ ${senderName} cast a resurrection spell on ${recipientName}! Welcome back to life!`,
-            `⚡ ${senderName} brought out the defibrillator and shocked ${recipientName} back into consciousness! *CLEAR!*`,
-            `🧪 ${senderName} splashed a health potion on ${recipientName}! Back on full HP!`,
-            `🕊️ ${senderName} pulled ${recipientName} back from the afterlife just in time!`,
-            `🟩 ${senderName} held down the revive button on ${recipientName}! Back on their feet!`
+            `${senderName} cast a resurrection spell on ${recipientName}! Welcome back to life!`,
+            `${senderName} brought out the defibrillator and shocked ${recipientName} back into consciousness! *CLEAR!*`,
+            `${senderName} splashed a health potion on ${recipientName}! Back on full HP!`,
+            `${senderName} pulled ${recipientName} back from the afterlife just in time!`,
+            `${senderName} held down the revive button on ${recipientName}! Back on their feet!`
         ];
         return getRandomMessage(reviveVariants);
     }
