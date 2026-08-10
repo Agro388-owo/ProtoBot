@@ -17,19 +17,19 @@ module.exports = {
 
         if (interaction.user.id === targetUser.id) {
             const selfVariants = [
-                `💣 ${senderName} held onto the grenade for too long! *BOOM!*`,
-                `🧨 ${senderName} accidentally lit the fuse backwards...`,
-                `💥 ${senderName} stepped on a landmine!`
+                `${senderName} held onto the grenade for too long! *BOOM!*`,
+                `${senderName} accidentally lit the fuse backwards...`,
+                `${senderName} stepped on a landmine!`
             ];
             return getRandomMessage(selfVariants);
         }
 
         const blowUpVariants = [
-            `💥 💣 **${senderName}** threw a bomb at **${recipientName}**! *BOOM!*`,
-            `🚀 **${senderName}** launched **${recipientName}** directly into the stratosphere! *KABOOM!*`,
-            `🧨 **${senderName}** lit a fuse right under **${recipientName}**! Disintegrated into dust!`,
-            `💥 **${senderName}** pressed the red button... **${recipientName}** instantly blew up into tiny pixels!`,
-            `⚡ **${senderName}** summoned a tactical strike on **${recipientName}**'s position! Zero remains found.`
+            `**${senderName}** threw a bomb at **${recipientName}**! *BOOM!*`,
+            `**${senderName}** launched **${recipientName}** directly into the stratosphere! *KABOOM!*`,
+            `**${senderName}** lit a fuse right under **${recipientName}**! Disintegrated into dust!`,
+            `**${senderName}** pressed the red button... **${recipientName}** instantly blew up into tiny pixels!`,
+            `**${senderName}** summoned a tactical strike on **${recipientName}**'s position! Zero remains found.`
         ];
         return getRandomMessage(blowUpVariants);
     }
