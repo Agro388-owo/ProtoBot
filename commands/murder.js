@@ -26,10 +26,10 @@ module.exports = {
 
         const murderVariants = [
             `${senderName} snuck up behind ${recipientName} and finished them off in cold blood!`,
-            `${senderName} cast a lethal curse on ${recipientName}! Out cold instantly!`,
-            `${senderName} hit a 360 no-scope on ${recipientName}! Elimination confirmed!`,
+            `${senderName} cast a lethal curse on ${recipientName}!`,
+            `${senderName} hit a 360 no-scope on ${recipientName}!`,
             `${senderName} challenged ${recipientName} to a duel and left them lying in the dust!`,
-            `${senderName} eliminated ${recipientName}! Zero health points remaining.`
+            `${senderName} eliminated ${recipientName} instantly!`
         ];
         return getRandomMessage(murderVariants);
     }
