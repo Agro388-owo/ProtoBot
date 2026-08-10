@@ -7,30 +7,31 @@ function getRandomMessage(array) {
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('transfur')
-        .setDescription('Initiate a sticky latex transformation sequence on target!')
+        .setDescription('Transform a user into a sticky latex creature!')
         .setIntegrationTypes([0, 1])
         .setContexts([0, 1, 2])
         .addUserOption(option => 
             option.setName('target')
-                  .setDescription('Who is being transformed?')
+                  .setDescription('Who is getting transformed?')
                   .setRequired(true)
         ),
 
     async execute(interaction, senderName, recipientName) {
         const targetUser = interaction.options.getUser('target');
 
-        // Self-Transfur Glitch Logic
         if (interaction.user.id === targetUser.id) {
             const selfVariants = [
-                `${senderName} dropped a puddle of latex, stepped into it, and got transfurred!`
+                `${senderName} exposed themselves to latex and converted completely! <:protogenirl:1536430038751121499>`,
+                `${senderName} ran a self-diagnostic and rewrote their own firmware into a protogen! <:protoram:1536430036524204113>`,
+                `${senderName} triggered a system override on themselves! <:protogenpop11:1536430034561269780>`
             ];
             return getRandomMessage(selfVariants);
         }
 
-        // Standard Transfur Variants
         const transfurVariants = [
-            `${senderName} ambushed ${recipientName} with a wave of black latex, completely transfurring them!`,
-            `${senderName} covered ${recipientName} in gooey white latex, transfurring them before they could react!`
+            `${senderName} exposed ${recipientName} to latex, converting them completely! <:protogenirl:1536430038751121499>`,
+            `${senderName} ran a diagnostic on ${recipientName}, rewriting their firmware into a protogen! <:protoram:1536430036524204113>`,
+            `${senderName} triggered a system override on ${recipientName}! <:protogenpop11:1536430034561269780>`
         ];
 
         return getRandomMessage(transfurVariants);
