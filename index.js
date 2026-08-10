@@ -2,6 +2,7 @@ const { Client, GatewayIntentBits, REST, Routes, Collection } = require('discord
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const botConfig = require('./botConfig'); // ⚙️ Import your status config
 
 // ==========================================
 // 1. EXPRESS HTTP SERVER (For Render Hosting)
@@ -58,6 +59,13 @@ console.log(`--- Total Commands Loaded: ${client.commands.size} ---`);
 // Register Commands Globally on Startup (Using clientReady)
 client.once('clientReady', async () => {
     console.log(`ProtoBot v0.0.1 logged in as ${client.user.tag}!`);
+
+    // 🟢 Apply status from botConfig.js
+    client.user.setPresence({
+        activities: [{ name: botConfig.activityName, type: botConfig.activityType }],
+        status: botConfig.status,
+    });
+    console.log(`[STATUS] Status set to: ${botConfig.status} | Playing: ${botConfig.activityName}`);
 
     if (!TOKEN) {
         console.error('ERROR: TOKEN environment variable is missing!');
