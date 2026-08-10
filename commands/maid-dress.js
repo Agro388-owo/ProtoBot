@@ -25,7 +25,7 @@ module.exports = {
                 `${senderName} ambushed equipped a frilly black-and-white maid dress!`,
                 `${senderName} tossed a magical maid outfit directly at themselves.`,
                 `${senderName} shipped a high-priority delivery straight to themselves... It's a maid uniform! No turning back now.`,
-                `${senderName} forced themselves into a maid dress. Look at that pristine apron!`
+                `${senderName} forced themselves into a maid dress. Look at that pristine apron! <:puroblush:1536364136613806090>`
             ];
             return getRandomMessage(selfVariants);
         }
