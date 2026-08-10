@@ -10,7 +10,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
-    res.send('ProtoBot v0.0.1 is active and running 24/7!');
+    res.send('ProtoBot v0.0.2 is active!');
 });
 
 app.listen(PORT, () => {
