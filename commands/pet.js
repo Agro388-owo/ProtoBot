@@ -17,19 +17,19 @@ module.exports = {
 
         if (interaction.user.id === targetUser.id) {
             const selfVariants = [
-                `🫳 ${senderName} patted their own head. Self-care is important!`,
-                `✨ ${senderName} gives themselves gently pats. You're doing great!`,
-                `👑 ${senderName} adjusts their own hair and gives themselves a pat on the head.`
+                `${senderName} patted their own head. Self-care is important!`,
+                `${senderName} gives themselves gently pats. You're doing great!`,
+                `${senderName} adjusts their own hair and gives themselves a pat on the head.`
             ];
             return getRandomMessage(selfVariants);
         }
 
         const petVariants = [
-            `🫳 **${senderName}** gently pats **${recipientName}** on the head. Good job!`,
-            `✨ **${senderName}** gives **${recipientName}** soft and cozy headpats!`,
-            `😸 **${senderName}** aggressively pets **${recipientName}**! *Pat pat pat pat!*`,
-            `💖 **${senderName}** places a hand on **${recipientName}**'s head and pets them carefully.`,
-            `👑 **${senderName}** adjusts **${recipientName}**'s hair and gives them gentle pats.`
+            `**${senderName}** gently pats **${recipientName}** on the head. Good job!`,
+            `**${senderName}** gives **${recipientName}** soft and cozy headpats!`,
+            `**${senderName}** aggressively pets **${recipientName}**! *Pat pat pat pat!*`,
+            `**${senderName}** places a hand on **${recipientName}**'s head and pets them carefully.`,
+            `**${senderName}** adjusts **${recipientName}**'s hair and gives them gentle pats.`
         ];
         return getRandomMessage(petVariants);
     }
