@@ -38,16 +38,22 @@ const commandsArray = [];
 const commandsPath = path.join(__dirname, 'commands');
 const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
 
+console.log('--- Loading Commands ---');
+
 for (const file of commandFiles) {
     const filePath = path.join(commandsPath, file);
     const command = require(filePath);
     if ('data' in command && 'execute' in command) {
         client.commands.set(command.data.name, command);
         commandsArray.push(command.data.toJSON());
+        // 🔍 Logs each command to the console on startup!
+        console.log(`[LOADED] Command activated: /${command.data.name} (${file})`);
     } else {
         console.warn(`[WARNING] The command at ${filePath} is missing "data" or "execute".`);
     }
 }
+
+console.log(`--- Total Commands Loaded: ${client.commands.size} ---`);
 
 // Register Commands Globally on Startup (Using clientReady)
 client.once('clientReady', async () => {
