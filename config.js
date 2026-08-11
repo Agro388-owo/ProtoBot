@@ -1,14 +1,17 @@
-// config.js (Root folder)
 module.exports = {
-    // Put your Discord User ID here
+    // 👑 Your Owner Discord ID
     OWNER_ID: '1048579285687996466',
 
-    // Toggle state (default: true = restrictions enabled)
-    kidnapRestricted: true,
-
-    // List of allowed user IDs (If empty, everyone can use it when enabled)
+    // 🔒 Kidnap Access Restrictions
+    kidnapRestricted: false,
+    
+    // Configurable list of user IDs allowed to bypass restrictions or use admin tools
     allowedUsers: [
-        // '1230079549123858507',
-        // '1048579285687996466'
-    ]
+        '1048579285687996466'
+    ],
+
+    // 🎮 Bot Status configuration
+    status: 'online',
+    activityName: 'Changed',
+    activityType: 0, // 0 = Playing
 };
