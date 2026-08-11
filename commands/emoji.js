@@ -6,8 +6,7 @@ function getRandomMessage(array) {
 
 const emojiMap = {
     'maiddress': '<:maiddress:1536430032572911646>',
-    'protogenirl': '<:protogenirl:1536430038751121499>',
-    'protogenpop11': '<:protogenpop11:1536430034561269780>',
+    'protogenirl': '<:protogenirl:1536430038751121499>', 
     'Puropreocupado': '<:Puropreocupado:1536430030916288572>',
     'Puro_Blush6': '<:Puro_Blush6:1536430029104353380>',
     'Puro_Pathetic6': '<:Puro_Pathetic6:1536430027468710019>',
