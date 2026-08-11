@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, ActivityType } = require('discord.js');
 const botConfig = require('../config.js');
+const { broadcastStatusUpdate } = require('../index.js'); // Import broadcast for live web push
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -124,6 +125,9 @@ module.exports = {
                     ],
                     status: newStatus,
                 });
+
+                // ⚡ Instantly broadcast changes to the website
+                broadcastStatusUpdate();
 
                 await interaction.reply({ content: `✅ Successfully updated bot presence!\n🎮 **Activity:** Playing ${newActivity}\n🟢 **Status:** ${newStatus}`, ephemeral: true });
                 return null;
