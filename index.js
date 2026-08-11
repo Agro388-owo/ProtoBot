@@ -1,17 +1,41 @@
-const { Client, GatewayIntentBits, REST, Routes, Collection } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, Collection, ActivityType } = require('discord.js');
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const botConfig = require('./botConfig'); // ⚙️ Import your status config
 
 // ==========================================
-// 1. EXPRESS HTTP SERVER (For Render Hosting)
+// 1. EXPRESS HTTP SERVER & WEBSITE API
 // ==========================================
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.get('/', (req, res) => {
-    res.send('ProtoBot v0.0.2 is active!');
+// Serve static website files from the "public" folder
+app.use(express.static(path.join(__dirname, 'public')));
+
+// API endpoint to send live bot info to the website
+app.get('/api/status', (req, res) => {
+    let activityTypeString = 'Playing';
+    if (botConfig.activityType === 1) activityTypeString = 'Streaming';
+    if (botConfig.activityType === 2) activityTypeString = 'Listening to';
+    if (botConfig.activityType === 3) activityTypeString = 'Watching';
+    if (botConfig.activityType === 5) activityTypeString = 'Competing in';
+
+    const uptimeSeconds = client.uptime ? Math.floor(client.uptime / 1000) : 0;
+    const hours = Math.floor(uptimeSeconds / 3600);
+    const minutes = Math.floor((uptimeSeconds % 3600) / 60);
+    const seconds = uptimeSeconds % 60;
+    const uptimeString = `${hours}h ${minutes}m ${seconds}s`;
+
+    res.json({
+        online: client.isReady(),
+        activityName: botConfig.activityName,
+        activityTypeString: activityTypeString,
+        status: botConfig.status,
+        uptime: client.isReady() ? uptimeString : 'Starting up...',
+        avatarUrl: client.user ? client.user.displayAvatarURL({ size: 256 }) : null,
+        bannerUrl: client.user ? client.user.bannerURL({ size: 512 }) : null,
+    });
 });
 
 app.listen(PORT, () => {
@@ -26,7 +50,7 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.GuildMessageReactions,
-        GatewayIntentBits.GuildPresences // 🟢 Required for presence updates to broadcast online status
+        GatewayIntentBits.GuildPresences
     ]
 });
 
@@ -48,7 +72,6 @@ for (const file of commandFiles) {
     if ('data' in command && 'execute' in command) {
         client.commands.set(command.data.name, command);
         commandsArray.push(command.data.toJSON());
-        // 🔍 Logs each command to the console on startup!
         console.log(`[LOADED] Command activated: /${command.data.name} (${file})`);
     } else {
         console.warn(`[WARNING] The command at ${filePath} is missing "data" or "execute".`);
@@ -57,13 +80,23 @@ for (const file of commandFiles) {
 
 console.log(`--- Total Commands Loaded: ${client.commands.size} ---`);
 
-// Register Commands Globally on Startup (Using clientReady)
-client.once('clientReady', async () => {
-    console.log(`ProtoBot v0.0.1 logged in as ${client.user.tag}!`);
+// Register Commands & Presence on Startup
+client.once('ready', async () => {
+    console.log(`ProtoBot v0.0.2 logged in as ${client.user.tag}!`);
 
-    // 🟢 Apply status from botConfig.js
+    // 🟢 Apply Custom Status ("Thought") and Playing Changed Activity
     client.user.setPresence({
-        activities: [{ name: botConfig.activityName, type: botConfig.activityType }],
+        activities: [
+            {
+                name: 'customstatus',
+                type: ActivityType.Custom,
+                state: 'Living my best life 🤖' // <-- Change your custom text/thought here anytime!
+            },
+            { 
+                name: botConfig.activityName, // "Changed"
+                type: botConfig.activityType  // 0 = Playing
+            }
+        ],
         status: botConfig.status,
     });
     console.log(`[STATUS] Status set to: ${botConfig.status} | Playing: ${botConfig.activityName}`);
@@ -94,20 +127,15 @@ client.on('interactionCreate', async interaction => {
     if (!command) return;
 
     const { user } = interaction;
-    
-    // Tag users via Discord Mention format (<@ID>)
     const senderName = `<@${user.id}>`;
-    
     const targetUser = interaction.options.getUser('target');
     const recipientName = targetUser ? `<@${targetUser.id}>` : 'themselves';
 
     try {
         const selectedMessage = await command.execute(interaction, senderName, recipientName);
 
-        // Send reply
         const responseMessage = await interaction.reply({ content: selectedMessage, fetchReply: true });
 
-        // Set up reaction collector: Only the author can delete it using ❌
         const filter = (reaction, reactUser) => {
             return (reaction.emoji.name === '❌' || reaction.emoji.name === '✖️') && reactUser.id === user.id;
         };
