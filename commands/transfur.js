@@ -22,6 +22,7 @@ module.exports = {
                   .addChoices(
                       { name: 'Latex Creature', value: 'latex' },
                       { name: 'Protogen', value: 'protogen' },
+                      { name: 'Tiger Shark', value: 'shark' },
                       { name: 'Snow Leopard', value: 'leopard' },
                       { name: 'Dark Latex Wolf', value: 'wolf' },
                       { name: 'Blank / Custom', value: 'blank' }
@@ -40,46 +41,66 @@ module.exports = {
             return `${senderName} transformed ${recipientName}...`;
         }
 
-        // 🐾 Form-specific message lists
+        // 🐾 Form-specific message lists with expanded pool/substance themes
         const formMessages = {
             latex: {
                 self: [
-                    `${senderName} exposed themselves to sticky latex and converted completely! <:protogenirl:1536430038751121499>`,
-                    `${senderName} stepped into a pool of dark latex and merged with it!`
+                    `${senderName} took a bath in a pool of dark latex and dissolved into a shiny new form! <:protogenirl:1536430038751121499>`,
+                    `${senderName} stepped into a bubbling vat of liquid latex and merged with it completely!`,
+                    `${senderName} accidentally slipped into a latex puddle and got thoroughly absorbed!`
                 ],
                 other: [
-                    `${senderName} exposed ${recipientName} to sticky latex, converting them completely! <:protogenirl:1536430038751121499>`,
-                    `${senderName} splashed ${recipientName} with liquid latex, absorbing them into a new form!`
+                    `${senderName} threw ${recipientName} into a pool of dark latex, converting them completely! <:protogenirl:1536430038751121499>`,
+                    `${senderName} pushed ${recipientName} into a vat of liquid latex, absorbing them into a shiny new form!`,
+                    `${senderName} splashed ${recipientName} with a wave of sticky latex until they transformed!`
                 ]
             },
             protogen: {
                 self: [
-                    `${senderName} ran a self-diagnostic and rewrote their own firmware into a protogen! <:protoram:1536430036524204113>`,
-                    `${senderName} triggered a system override and rebooted as a protogen! <:protogenpop11:1536430034561269780>`
+                    `${senderName} jumped into a cybernetic reclamation pool, rewriting their firmware into a protogen! <:protoram:1536430036524204113>`,
+                    `${senderName} ran a self-diagnostic and rebooted their chassis as a brand new protogen! <:protogenpop11:1536430034561269780>`,
+                    `${senderName} stepped into a nanite bath and upgraded their entire biological frame!`
                 ],
                 other: [
-                    `${senderName} ran a system diagnostic on ${recipientName}, rewriting their firmware into a protogen! <:protoram:1536430036524204113>`,
-                    `${senderName} upgraded ${recipientName}'s OS into a sleek new protogen chassis!`
+                    `${senderName} threw ${recipientName} into a cybernetic reclamation pool, rewriting their firmware into a protogen! <:protoram:1536430036524204113>`,
+                    `${senderName} pushed ${recipientName} into a high-tech chamber, upgrading their OS into a sleek protogen chassis!`,
+                    `${senderName} exposed ${recipientName} to a cloud of active nanites, converting them instantly!`
+                ]
+            },
+            shark: {
+                self: [
+                    `${senderName} took a long swim in an aquatic latex pool and shifted into a striped tiger shark! 🦈`,
+                    `${senderName} plunged headfirst into a tank of shark latex, growing a sleek tail and fin!`,
+                    `${senderName} dove into a deep blue fluid reservoir and emerged as an eager tiger shark!`
+                ],
+                other: [
+                    `${senderName} threw ${recipientName} into a pool of aquatic latex, converting them into a striped tiger shark! 🦈`,
+                    `${senderName} shoved ${recipientName} into a deep water tank filled with shark latex!`,
+                    `${senderName} splashed ${recipientName} with a heavy wave of fluid, turning them into a friendly shark!`
                 ]
             },
             leopard: {
                 self: [
-                    `${senderName} absorbed a snow leopard latex sample and took on a fluffy spotted form!`,
-                    `${senderName} transformed into a swift snow leopard creature!`
+                    `${senderName} rolled around in a snow leopard latex deposit, taking on a fluffy spotted form!`,
+                    `${senderName} waded through a chilled basin of white and grey latex, emerging as a swift feline!`,
+                    `${senderName} absorbed a snow leopard sample from a testing pool and grew soft paws!`
                 ],
                 other: [
-                    `${senderName} pounced on ${recipientName} with a snow leopard latex sample, transforming them into a fluffy feline!`,
-                    `${senderName} converted ${recipientName} into a cozy snow leopard form!`
+                    `${senderName} threw ${recipientName} into a snow leopard latex basin, transforming them into a fluffy feline!`,
+                    `${senderName} pushed ${recipientName} right into a cold puddle of spotted latex!`,
+                    `${senderName} wrapped ${recipientName} in a thick blanket of snow leopard goo!`
                 ]
             },
             wolf: {
                 self: [
-                    `${senderName} merged with a dark latex wolf, shifting into a sleek hound form!`,
-                    `${senderName} embraced the dark latex pack and became a wolf!`
+                    `${senderName} stepped into a den filled with dark latex fluid and shifted into a sleek hound!`,
+                    `${senderName} bathed in a pool of pure dark latex, embracing the pack as a wolf!`,
+                    `${senderName} sank into a murky shadow pool and rose up as a dark latex wolf!`
                 ],
                 other: [
-                    `${senderName} wrapped ${recipientName} in dark latex, turning them into a loyal dark latex wolf!`,
-                    `${senderName} converted ${recipientName} into a stealthy dark latex hound!`
+                    `${senderName} threw ${recipientName} into a pool of dark latex, turning them into a loyal wolf!`,
+                    `${senderName} shoved ${recipientName} into a shadow pit filled with receptive latex hounds!`,
+                    `${senderName} dunked ${recipientName} into a dark latex vat until they completely joined the pack!`
                 ]
             }
         };
