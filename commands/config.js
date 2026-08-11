@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, ActivityType } = require('discord.js');
 const botConfig = require('../config.js');
-const { broadcastStatusUpdate } = require('../index.js');
+const { broadcast } = require('../websocket.js'); // 🟢 Clean broadcast import
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -8,37 +8,15 @@ module.exports = {
         .setDescription('Admin configuration commands (Owner only)')
         .setIntegrationTypes([0, 1])
         .setContexts([0, 1, 2])
-        // --- 1. KIDNAP RESTRICTION GROUP ---
         .addSubcommandGroup(group =>
             group
                 .setName('kidnap-restriction')
                 .setDescription('Manage /kidnap command restrictions')
-                .addSubcommand(sub =>
-                    sub
-                        .setName('toggle')
-                        .setDescription('Toggle user restrictions for /kidnap on or off')
-                )
-                .addSubcommand(sub =>
-                    sub
-                        .setName('status')
-                        .setDescription('Check current restriction settings for /kidnap')
-                )
-                .addSubcommand(sub =>
-                    sub
-                        .setName('add-user')
-                        .setDescription('Allow a specific user to use restricted commands')
-                        .addUserOption(opt => 
-                            opt.setName('user').setDescription('The user to whitelist').setRequired(true))
-                )
-                .addSubcommand(sub =>
-                    sub
-                        .setName('remove-user')
-                        .setDescription('Remove a user from the whitelist')
-                        .addUserOption(opt => 
-                            opt.setName('user').setDescription('The user to remove').setRequired(true))
-                )
+                .addSubcommand(sub => sub.setName('toggle').setDescription('Toggle user restrictions for /kidnap on or off'))
+                .addSubcommand(sub => sub.setName('status').setDescription('Check current restriction settings for /kidnap'))
+                .addSubcommand(sub => sub.setName('add-user').setDescription('Allow a specific user to use restricted commands').addUserOption(opt => opt.setName('user').setDescription('The user to whitelist').setRequired(true)))
+                .addSubcommand(sub => sub.setName('remove-user').setDescription('Remove a user from the whitelist').addUserOption(opt => opt.setName('user').setDescription('The user to remove').setRequired(true)))
         )
-        // --- 2. BOT STATUS GROUP ---
         .addSubcommandGroup(group =>
             group
                 .setName('bot-status')
@@ -47,10 +25,7 @@ module.exports = {
                     sub
                         .setName('set')
                         .setDescription('Set a new game or activity')
-                        .addStringOption(option =>
-                            option.setName('activity')
-                                .setDescription('The name of the game/activity (e.g. Changed)')
-                                .setRequired(true))
+                        .addStringOption(option => option.setName('activity').setDescription('The name of the game/activity (e.g. Changed)').setRequired(true))
                         .addStringOption(option =>
                             option.setName('status')
                                 .setDescription('The online presence indicator')
@@ -63,29 +38,17 @@ module.exports = {
                                 ))
                 )
         )
-        // --- 3. DEBUG MODE GROUP (NEW) ---
         .addSubcommandGroup(group =>
             group
                 .setName('debug-mode')
                 .setDescription('Manage bot debug and diagnostics features')
-                .addSubcommand(sub =>
-                    sub
-                        .setName('toggle')
-                        .setDescription('Turn advanced debug logging and features on or off')
-                )
-                .addSubcommand(sub =>
-                    sub
-                        .setName('status')
-                        .setDescription('Check current debug mode state')
-                )
+                .addSubcommand(sub => sub.setName('toggle').setDescription('Turn advanced debug logging on or off'))
+                .addSubcommand(sub => sub.setName('status').setDescription('Check current debug mode state'))
         ),
 
     async execute(interaction) {
         if (interaction.user.id !== botConfig.OWNER_ID) {
-            await interaction.reply({
-                content: '❌ Only the designated bot owner can use `/config` commands!',
-                ephemeral: true
-            });
+            await interaction.reply({ content: '❌ Only the designated bot owner can use `/config` commands!', ephemeral: true });
             return null;
         }
 
@@ -128,13 +91,24 @@ module.exports = {
 
                 interaction.client.user.setPresence({
                     activities: [
-                        { name: 'customstatus', type: ActivityType.Custom, state: 'Living my best life 🤖' },
+                        { name: 'customstatus', type: ActivityType.Custom, state: botConfig.debugMode ? '🛠️ Debug Mode Active' : 'Living my best life 🤖' },
                         { name: newActivity, type: ActivityType.Playing }
                     ],
                     status: newStatus,
                 });
 
-                broadcastStatusUpdate();
+                // ⚡ Instantly broadcast update to the web client
+                broadcast({
+                    online: interaction.client.isReady(),
+                    activityName: botConfig.activityName,
+                    activityTypeString: 'Playing',
+                    status: botConfig.status,
+                    uptime: 'Active',
+                    avatarUrl: interaction.client.user.displayAvatarURL({ size: 256 }),
+                    bannerUrl: interaction.client.user.bannerURL({ size: 512 }),
+                    debugMode: botConfig.debugMode
+                });
+
                 await interaction.reply({ content: `✅ Successfully updated bot presence!\n🎮 **Activity:** Playing ${newActivity}\n🟢 **Status:** ${newStatus}`, ephemeral: true });
                 return null;
             }
@@ -142,7 +116,7 @@ module.exports = {
         else if (group === 'debug-mode') {
             if (subcommand === 'toggle') {
                 botConfig.debugMode = !botConfig.debugMode;
-                const stateText = botConfig.debugMode ? '🛠️ **ENABLED** (Extended debug traces active)' : '💤 **DISABLED**';
+                const stateText = botConfig.debugMode ? '🛠️ **ENABLED**' : '💤 **DISABLED**';
                 await interaction.reply({ content: `**Debug Mode** updated: ${stateText}`, ephemeral: true });
                 return null;
             }
