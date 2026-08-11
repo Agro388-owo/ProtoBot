@@ -3,21 +3,25 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const botConfig = require('./config');
+const { addClient, removeClient, broadcast } = require('./websocket'); // 🟢 Use helper instead of circular self-require
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-let sseClients = [];
-
+// SSE Endpoint for instant live website streaming
 app.get('/api/events', (req, res) => {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
-    sseClients.push(res);
-    req.on('close', () => { sseClients = sseClients.filter(c => c !== res); });
+
+    addClient(res);
+
+    req.on('close', () => {
+        removeClient(res);
+    });
 });
 
 app.get('/api/status', (req, res) => {
@@ -48,10 +52,12 @@ function getStatusPayload() {
     };
 }
 
-function broadcastStatusUpdate() {
-    const payload = JSON.stringify(getStatusPayload());
-    sseClients.forEach(client => client.write(`data: ${payload}\n\n`));
-}
+// 🟢 Continuous uptime ticker: Pushes live uptime to the website every second automatically!
+setInterval(() => {
+    if (client.isReady()) {
+        broadcast(getStatusPayload());
+    }
+}, 1000);
 
 app.listen(PORT, () => {
     console.log(`HTTP server listening on port ${PORT}`);
@@ -112,7 +118,6 @@ client.once('ready', async () => {
     }
 });
 
-// Handle Slash Command Interactions & Debug Number Parsing
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
 
@@ -124,7 +129,6 @@ client.on('interactionCreate', async interaction => {
     const targetUser = interaction.options.getUser('target');
     const recipientName = targetUser ? `<@${targetUser.id}>` : 'themselves';
 
-    // 🛠️ Debug feature: Log execution details if debugMode is enabled
     if (botConfig.debugMode) {
         console.log(`[DEBUG TRACE] User ${user.tag} (${user.id}) executed /${interaction.commandName}`);
     }
@@ -132,10 +136,7 @@ client.on('interactionCreate', async interaction => {
     try {
         let selectedMessage = await command.execute(interaction, senderName, recipientName);
 
-        // 🔢 Number-suffix feature: If a number option or text trailing check is present
-        // Check if any string option or general inputs ended with a numeric selector
         for (const [optName, optVal] of interaction.options.data.entries?.() || []) {
-            // Evaluates options if they are text strings that end with a number
             if (typeof optVal.value === 'string' && /^\d+$/.test(optVal.value.trim())) {
                 const numericCode = parseInt(optVal.value.trim(), 10);
                 selectedMessage += `\n🔢 **[Debug Number Match]:** Recognized sequence ID **#${numericCode}** from option \`${optVal.name}\`.`;
@@ -165,4 +166,3 @@ client.on('interactionCreate', async interaction => {
 });
 
 client.login(TOKEN);
-module.exports = { client, broadcastStatusUpdate };
