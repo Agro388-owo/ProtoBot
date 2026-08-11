@@ -3,7 +3,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const botConfig = require('./config');
-const { addClient, removeClient, broadcast } = require('./websocket'); // 🟢 Use helper instead of circular self-require
+const { addClient, removeClient, broadcast } = require('./websocket');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -93,6 +93,38 @@ for (const file of commandFiles) {
 }
 console.log(`--- Total Commands Loaded: ${client.commands.size} ---`);
 
+// 📝 Helper function to log user interaction to users.txt
+function logUserInteraction(user) {
+    const filePath = path.join(__dirname, 'users.txt');
+    const isStillActive = client.users.cache.has(user.id);
+    const statusText = isStillActive ? 'Active (Reachable)' : 'Inactive';
+
+    const userEntry = `Username: ${user.tag}\nID: ${user.id}\nStatus: ${statusText}\n-------------------------\n`;
+
+    try {
+        let existingData = '';
+        if (fs.existsSync(filePath)) {
+            existingData = fs.readFileSync(filePath, 'utf8');
+        }
+
+        if (!existingData.includes(user.id)) {
+            fs.appendFileSync(filePath, userEntry);
+            console.log(`[USER LOGGER] New user recorded: ${user.tag} (${user.id})`);
+        } else {
+            const entries = existingData.split('-------------------------\n').filter(Boolean);
+            const updatedEntries = entries.map(entry => {
+                if (entry.includes(`ID: ${user.id}`)) {
+                    return `Username: ${user.tag}\nID: ${user.id}\nStatus: ${statusText}\n`;
+                }
+                return entry;
+            });
+            fs.writeFileSync(filePath, updatedEntries.join('-------------------------\n') + (updatedEntries.length ? '-------------------------\n' : ''));
+        }
+    } catch (err) {
+        console.error('[USER LOGGER ERROR] Failed to write to users.txt:', err);
+    }
+}
+
 client.once('ready', async () => {
     console.log(`ProtoBot v0.0.3 logged in as ${client.user.tag}!`);
 
@@ -120,6 +152,9 @@ client.once('ready', async () => {
 
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
+
+    // 📝 Automatically log user details to users.txt
+    logUserInteraction(interaction.user);
 
     const command = client.commands.get(interaction.commandName);
     if (!command) return;
