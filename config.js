@@ -2,13 +2,14 @@ module.exports = {
     // 👑 Your Owner Discord ID
     OWNER_ID: '1048579285687996466',
 
-    // 🔒 Kidnap Access Restrictions
+    // 🔒 Kidnap Access Restrictions & Whitelist
     kidnapRestricted: false,
-    
-    // Configurable list of user IDs allowed to bypass restrictions or use admin tools
     allowedUsers: [
         '1048579285687996466'
     ],
+
+    // 🛠️ Debug Features Toggle (Controlled via /config debug-mode)
+    debugMode: false,
 
     // 🎮 Bot Status configuration
     status: 'online',
