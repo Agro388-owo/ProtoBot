@@ -9,5 +9,5 @@ module.exports = {
     activityType: ActivityType.Playing, 
 
     // The text displayed in the status
-    activityName: 'goofing around'
+    activityName: 'Changed'
 };
