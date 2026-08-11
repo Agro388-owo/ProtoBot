@@ -171,10 +171,13 @@ client.on('interactionCreate', async interaction => {
     try {
         let selectedMessage = await command.execute(interaction, senderName, recipientName);
 
-        for (const [optName, optVal] of interaction.options.data.entries?.() || []) {
-            if (typeof optVal.value === 'string' && /^\d+$/.test(optVal.value.trim())) {
-                const numericCode = parseInt(optVal.value.trim(), 10);
-                selectedMessage += `\n🔢 **[Debug Number Match]:** Recognized sequence ID **#${numericCode}** from option \`${optVal.name}\`.`;
+        // 🛠️ ONLY trigger number suffix matching if debugMode is enabled!
+        if (botConfig.debugMode) {
+            for (const [optName, optVal] of interaction.options.data.entries?.() || []) {
+                if (typeof optVal.value === 'string' && /^\d+$/.test(optVal.value.trim())) {
+                    const numericCode = parseInt(optVal.value.trim(), 10);
+                    selectedMessage += `\n🔢 **[Debug Number Match]:** Recognized sequence ID **#${numericCode}** from option \`${optVal.name}\`.`;
+                }
             }
         }
 
