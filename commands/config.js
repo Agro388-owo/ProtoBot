@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, ActivityType } = require('discord.js');
 const botConfig = require('../config.js');
-const { broadcastStatusUpdate } = require('../index.js'); // Import broadcast for live web push
+const { broadcastStatusUpdate } = require('../index.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -62,10 +62,25 @@ module.exports = {
                                     { name: 'Invisible', value: 'invisible' }
                                 ))
                 )
+        )
+        // --- 3. DEBUG MODE GROUP (NEW) ---
+        .addSubcommandGroup(group =>
+            group
+                .setName('debug-mode')
+                .setDescription('Manage bot debug and diagnostics features')
+                .addSubcommand(sub =>
+                    sub
+                        .setName('toggle')
+                        .setDescription('Turn advanced debug logging and features on or off')
+                )
+                .addSubcommand(sub =>
+                    sub
+                        .setName('status')
+                        .setDescription('Check current debug mode state')
+                )
         ),
 
     async execute(interaction) {
-        // 🔒 STRICT OWNER CHECK USING YOUR ID
         if (interaction.user.id !== botConfig.OWNER_ID) {
             await interaction.reply({
                 content: '❌ Only the designated bot owner can use `/config` commands!',
@@ -77,39 +92,32 @@ module.exports = {
         const group = interaction.options.getSubcommandGroup();
         const subcommand = interaction.options.getSubcommand();
 
-        // --- GROUP: KIDNAP RESTRICTION ---
         if (group === 'kidnap-restriction') {
             if (subcommand === 'toggle') {
                 botConfig.kidnapRestricted = !botConfig.kidnapRestricted;
-                const stateText = botConfig.kidnapRestricted ? '🔒 **ENABLED** (Restricted)' : '🔓 **DISABLED** (Everyone allowed)';
-
+                const stateText = botConfig.kidnapRestricted ? '🔒 **ENABLED**' : '🔓 **DISABLED**';
                 await interaction.reply({ content: `**/kidnap restriction mode** updated: ${stateText}`, ephemeral: true });
                 return null;
             } 
             else if (subcommand === 'status') {
                 const stateText = botConfig.kidnapRestricted ? '🔒 **ENABLED**' : '🔓 **DISABLED**';
                 const userList = botConfig.allowedUsers.length > 0 ? botConfig.allowedUsers.map(id => `<@${id}>`).join(', ') : 'None';
-
                 await interaction.reply({ content: `**Kidnap Config Status:**\n- **Restrictions:** ${stateText}\n- **Allowed Whitelist:** ${userList}`, ephemeral: true });
                 return null;
             }
             else if (subcommand === 'add-user') {
                 const targetUser = interaction.options.getUser('user');
-                if (!botConfig.allowedUsers.includes(targetUser.id)) {
-                    botConfig.allowedUsers.push(targetUser.id);
-                }
-                await interaction.reply({ content: `✅ Added <@${targetUser.id}> to the allowed access list.`, ephemeral: true });
+                if (!botConfig.allowedUsers.includes(targetUser.id)) botConfig.allowedUsers.push(targetUser.id);
+                await interaction.reply({ content: `✅ Added <@${targetUser.id}> to the whitelist.`, ephemeral: true });
                 return null;
             }
             else if (subcommand === 'remove-user') {
                 const targetUser = interaction.options.getUser('user');
                 botConfig.allowedUsers = botConfig.allowedUsers.filter(id => id !== targetUser.id);
-                await interaction.reply({ content: `❌ Removed <@${targetUser.id}> from the allowed access list.`, ephemeral: true });
+                await interaction.reply({ content: `❌ Removed <@${targetUser.id}> from the whitelist.`, ephemeral: true });
                 return null;
             }
         }
-
-        // --- GROUP: BOT STATUS ---
         else if (group === 'bot-status') {
             if (subcommand === 'set') {
                 const newActivity = interaction.options.getString('activity');
@@ -126,10 +134,21 @@ module.exports = {
                     status: newStatus,
                 });
 
-                // ⚡ Instantly broadcast changes to the website
                 broadcastStatusUpdate();
-
                 await interaction.reply({ content: `✅ Successfully updated bot presence!\n🎮 **Activity:** Playing ${newActivity}\n🟢 **Status:** ${newStatus}`, ephemeral: true });
+                return null;
+            }
+        }
+        else if (group === 'debug-mode') {
+            if (subcommand === 'toggle') {
+                botConfig.debugMode = !botConfig.debugMode;
+                const stateText = botConfig.debugMode ? '🛠️ **ENABLED** (Extended debug traces active)' : '💤 **DISABLED**';
+                await interaction.reply({ content: `**Debug Mode** updated: ${stateText}`, ephemeral: true });
+                return null;
+            }
+            else if (subcommand === 'status') {
+                const stateText = botConfig.debugMode ? '🛠️ **ENABLED**' : '💤 **DISABLED**';
+                await interaction.reply({ content: `**Debug Diagnostics Status:** ${stateText}`, ephemeral: true });
                 return null;
             }
         }
