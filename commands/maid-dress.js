@@ -33,7 +33,7 @@ module.exports = {
         // Standard Maid Dress Variants
         const dressVariants = [
             `${senderName} ambushed ${recipientName} and forcefully equipped them with a frilly black-and-white maid dress! <:maiddress:1536430032572911646>`,
-            `${senderName} tossed a magical maid outfit at ${recipientName}. <:Purodance:1536429613641760768>`,
+            `${senderName} tossed a magical maid outfit at ${recipientName}. <:puroblush:1536364136613806090>`,
             `${senderName} shipped a high-priority delivery straight to ${recipientName}... It's a maid uniform! They have no choice now. <:purocute:1536367584369180803>`,
             `${senderName} forced ${recipientName} into a maid dress. Look at that pristine apron! <:puroblush:1536364136613806090>`
         ];
