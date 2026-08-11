@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 3000;
 // Serve static website files from the "public" folder
 app.use(express.static(path.join(__dirname, 'public')));
 
-// API endpoint to send live bot info to the website
+// API endpoint to send live bot info to your index.html page
 app.get('/api/status', (req, res) => {
     let activityTypeString = 'Playing';
     if (botConfig.activityType === 1) activityTypeString = 'Streaming';
@@ -50,7 +50,7 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.GuildMessageReactions,
-        GatewayIntentBits.GuildPresences
+        GatewayIntentBits.GuildPresences // 🟢 Required for presence updates
     ]
 });
 
@@ -80,21 +80,21 @@ for (const file of commandFiles) {
 
 console.log(`--- Total Commands Loaded: ${client.commands.size} ---`);
 
-// Register Commands & Presence on Startup
+// Register Commands Globally on Startup
 client.once('ready', async () => {
     console.log(`ProtoBot v0.0.2 logged in as ${client.user.tag}!`);
 
-    // 🟢 Apply Custom Status ("Thought") and Playing Changed Activity
+    // 🟢 Apply Custom Status ("thought") + Playing Activity from botConfig
     client.user.setPresence({
         activities: [
             {
                 name: 'customstatus',
                 type: ActivityType.Custom,
-                state: 'Living my best life 🤖' // <-- Change your custom text/thought here anytime!
+                state: 'Living my best life 🤖' // <-- Change your custom text/thought here anytime
             },
             { 
-                name: botConfig.activityName, // "Changed"
-                type: botConfig.activityType  // 0 = Playing
+                name: botConfig.activityName, 
+                type: botConfig.activityType 
             }
         ],
         status: botConfig.status,
@@ -134,25 +134,30 @@ client.on('interactionCreate', async interaction => {
     try {
         const selectedMessage = await command.execute(interaction, senderName, recipientName);
 
-        const responseMessage = await interaction.reply({ content: selectedMessage, fetchReply: true });
+        // If the command returned a value to reply with, send it
+        if (selectedMessage) {
+            const responseMessage = await interaction.reply({ content: selectedMessage, fetchReply: true });
 
-        const filter = (reaction, reactUser) => {
-            return (reaction.emoji.name === '❌' || reaction.emoji.name === '✖️') && reactUser.id === user.id;
-        };
+            const filter = (reaction, reactUser) => {
+                return (reaction.emoji.name === '❌' || reaction.emoji.name === '✖️') && reactUser.id === user.id;
+            };
 
-        const collector = responseMessage.createReactionCollector({ filter, time: 60000 });
+            const collector = responseMessage.createReactionCollector({ filter, time: 60000 });
 
-        collector.on('collect', async () => {
-            try {
-                await interaction.deleteReply();
-            } catch (error) {
-                console.error('Failed to delete message:', error);
-            }
-        });
+            collector.on('collect', async () => {
+                try {
+                    await interaction.deleteReply();
+                } catch (error) {
+                    console.error('Failed to delete message:', error);
+                }
+            });
+        }
 
     } catch (error) {
         console.error(`Error executing ${interaction.commandName}:`, error);
-        await interaction.reply({ content: 'There was an error executing this command!', ephemeral: true });
+        if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({ content: 'There was an error executing this command!', ephemeral: true });
+        }
     }
 });
 
