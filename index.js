@@ -2,35 +2,24 @@ const { Client, GatewayIntentBits, REST, Routes, Collection, ActivityType } = re
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const botConfig = require('./config'); // ⚙️ Import your status config
+const botConfig = require('./config');
 
-// ==========================================
-// 1. EXPRESS HTTP SERVER & WEBSITE API (SSE)
-// ==========================================
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Serve static website files from the "public" folder
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Keep track of connected website clients for live updates
 let sseClients = [];
 
-// SSE Endpoint for instant live updates
 app.get('/api/events', (req, res) => {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
-
     sseClients.push(res);
-
-    req.on('close', () => {
-        sseClients = sseClients.filter(client => client !== res);
-    });
+    req.on('close', () => { sseClients = sseClients.filter(c => c !== res); });
 });
 
-// Standard initial fetch endpoint
 app.get('/api/status', (req, res) => {
     res.json(getStatusPayload());
 });
@@ -55,10 +44,10 @@ function getStatusPayload() {
         uptime: client.isReady() ? `${hours}h ${minutes}m ${seconds}s` : 'Starting up...',
         avatarUrl: client.user ? client.user.displayAvatarURL({ size: 256 }) : null,
         bannerUrl: client.user ? client.user.bannerURL({ size: 512 }) : null,
+        debugMode: botConfig.debugMode
     };
 }
 
-// Broadcast function to push live updates to all open website visitors instantly
 function broadcastStatusUpdate() {
     const payload = JSON.stringify(getStatusPayload());
     sseClients.forEach(client => client.write(`data: ${payload}\n\n`));
@@ -68,9 +57,6 @@ app.listen(PORT, () => {
     console.log(`HTTP server listening on port ${PORT}`);
 });
 
-// ==========================================
-// 2. DISCORD BOT SETUP
-// ==========================================
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -81,17 +67,13 @@ const client = new Client({
 });
 
 const TOKEN = process.env.TOKEN;
-
-// Create a collection to hold commands dynamically
 client.commands = new Collection();
 const commandsArray = [];
 
-// Load all command files from the ./commands folder
 const commandsPath = path.join(__dirname, 'commands');
 const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
 
 console.log('--- Loading Commands ---');
-
 for (const file of commandFiles) {
     const filePath = path.join(commandsPath, file);
     const command = require(filePath);
@@ -103,28 +85,18 @@ for (const file of commandFiles) {
         console.warn(`[WARNING] The command at ${filePath} is missing "data" or "execute".`);
     }
 }
-
 console.log(`--- Total Commands Loaded: ${client.commands.size} ---`);
 
-// Register Commands Globally on Startup
 client.once('ready', async () => {
-    console.log(`ProtoBot v0.0.2 logged in as ${client.user.tag}!`);
+    console.log(`ProtoBot v0.0.3 logged in as ${client.user.tag}!`);
 
     client.user.setPresence({
         activities: [
-            {
-                name: 'customstatus',
-                type: ActivityType.Custom,
-                state: 'Living my best life 🤖'
-            },
-            { 
-                name: botConfig.activityName, 
-                type: botConfig.activityType 
-            }
+            { name: 'customstatus', type: ActivityType.Custom, state: botConfig.debugMode ? '🛠️ Debug Mode Active' : 'Living my best life 🤖' },
+            { name: botConfig.activityName, type: botConfig.activityType }
         ],
         status: botConfig.status,
     });
-    console.log(`[STATUS] Status set to: ${botConfig.status} | Playing: ${botConfig.activityName}`);
 
     if (!TOKEN) {
         console.error('ERROR: TOKEN environment variable is missing!');
@@ -133,18 +105,14 @@ client.once('ready', async () => {
 
     const rest = new REST({ version: '10' }).setToken(TOKEN);
     try {
-        console.log('Registering slash commands for Guild & User Apps...');
-        await rest.put(
-            Routes.applicationCommands(client.user.id),
-            { body: commandsArray }
-        );
+        await rest.put(Routes.applicationCommands(client.user.id), { body: commandsArray });
         console.log('Slash commands registered successfully!');
     } catch (error) {
         console.error('Failed to register commands:', error);
     }
 });
 
-// Handle Slash Command Interactions
+// Handle Slash Command Interactions & Debug Number Parsing
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
 
@@ -156,8 +124,23 @@ client.on('interactionCreate', async interaction => {
     const targetUser = interaction.options.getUser('target');
     const recipientName = targetUser ? `<@${targetUser.id}>` : 'themselves';
 
+    // 🛠️ Debug feature: Log execution details if debugMode is enabled
+    if (botConfig.debugMode) {
+        console.log(`[DEBUG TRACE] User ${user.tag} (${user.id}) executed /${interaction.commandName}`);
+    }
+
     try {
-        const selectedMessage = await command.execute(interaction, senderName, recipientName);
+        let selectedMessage = await command.execute(interaction, senderName, recipientName);
+
+        // 🔢 Number-suffix feature: If a number option or text trailing check is present
+        // Check if any string option or general inputs ended with a numeric selector
+        for (const [optName, optVal] of interaction.options.data.entries?.() || []) {
+            // Evaluates options if they are text strings that end with a number
+            if (typeof optVal.value === 'string' && /^\d+$/.test(optVal.value.trim())) {
+                const numericCode = parseInt(optVal.value.trim(), 10);
+                selectedMessage += `\n🔢 **[Debug Number Match]:** Recognized sequence ID **#${numericCode}** from option \`${optVal.name}\`.`;
+            }
+        }
 
         if (selectedMessage) {
             const responseMessage = await interaction.reply({ content: selectedMessage, fetchReply: true });
@@ -167,26 +150,19 @@ client.on('interactionCreate', async interaction => {
             };
 
             const collector = responseMessage.createReactionCollector({ filter, time: 60000 });
-
             collector.on('collect', async () => {
-                try {
-                    await interaction.deleteReply();
-                } catch (error) {
-                    console.error('Failed to delete message:', error);
-                }
+                try { await interaction.deleteReply(); } catch (e) {}
             });
         }
-
     } catch (error) {
         console.error(`Error executing ${interaction.commandName}:`, error);
-        if (!interaction.replied && !interaction.deferred) {
+        if (botConfig.debugMode) {
+            await interaction.reply({ content: `🛠️ **[DEBUG ERROR TRACE]:** \`\`\`${error.stack}\`\`\``, ephemeral: true });
+        } else if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({ content: 'There was an error executing this command!', ephemeral: true });
         }
     }
 });
 
-// Log into Discord
 client.login(TOKEN);
-
-// Export client and broadcast helper for external command use
 module.exports = { client, broadcastStatusUpdate };
