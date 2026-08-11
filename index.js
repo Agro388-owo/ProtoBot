@@ -2,10 +2,10 @@ const { Client, GatewayIntentBits, REST, Routes, Collection, ActivityType } = re
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const botConfig = require('./botConfig'); // ⚙️ Import your status config
+const botConfig = require('./config'); // ⚙️ Import your status config
 
 // ==========================================
-// 1. EXPRESS HTTP SERVER & WEBSITE API
+// 1. EXPRESS HTTP SERVER & WEBSITE API (SSE)
 // ==========================================
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -13,8 +13,29 @@ const PORT = process.env.PORT || 3000;
 // Serve static website files from the "public" folder
 app.use(express.static(path.join(__dirname, 'public')));
 
-// API endpoint to send live bot info to your index.html page
+// Keep track of connected website clients for live updates
+let sseClients = [];
+
+// SSE Endpoint for instant live updates
+app.get('/api/events', (req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    sseClients.push(res);
+
+    req.on('close', () => {
+        sseClients = sseClients.filter(client => client !== res);
+    });
+});
+
+// Standard initial fetch endpoint
 app.get('/api/status', (req, res) => {
+    res.json(getStatusPayload());
+});
+
+function getStatusPayload() {
     let activityTypeString = 'Playing';
     if (botConfig.activityType === 1) activityTypeString = 'Streaming';
     if (botConfig.activityType === 2) activityTypeString = 'Listening to';
@@ -25,18 +46,23 @@ app.get('/api/status', (req, res) => {
     const hours = Math.floor(uptimeSeconds / 3600);
     const minutes = Math.floor((uptimeSeconds % 3600) / 60);
     const seconds = uptimeSeconds % 60;
-    const uptimeString = `${hours}h ${minutes}m ${seconds}s`;
 
-    res.json({
+    return {
         online: client.isReady(),
         activityName: botConfig.activityName,
         activityTypeString: activityTypeString,
         status: botConfig.status,
-        uptime: client.isReady() ? uptimeString : 'Starting up...',
+        uptime: client.isReady() ? `${hours}h ${minutes}m ${seconds}s` : 'Starting up...',
         avatarUrl: client.user ? client.user.displayAvatarURL({ size: 256 }) : null,
         bannerUrl: client.user ? client.user.bannerURL({ size: 512 }) : null,
-    });
-});
+    };
+}
+
+// Broadcast function to push live updates to all open website visitors instantly
+function broadcastStatusUpdate() {
+    const payload = JSON.stringify(getStatusPayload());
+    sseClients.forEach(client => client.write(`data: ${payload}\n\n`));
+}
 
 app.listen(PORT, () => {
     console.log(`HTTP server listening on port ${PORT}`);
@@ -50,7 +76,7 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.GuildMessageReactions,
-        GatewayIntentBits.GuildPresences // 🟢 Required for presence updates
+        GatewayIntentBits.GuildPresences
     ]
 });
 
@@ -84,13 +110,12 @@ console.log(`--- Total Commands Loaded: ${client.commands.size} ---`);
 client.once('ready', async () => {
     console.log(`ProtoBot v0.0.2 logged in as ${client.user.tag}!`);
 
-    // 🟢 Apply Custom Status ("thought") + Playing Activity from botConfig
     client.user.setPresence({
         activities: [
             {
                 name: 'customstatus',
                 type: ActivityType.Custom,
-                state: 'Living my best life 🤖' // <-- Change your custom text/thought here anytime
+                state: 'Living my best life 🤖'
             },
             { 
                 name: botConfig.activityName, 
@@ -134,7 +159,6 @@ client.on('interactionCreate', async interaction => {
     try {
         const selectedMessage = await command.execute(interaction, senderName, recipientName);
 
-        // If the command returned a value to reply with, send it
         if (selectedMessage) {
             const responseMessage = await interaction.reply({ content: selectedMessage, fetchReply: true });
 
@@ -163,3 +187,6 @@ client.on('interactionCreate', async interaction => {
 
 // Log into Discord
 client.login(TOKEN);
+
+// Export client and broadcast helper for external command use
+module.exports = { client, broadcastStatusUpdate };
