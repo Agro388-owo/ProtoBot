@@ -106,16 +106,16 @@ module.exports = {
             },
             protobot: {
                 self: [
-                    `${senderName} got transfurred into **Protobot** *— now we can finally be one...* <:protogenirl:1536430038751121499>`,
-                    `${senderName} merged with a pool of metallic goo, whispering *— at last, we are one* <:protogenirl:1536430038751121499>`,
-                    `${senderName} stepped into a shimmering pool and got transfurred into **Protobot** *— together, we are finally whole* <:protogenirl:1536430038751121499>`,
-                    `${senderName} was completely absorbed by a puddle of metallic goo, thinking *— now nothing can keep us apart* <:protogenirl:1536430038751121499>`
+                    `${senderName} got transfurred into <@1536203903022931968> *— now we can finally be one...* <:protogenirl:1536430038751121499>`,
+                    `${senderName} merged with a pool of metallic goo, whispering *— at last, we are one* with <@1536203903022931968> <:protogenirl:1536430038751121499>`,
+                    `${senderName} stepped into a shimmering pool and got transfurred into <@1536203903022931968> *— together, we are finally whole* <:protogenirl:1536430038751121499>`,
+                    `${senderName} was completely absorbed by a puddle of metallic goo, thinking *— now nothing can keep us apart from <@1536203903022931968>* <:protogenirl:1536430038751121499>`
                 ],
                 other: [
-                    `${recipientName} got transfurred into **Protobot** *— now we can finally be one...* <:protogenirl:1536430038751121499>`,
-                    `${recipientName} merged with a pool of metallic goo, whispering *— at last, we are one* <:protogenirl:1536430038751121499>`,
-                    `${senderName} pulled ${recipientName} into a glowing vat, getting them transfurred into **Protobot** *— together, we are finally whole* <:protogenirl:1536430038751121499>`,
-                    `${senderName} splashed ${recipientName} with a wave of metallic goo, murmuring *— now nothing can keep us apart* <:protogenirl:1536430038751121499>`
+                    `${recipientName} got transfurred into <@1536203903022931968> *— now we can finally be one...* <:protogenirl:1536430038751121499>`,
+                    `${recipientName} merged with a pool of metallic goo, whispering *— at last, we are one* with <@1536203903022931968> <:protogenirl:1536430038751121499>`,
+                    `${senderName} pulled ${recipientName} into a glowing vat, getting them transfurred into <@1536203903022931968> *— together, we are finally whole* <:protogenirl:1536430038751121499>`,
+                    `${senderName} splashed ${recipientName} with a wave of metallic goo, murmuring *— now nothing can keep us apart from <@1536203903022931968>* <:protogenirl:1536430038751121499>`
                 ]
             }
         };
