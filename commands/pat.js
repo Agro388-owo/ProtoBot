@@ -6,7 +6,7 @@ function getRandomMessage(array) {
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('pet')
+        .setName('pat')
         .setDescription('Give someone headpats!')
         .setIntegrationTypes([0, 1])
         .setContexts([0, 1, 2])
@@ -18,7 +18,7 @@ module.exports = {
         if (interaction.user.id === targetUser.id) {
             const selfVariants = [
                 `${senderName} patted their own head. Self-care is important!`,
-                `${senderName} gives themselves gently pats. You're doing great!`,
+                `${senderName} gives themselves gently pats. T-T`,
                 `${senderName} adjusts their own hair and gives themselves a pat on the head.`
             ];
             return getRandomMessage(selfVariants);
