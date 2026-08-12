@@ -23,11 +23,11 @@ module.exports = {
     async execute(interaction, senderName, recipientName) {
         // List your random message variants here
         const messageVariants = [
-            `✨ ${senderName} did something awesome to ${recipientName}!`,
-            `💥 ${senderName} surprised ${recipientName} with a sudden action!`,
-            `🎯 ${senderName} targeted ${recipientName}!`,
-            `🐾 ${senderName} interacts with ${recipientName}!`,
-            `🔥 ${senderName} executed a combo on ${recipientName}!`
+            `${senderName} did something awesome to ${recipientName}!`,
+            `${senderName} surprised ${recipientName} with a sudden action!`,
+            `${senderName} targeted ${recipientName}!`,
+            `${senderName} interacts with ${recipientName}!`,
+            `${senderName} executed a combo on ${recipientName}!`
         ];
 
         // Return a random variant to be sent by index.js
