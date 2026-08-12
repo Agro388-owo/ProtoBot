@@ -130,7 +130,11 @@ client.once('ready', async () => {
 
     client.user.setPresence({
         activities: [
-            { name: 'customstatus', type: ActivityType.Custom, state: botConfig.debugMode ? '🛠️ Debug Mode Active' : 'Living my best life 🤖' },
+            { 
+                name: 'customstatus', 
+                type: ActivityType.Custom, 
+                state: botConfig.debugMode ? '🛠️ Debug Mode Active' : botConfig.customStatus 
+            },
             { name: botConfig.activityName, type: botConfig.activityType }
         ],
         status: botConfig.status,
