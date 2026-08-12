@@ -25,6 +25,7 @@ module.exports = {
                       { name: 'Tiger Shark', value: 'shark' },
                       { name: 'Snow Leopard', value: 'leopard' },
                       { name: 'Dark Latex Wolf', value: 'wolf' },
+                      { name: 'ProtoBot', value: 'protobot' },
                       { name: 'Blank / Custom', value: 'blank' }
                   )
         ),
@@ -101,6 +102,20 @@ module.exports = {
                     `${senderName} threw ${recipientName} into a pool of dark latex, turning them into a loyal wolf!`,
                     `${senderName} shoved ${recipientName} into a shadow pit filled with receptive latex hounds!`,
                     `${senderName} dunked ${recipientName} into a dark latex vat until they completely joined the pack!`
+                ]
+            },
+            protobot: {
+                self: [
+                    `${senderName} got transfurred into **Protobot** *— now we can finally be one...* <:protogenirl:1536430038751121499>`,
+                    `${senderName} merged with a pool of metallic goo, whispering *— at last, we are one* <:protogenirl:1536430038751121499>`,
+                    `${senderName} stepped into a shimmering pool and got transfurred into **Protobot** *— together, we are finally whole* <:protogenirl:1536430038751121499>`,
+                    `${senderName} was completely absorbed by a puddle of metallic goo, thinking *— now nothing can keep us apart* <:protogenirl:1536430038751121499>`
+                ],
+                other: [
+                    `${recipientName} got transfurred into **Protobot** *— now we can finally be one...* <:protogenirl:1536430038751121499>`,
+                    `${recipientName} merged with a pool of metallic goo, whispering *— at last, we are one* <:protogenirl:1536430038751121499>`,
+                    `${senderName} pulled ${recipientName} into a glowing vat, getting them transfurred into **Protobot** *— together, we are finally whole* <:protogenirl:1536430038751121499>`,
+                    `${senderName} splashed ${recipientName} with a wave of metallic goo, murmuring *— now nothing can keep us apart* <:protogenirl:1536430038751121499>`
                 ]
             }
         };
