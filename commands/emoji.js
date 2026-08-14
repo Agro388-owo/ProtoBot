@@ -16,7 +16,8 @@ const emojiMap = {
     'puroshock': '<:puroshock:1536366927230799972>',
     'puroblush': '<:puroblush:1536364136613806090>',
     'puroneutral': '<:puroneutral:1536364135342669824>',
-    'Puroadorable': '<:Puroadorable:1536364133392457818>'
+    'Puroadorable': '<:Puroadorable:1536364133392457818>', 
+    'Thing': '<:thing:1537616433171796149>'
 };
 
 module.exports = {
