@@ -36,7 +36,7 @@ module.exports = {
             if (configAllowMassPing) {
                 return `${senderName} snapped their fingers... half of @everyone existence has vanished! <:puroshock:1536366927230799972>`;
             } else {
-                return `${senderName} snapped their fingers... half of all existence has vanished into dust. *As all things should be.* 💀 <:Puro_Patheticó:1536430027468710019>`;
+                return `${senderName} snapped their fingers... half of all existence has vanished into dust. *As all things should be.* 💀 <:Puro_Pathetic6:1536430027468710019>`;
             }
         }
     }
