@@ -44,6 +44,13 @@ module.exports = {
                 .setDescription('Manage bot debug and diagnostics features')
                 .addSubcommand(sub => sub.setName('toggle').setDescription('Turn advanced debug logging on or off'))
                 .addSubcommand(sub => sub.setName('status').setDescription('Check current debug mode state'))
+        )
+        .addSubcommandGroup(group =>
+            group
+                .setName('snap-config')
+                .setDescription('Manage /snap mass ping settings')
+                .addSubcommand(sub => sub.setName('toggle').setDescription('Toggle @everyone ping on a channel-wide snap'))
+                .addSubcommand(sub => sub.setName('status').setDescription('Check current snap mass ping setting'))
         ),
 
     async execute(interaction) {
@@ -97,7 +104,6 @@ module.exports = {
                     status: newStatus,
                 });
 
-                // ⚡ Instantly broadcast update to the web client
                 broadcast({
                     online: interaction.client.isReady(),
                     activityName: botConfig.activityName,
@@ -123,6 +129,19 @@ module.exports = {
             else if (subcommand === 'status') {
                 const stateText = botConfig.debugMode ? '🛠️ **ENABLED**' : '💤 **DISABLED**';
                 await interaction.reply({ content: `**Debug Diagnostics Status:** ${stateText}`, ephemeral: true });
+                return null;
+            }
+        }
+        else if (group === 'snap-config') {
+            if (subcommand === 'toggle') {
+                botConfig.snapAllowMassPing = !botConfig.snapAllowMassPing;
+                const stateText = botConfig.snapAllowMassPing ? '🚨 **ENABLED (Mass Ping Active)**' : '🛡️ **DISABLED (Safe Mode)**';
+                await interaction.reply({ content: `**/snap mass-ping mode** updated: ${stateText}`, ephemeral: true });
+                return null;
+            }
+            else if (subcommand === 'status') {
+                const stateText = botConfig.snapAllowMassPing ? '🚨 **ENABLED**' : '🛡️ **DISABLED**';
+                await interaction.reply({ content: `**Snap Mass Ping Status:** ${stateText}`, ephemeral: true });
                 return null;
             }
         }
