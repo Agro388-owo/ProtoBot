@@ -5,14 +5,14 @@ const fs = require('fs');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('thing')
-        .setDescription('Summon **The Thing.**'),
+        .setDescription('Summon The Thing.'),
 
     async execute(interaction, senderName) {
         const rootPath = path.join(__dirname, '..');
-        const primaryPath = path.join(rootPath, 'thing.png');
+        const primaryPath = path.join(rootPath, 'thing.jpg');
 
         if (!fs.existsSync(primaryPath)) {
-            return interaction.reply({ content: `⚠️ thing.png not found in the root directory!`, ephemeral: true });
+            return interaction.reply({ content: `⚠️ thing image not found in the root directory!`, ephemeral: true });
         }
 
         const file = new AttachmentBuilder(primaryPath);
