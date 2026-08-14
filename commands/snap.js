@@ -5,6 +5,8 @@ module.exports = {
     data: new SlashCommandBuilder()
         .setName('snap')
         .setDescription('Performs a Thanos snap on the channel (or mentioned users)!')
+        .setIntegrationTypes([0, 1])
+        .setContexts([0, 1, 2])
         .addUserOption(option =>
             option.setName('target')
                   .setDescription('Optional specific user to snap')
