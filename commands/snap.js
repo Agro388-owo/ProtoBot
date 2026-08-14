@@ -1,4 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
+const botConfig = require('../config.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -10,10 +11,9 @@ module.exports = {
                   .setRequired(false)
         ),
 
-    async execute(interaction, senderName, client) {
-        // ⚙️ Pulling mass ping setting from your bot's global/guild config system
-        // Assumes client.config or a database stores this. Defaults to false if not set.
-        const configAllowMassPing = client.config?.allowMassPing ?? false; 
+    async execute(interaction, senderName) {
+        // ⚙️ Pulling mass ping setting from your config file
+        const configAllowMassPing = botConfig.snapAllowMassPing ?? false; 
 
         const targetUser = interaction.options.getUser('target');
 
@@ -21,9 +21,9 @@ module.exports = {
         if (targetUser) {
             const survived = Math.random() < 0.5;
             if (survived) {
-                return `${senderName} snapped their fingers at <@${targetUser.id}>... but they were spared by the universe! 🌌`;
+                return `${senderName} snapped their fingers at <@${targetUser.id}>... but they were spared by the universe! 🌌 <:purocute:1536367584369180803>`;
             } else {
-                return `${senderName} snapped their fingers... and <@${targetUser.id}> turned to dust. *As all things should be.* 💀`;
+                return `${senderName} snapped their fingers... and <@${targetUser.id}> turned to dust. <:puro_sad:1536430025635799061>`;
             }
         }
 
@@ -31,12 +31,12 @@ module.exports = {
         const survived = Math.random() < 0.5;
         
         if (survived) {
-            return `${senderName} snapped their fingers... and by a miracle, everyone in the universe was spared! ✨`;
+            return `${senderName} snapped their fingers... and by a miracle, everyone in the universe was spared! ✨ <:protogenirl:1536430038751121499>`;
         } else {
             if (configAllowMassPing) {
-                return `${senderName} snapped their fingers... half of @everyone existence has vanished!`;
+                return `${senderName} snapped their fingers... half of @everyone existence has vanished! <:puroshock:1536366927230799972>`;
             } else {
-                return `${senderName} snapped their fingers... half of all existence has vanished into dust. *As all things should be.* 💀`;
+                return `${senderName} snapped their fingers... half of all existence has vanished into dust. *As all things should be.* 💀 <:Puro_Patheticó:1536430027468710019>`;
             }
         }
     }
