@@ -21,7 +21,7 @@ module.exports = {
             const selfOutcomes = [
                 `${senderName} bravely (or foolishly) steps into a springlocked suit themselves... *CRUNCH*. Well, that was a mistake. <:puro_sad:1536430025635799061>`,
                 `${senderName} seals themselves inside the mechanical suit. The springlocks violently fail all at once! <:Puro_Pathetic6:1536430027468710019>`,
-                `${senderName} climbs into the springlocked suit and somehow manages to adjust everything safely. Miraculously, zero springlocks went off! <:purocute:1536367584369180803>`
+                `${senderName} climbs into the springlock suit and somehow manages to adjust everything safely. Miraculously, zero springlocks went off! <:purocute:1536367584369180803>`
             ];
             return selfOutcomes[Math.floor(Math.random() * selfOutcomes.length)];
         }
@@ -32,7 +32,7 @@ module.exports = {
         }
 
         const outcomes = [
-            `${senderName} forces <@${targetUser.id}> into a rigid springlocked suit... *CRUNCH*. Yikes! <:puro_sad:1536430025635799061>`,
+            `${senderName} forces <@${targetUser.id}> into a rigid springlock suit... *CRUNCH*. Yikes! <:puro_sad:1536430025635799061>`,
             `${senderName} seals <@${targetUser.id}> inside a mechanical suit. The springlocks painfully give way amid a horrific mechanical crunch! <:Puro_Pathetic6:1536430027468710019>`,
             `${senderName} successfully locks <@${targetUser.id}> into the suit. Miraculously, the springlocks hold steady without snapping... for now. <:purocute:1536367584369180803>`
         ];
