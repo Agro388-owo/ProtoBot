@@ -58,14 +58,12 @@ module.exports = {
             },
             protogen: {
                 self: [
-                    `${senderName} jumped into a cybernetic reclamation pool, rewriting their firmware into a protogen! <:protoram:1536430036524204113>`,
-                    `${senderName} ran a self-diagnostic and rebooted their chassis as a brand new protogen! <:protogenpop11:1536430034561269780>`,
-                    `${senderName} stepped into a nanite bath and upgraded their entire biological frame!`
+                    `${senderName}put on a facny visor on and became a protogen! <:protogenirl:1536430038751121499>`,
+                    `${senderName} somehow became a protogen! <:protogenirl:1536430038751121499>`
                 ],
                 other: [
-                    `${senderName} threw ${recipientName} into a cybernetic reclamation pool, rewriting their firmware into a protogen! <:protoram:1536430036524204113>`,
-                    `${senderName} pushed ${recipientName} into a high-tech chamber, upgrading their OS into a sleek protogen chassis!`,
-                    `${senderName} exposed ${recipientName} to a cloud of active nanites, converting them instantly!`
+                    `${senderName} threw ${recipientName} into a pool with metalic liquid, turning them into a protogen!`,
+                    `${senderName} pushed ${recipientName} into a high-tech chamber, converting them into protogen! <:protogenirl:1536430038751121499>`
                 ]
             },
             shark: {
