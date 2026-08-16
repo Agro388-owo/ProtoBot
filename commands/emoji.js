@@ -4,7 +4,7 @@ function getRandomMessage(array) {
     return array[Math.floor(Math.random() * array.length)];
 }
 
-// Curated list of your custom emojis with their names and IDs from the screenshot
+// Hardcoded mapping of all emojis from your application dashboard
 const customEmojis = [
     { name: 'puronervous2', id: '1538551211207430234' },
     { name: 'thing', id: '1537616433171796149' },
