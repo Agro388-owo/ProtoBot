@@ -4,6 +4,24 @@ function getRandomMessage(array) {
     return array[Math.floor(Math.random() * array.length)];
 }
 
+// Curated list of your custom emojis with their names and IDs from the screenshot
+const customEmojis = [
+    { name: 'puronervous2', id: '1538551211207430234' },
+    { name: 'thing', id: '1537616433171796149' },
+    { name: 'protogenirl', id: '1536430038751121499' },
+    { name: 'maidddress', id: '1536430032572911646' },
+    { name: 'Puropreocupado', id: '1536430030916288572' },
+    { name: 'Puro_Blush6', id: '1536430029104353380' },
+    { name: 'Puro_Pathetic6', id: '1536430027468710019' },
+    { name: 'puro_sad', id: '1536430025635799061' },
+    { name: 'purocute', id: '1536367584369180803' },
+    { name: 'puronervous', id: '1536367581995335750' },
+    { name: 'puroshock', id: '1536366927230799972' },
+    { name: 'puroblush', id: '1536364136613806090' },
+    { name: 'puroneutral', id: '1536364135342669824' },
+    { name: 'Puroadorable', id: '1536364133392457818' }
+];
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('emoji')
@@ -21,15 +39,7 @@ module.exports = {
         try {
             const focusedValue = interaction.options.getFocused().toLowerCase();
             
-            // Fetch application emojis directly from the client application manager
-            let emojis = await interaction.client.application.emojis.fetch();
-
-            // Fallback to client cache if application fetch is empty
-            if (!emojis || emojis.size === 0) {
-                emojis = interaction.client.emojis.cache;
-            }
-
-            const filtered = emojis
+            const filtered = customEmojis
                 .filter(emoji => emoji.name.toLowerCase().includes(focusedValue))
                 .map(emoji => ({
                     name: emoji.name,
@@ -39,7 +49,7 @@ module.exports = {
 
             await interaction.respond(filtered);
         } catch (error) {
-            console.error('Error fetching application emojis for autocomplete:', error);
+            console.error('Error handling emoji autocomplete:', error);
             await interaction.respond([]);
         }
     },
@@ -47,25 +57,18 @@ module.exports = {
     async execute(interaction) {
         const emojiId = interaction.options.getString('name');
         
-        try {
-            // Try fetching from application emojis first, then client cache
-            let emoji = await interaction.client.application.emojis.fetch(emojiId).catch(() => null);
-            if (!emoji) {
-                emoji = interaction.client.emojis.cache.get(emojiId);
-            }
+        const foundEmoji = customEmojis.find(e => e.id === emojiId);
 
-            if (!emoji) {
-                return await interaction.reply({ content: 'Emoji not found!', ephemeral: true });
-            }
-
-            const emojiVariants = [
-                ` ${emoji.toString()}`
-            ];
-
-            return await interaction.reply(getRandomMessage(emojiVariants));
-        } catch (error) {
-            console.error('Error executing emoji command:', error);
-            return await interaction.reply({ content: '❌ Failed to send emoji!', ephemeral: true });
+        if (!foundEmoji) {
+            return await interaction.reply({ content: '❌ Emoji not found in the custom list!', ephemeral: true });
         }
+
+        const emojiString = `<:${foundEmoji.name}:${foundEmoji.id}>`;
+
+        const emojiVariants = [
+            ` ${emojiString}`
+        ];
+
+        return await interaction.reply(getRandomMessage(emojiVariants));
     }
 };
