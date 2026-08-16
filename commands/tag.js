@@ -6,38 +6,38 @@ const path = require('path');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('tag')
-        .setDescription('Manage or request custom tags and form titles!')
+        .setDescription('Manage custom tags and form titles!')
         .setIntegrationTypes([0, 1])
         .setContexts([0, 1, 2])
         .addSubcommand(subcommand =>
             subcommand
                 .setName('set')
-                .setDescription('[Owner Only] Assign a custom tag or form title to a user or OC.')
-                .addUserOption(option =>
-                    option.setName('target')
-                          .setDescription('The user or OC owner to set the tag for')
-                          .setRequired(true)
-                )
+                .setDescription('Assign a custom tag to yourself (or another user if you are the owner).')
                 .addStringOption(option =>
                     option.setName('tag')
                           .setDescription('The custom tag text (e.g. Protogen, Dark Latex Wolf, Synth)')
                           .setRequired(true)
                 )
+                .addUserOption(option =>
+                    option.setName('target')
+                          .setDescription('[Owner Only] Optional: The user to set the tag for')
+                          .setRequired(false)
+                )
         )
         .addSubcommand(subcommand =>
             subcommand
                 .setName('remove')
-                .setDescription('[Owner Only] Remove a custom tag from a user.')
+                .setDescription('Remove your own tag (or another user’s tag if you are the owner).')
                 .addUserOption(option =>
                     option.setName('target')
-                          .setDescription('The user to remove the tag from')
-                          .setRequired(true)
+                          .setDescription('[Owner Only] Optional: The user to remove the tag from')
+                          .setRequired(false)
                 )
         )
         .addSubcommand(subcommand =>
             subcommand
                 .setName('list')
-                .setDescription('View all assigned custom tags.')
+                .setDescription('View your own custom tag.')
         )
         .addSubcommand(subcommand =>
             subcommand
@@ -53,23 +53,23 @@ module.exports = {
     async execute(interaction) {
         const subcommand = interaction.options.getSubcommand();
         const configPath = path.join(__dirname, '../config.js');
+        const userId = interaction.user.id;
+        const isOwner = userId === botConfig.OWNER_ID;
 
-        // 📋 Handle Subcommand: List Tags
+        // 📋 Handle Subcommand: List (View own tag)
         if (subcommand === 'list') {
             const tags = botConfig.userTags || {};
-            const tagEntries = Object.entries(tags);
+            const userTag = tags[userId];
 
-            if (tagEntries.length === 0) {
+            if (!userTag) {
                 return await interaction.reply({
-                    content: `📂 **Custom Tags List:**\n• No custom tags have been assigned yet!`,
+                    content: `📂 **Your Custom Tag:**\n• You don't have a custom tag set right now! Use \`/tag set\` to create one.`,
                     ephemeral: true
                 });
             }
 
-            const formattedList = tagEntries.map(([userId, tagName]) => `• <@${userId}>: \`${tagName}\``).join('\n');
-
             return await interaction.reply({
-                content: `📂 **Current Custom Tags List:**\n${formattedList}`,
+                content: `📂 **Your Custom Tag:**\n• <@${userId}>: \`${userTag}\``,
                 ephemeral: true
             });
         }
@@ -104,20 +104,24 @@ module.exports = {
             }
         }
 
-        // ⚙️ Handle Subcommand: Set Tag (Owner Only)
+        // ⚙️ Handle Subcommand: Set Tag
         if (subcommand === 'set') {
-            if (interaction.user.id !== botConfig.OWNER_ID) {
+            const customTag = interaction.options.getString('tag');
+            const targetUser = interaction.options.getUser('target');
+
+            // If a target is specified, enforce owner-only check
+            if (targetUser && !isOwner) {
                 return await interaction.reply({ 
-                    content: `❌ Only the bot owner can assign custom tags! Use \`/tag request\` to request one instead.`, 
+                    content: `❌ Only the bot owner can assign tags to other users!`, 
                     ephemeral: true 
                 });
             }
 
-            const targetUser = interaction.options.getUser('target');
-            const customTag = interaction.options.getString('tag');
+            // Determine who the tag is being applied to
+            const recipientId = targetUser ? targetUser.id : userId;
 
             if (!botConfig.userTags) botConfig.userTags = {};
-            botConfig.userTags[targetUser.id] = customTag;
+            botConfig.userTags[recipientId] = customTag;
 
             let fileContent = fs.readFileSync(configPath, 'utf8');
             const tagsMappingStr = `userTags: ` + JSON.stringify(botConfig.userTags, null, 4) + `,`;
@@ -131,30 +135,34 @@ module.exports = {
             fs.writeFileSync(configPath, fileContent, 'utf8');
 
             return await interaction.reply({
-                content: `🏷️ Successfully set the custom tag for <@${targetUser.id}> to: **\`${customTag}\`**!`,
+                content: `🏷️ Successfully set the custom tag for <@${recipientId}> to: **\`${customTag}\`**!`,
                 ephemeral: true
             });
         }
 
-        // 🗑️ Handle Subcommand: Remove Tag (Owner Only)
+        // 🗑️ Handle Subcommand: Remove Tag
         if (subcommand === 'remove') {
-            if (interaction.user.id !== botConfig.OWNER_ID) {
+            const targetUser = interaction.options.getUser('target');
+
+            // If a target is specified, enforce owner-only check
+            if (targetUser && !isOwner) {
                 return await interaction.reply({ 
-                    content: `❌ Only the bot owner can remove custom tags!`, 
+                    content: `❌ Only the bot owner can remove other users' custom tags!`, 
                     ephemeral: true 
                 });
             }
 
-            const targetUser = interaction.options.getUser('target');
+            // Determine who is getting their tag removed
+            const recipientId = targetUser ? targetUser.id : userId;
 
-            if (!botConfig.userTags || !botConfig.userTags[targetUser.id]) {
+            if (!botConfig.userTags || !botConfig.userTags[recipientId]) {
                 return await interaction.reply({
-                    content: `⚠️ <@${targetUser.id}> does not have a custom tag assigned!`,
+                    content: `⚠️ <@${recipientId}> does not have a custom tag assigned!`,
                     ephemeral: true
                 });
             }
 
-            delete botConfig.userTags[targetUser.id];
+            delete botConfig.userTags[recipientId];
 
             let fileContent = fs.readFileSync(configPath, 'utf8');
             const tagsMappingStr = `userTags: ` + JSON.stringify(botConfig.userTags, null, 4) + `,`;
@@ -166,7 +174,7 @@ module.exports = {
             fs.writeFileSync(configPath, fileContent, 'utf8');
 
             return await interaction.reply({
-                content: `🗑️ Successfully removed the custom tag from <@${targetUser.id}>!`,
+                content: `🗑️ Successfully removed the custom tag from <@${recipientId}>!`,
                 ephemeral: true
             });
         }
