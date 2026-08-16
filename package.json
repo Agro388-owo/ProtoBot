@@ -1,6 +1,6 @@
 {
   "name": "ProtoBot",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Just a silly ProtoBot",
   "main": "index.js",
   "license": "MIT",
@@ -8,6 +8,7 @@
     "start": "node index.js"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^0.1.65",
     "discord.js": "^14.14.1",
     "express": "^4.18.2"
   }
