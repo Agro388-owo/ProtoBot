@@ -73,7 +73,7 @@ module.exports = {
             const attachment = new AttachmentBuilder(buffer, { name: 'polaroid-photo.png' });
 
             await interaction.editReply({
-                content: `📸 Generated Polaroid photo! <:purocute:1536367584369180803>`,
+                content: ``,
                 files: [attachment]
             });
 
