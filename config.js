@@ -2,6 +2,9 @@ module.exports = {
     // 👑 Your Owner Discord ID
     OWNER_ID: '1048579285687996466',
 
+    // 🐙 GitHub API Token for Tags Syncing
+    GITHUB_TOKEN: process.env.GITHUB_TOKEN,
+
     // 🔒 Kidnap Access Restrictions & Whitelist
     kidnapRestricted: false,
     allowedUsers: [
