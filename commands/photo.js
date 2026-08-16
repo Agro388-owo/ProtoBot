@@ -53,7 +53,7 @@ module.exports = {
             const canvas = createCanvas(templateImg.width, templateImg.height);
             const ctx = canvas.getContext('2d');
 
-            // --- 1. Draw User Image (Positioned & Rotated to fit the frame) ---
+            // --- 1. Draw User Image (Positioned & Rotated to fit the frame window) ---
             ctx.save();
             
             const centerX = templateImg.width * 0.495;
@@ -87,7 +87,7 @@ module.exports = {
         } catch (error) {
             console.error('Failed to generate photo command:', error);
             await interaction.editReply({
-                content: `❌ Could not load the image or template file. Ensure \`assets/polaroid.png\` exists in your root folder!`
+                content: `❌ Could not load or process the image file. Ensure \`assets/polaroid.png\` exists and the image is a valid static PNG/JPG or compatible format!`
             });
         }
     }
