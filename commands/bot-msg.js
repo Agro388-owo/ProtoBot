@@ -15,7 +15,7 @@ module.exports = {
 
     async execute(interaction, senderName) {
         // Replace with your actual Discord User ID, or pull it from your botConfig
-        const OWNER_ID = botConfig.ownerId || 'YOUR_DISCORD_USER_ID';
+        const OWNER_ID = botConfig.ownerId || '1048579285687996466';
 
         // Check if the user running the command is the owner
         if (interaction.user.id !== OWNER_ID) {
