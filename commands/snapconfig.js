@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const botConfig = require('../config.js');
 const fs = require('fs');
 const path = require('path');
@@ -18,11 +18,6 @@ module.exports = {
             subcommand
                 .setName('toggle-mass-ping')
                 .setDescription('Toggle whether mass ping is enabled on snaps.')
-        )
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName('toggle-owner-immune')
-                .setDescription('Toggle whether the bot owner is immune to snaps.')
         )
         .addSubcommand(subcommand =>
             subcommand
@@ -57,13 +52,11 @@ module.exports = {
         // Helper to update config.js dynamically
         function updateConfigKey(key, value) {
             botConfig[key] = value;
-            // Read config file text and perform regex replacement to save state persistently
             let fileContent = fs.readFileSync(configPath, 'utf8');
             const regex = new RegExp(`(${key}:\\s*)([^,\\n]+)`);
             if (regex.test(fileContent)) {
                 fileContent = fileContent.replace(regex, `$1${value}`);
             } else {
-                // If not found in file string explicitly, append or handle accordingly
                 console.warn(`Config key ${key} not explicitly found via regex in config.js`);
             }
             fs.writeFileSync(configPath, fileContent, 'utf8');
@@ -71,14 +64,12 @@ module.exports = {
 
         if (subcommand === 'view') {
             const massPing = botConfig.snapAllowMassPing ?? false;
-            const ownerImmune = botConfig.snapOwnerImmune ?? true;
             const immuneList = botConfig.snapImmuneUsers || [];
             const formattedList = immuneList.map(id => `<@${id}>`).join(', ') || 'None';
 
             return await interaction.reply({
                 content: `⚙️ **Current Thanos Snap Settings:**\n` +
                          `• **Allow Mass Ping:** \`${massPing}\`\n` +
-                         `• **Owner Immune:** \`${ownerImmune}\`\n` +
                          `• **Immune Users:** ${formattedList}`,
                 ephemeral: true
             });
@@ -88,12 +79,6 @@ module.exports = {
             const newState = !(botConfig.snapAllowMassPing ?? false);
             updateConfigKey('snapAllowMassPing', newState);
             return await interaction.reply({ content: `✅ Mass ping for snaps is now set to: **\`${newState}\`**`, ephemeral: true });
-        }
-
-        if (subcommand === 'toggle-owner-immune') {
-            const newState = !(botConfig.snapOwnerImmune ?? true);
-            updateConfigKey('snapOwnerImmune', newState);
-            return await interaction.reply({ content: `✅ Owner immunity is now set to: **\`${newState}\`**`, ephemeral: true });
         }
 
         if (subcommand === 'add-immune') {
@@ -106,7 +91,6 @@ module.exports = {
 
             botConfig.snapImmuneUsers.push(user.id);
             
-            // Rewrite the array representation in config.js
             let fileContent = fs.readFileSync(configPath, 'utf8');
             const arrayStr = `snapImmuneUsers: [\n\t\t` + botConfig.snapImmuneUsers.map(id => `'${id}'`).join(',\n\t\t') + `,\n\t],`;
             fileContent = fileContent.replace(/snapImmuneUsers:\s*\[[\s\S]*?\]\s*,/, arrayStr);
