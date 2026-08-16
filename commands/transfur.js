@@ -38,7 +38,7 @@ module.exports = {
         // 🛡️ Check if target is immune using the dedicated transfur list
         const transfurImmuneList = botConfig.transfurImmuneUsers || [];
         if (transfurImmuneList.includes(targetUser.id)) {
-            return `<@${targetUser.id}>'s body composition completely resists the transformation fluid! Their latex/creature defenses hold strong! ✨ <:protogenirl:1536430038751121499>`;
+            return `<@${targetUser.id}>'s body composition completely resists the transformation! <protogenirl:1536430038751121499>`;
         }
 
         // 📭 Blank / Custom option handling
