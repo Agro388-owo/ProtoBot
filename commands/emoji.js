@@ -14,41 +14,58 @@ module.exports = {
             option.setName('name')
                   .setDescription('Which emoji to send?')
                   .setRequired(true)
-                  .setAutocomplete(true) // Enables dynamic autocomplete
+                  .setAutocomplete(true)
         ),
 
     async autocomplete(interaction) {
-        const focusedValue = interaction.options.getFocused().toLowerCase();
-        
-        // Automatically grab all emojis the bot has access to
-        const emojis = interaction.client.emojis.cache;
+        try {
+            const focusedValue = interaction.options.getFocused().toLowerCase();
+            
+            // Fetch application emojis directly from the client application manager
+            let emojis = await interaction.client.application.emojis.fetch();
 
-        // Map them into choice objects for Discord, filtering by what the user is typing
-        const filtered = emojis
-            .filter(emoji => emoji.name.toLowerCase().includes(focusedValue))
-            .map(emoji => ({
-                name: emoji.name,
-                value: emoji.id
-            }))
-            .slice(0, 25); // Discord allows a maximum of 25 choices
+            // Fallback to client cache if application fetch is empty
+            if (!emojis || emojis.size === 0) {
+                emojis = interaction.client.emojis.cache;
+            }
 
-        await interaction.respond(filtered);
+            const filtered = emojis
+                .filter(emoji => emoji.name.toLowerCase().includes(focusedValue))
+                .map(emoji => ({
+                    name: emoji.name,
+                    value: emoji.id
+                }))
+                .slice(0, 25);
+
+            await interaction.respond(filtered);
+        } catch (error) {
+            console.error('Error fetching application emojis for autocomplete:', error);
+            await interaction.respond([]);
+        }
     },
 
     async execute(interaction) {
         const emojiId = interaction.options.getString('name');
         
-        // Fetch the emoji by its ID from the client cache
-        const emoji = interaction.client.emojis.cache.get(emojiId);
+        try {
+            // Try fetching from application emojis first, then client cache
+            let emoji = await interaction.client.application.emojis.fetch(emojiId).catch(() => null);
+            if (!emoji) {
+                emoji = interaction.client.emojis.cache.get(emojiId);
+            }
 
-        if (!emoji) {
-            return await interaction.reply({ content: 'Emoji not found!', ephemeral: true });
+            if (!emoji) {
+                return await interaction.reply({ content: 'Emoji not found!', ephemeral: true });
+            }
+
+            const emojiVariants = [
+                ` ${emoji.toString()}`
+            ];
+
+            return await interaction.reply(getRandomMessage(emojiVariants));
+        } catch (error) {
+            console.error('Error executing emoji command:', error);
+            return await interaction.reply({ content: '❌ Failed to send emoji!', ephemeral: true });
         }
-
-        const emojiVariants = [
-            ` ${emoji.toString()}`
-        ];
-
-        return await interaction.reply(getRandomMessage(emojiVariants));
     }
 };
