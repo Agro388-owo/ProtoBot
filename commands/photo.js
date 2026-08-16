@@ -49,12 +49,12 @@ module.exports = {
             // --- 1. Draw User Image (Positioned & Rotated to fit the frame) ---
             ctx.save();
             
-            const centerX = templateImg.width * 0.50;
-            const centerY = templateImg.height * 0.40;
+            const centerX = templateImg.width * 0.495;
+            const centerY = templateImg.height * 0.435;
             const photoSize = templateImg.width * 0.38; 
 
             ctx.translate(centerX, centerY);
-            ctx.rotate(-3.5 * (Math.PI / 180));
+            ctx.rotate(5.5 * (Math.PI / 180));
 
             ctx.drawImage(
                 userImg, 
