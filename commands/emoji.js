@@ -4,7 +4,7 @@ function getRandomMessage(array) {
     return array[Math.floor(Math.random() * array.length)];
 }
 
-// Hardcoded mapping of all emojis from your application dashboard
+// Curated list of your custom emojis with their names and IDs
 const customEmojis = [
     { name: 'puronervous2', id: '1538551211207430234' },
     { name: 'thing', id: '1537616433171796149' },
@@ -43,7 +43,7 @@ module.exports = {
                 .filter(emoji => emoji.name.toLowerCase().includes(focusedValue))
                 .map(emoji => ({
                     name: emoji.name,
-                    value: emoji.id
+                    value: emoji.name // Pass the name string as the value so it matches reliably
                 }))
                 .slice(0, 25);
 
@@ -55,9 +55,10 @@ module.exports = {
     },
 
     async execute(interaction) {
-        const emojiId = interaction.options.getString('name');
+        const emojiName = interaction.options.getString('name');
         
-        const foundEmoji = customEmojis.find(e => e.id === emojiId);
+        // Find the emoji by its name string
+        const foundEmoji = customEmojis.find(e => e.name.toLowerCase() === emojiName.toLowerCase());
 
         if (!foundEmoji) {
             return await interaction.reply({ content: '❌ Emoji not found in the custom list!', ephemeral: true });
