@@ -26,14 +26,21 @@ module.exports = {
         const targetUser = interaction.options.getUser('user');
         const attachedImage = interaction.options.getAttachment('image');
 
-        // Resolve target image URL
+        // Resolve target image URL, preserving animation if it's a user avatar with a GIF
         let imageUrl;
         if (attachedImage) {
             imageUrl = attachedImage.url;
         } else if (targetUser) {
-            imageUrl = targetUser.displayAvatarURL({ extension: 'png', size: 512 });
+            imageUrl = targetUser.displayAvatarURL({ 
+                extension: targetUser.avatar?.startsWith('a_') ? 'gif' : 'png', 
+                size: 512 
+            });
         } else {
-            imageUrl = interaction.user.displayAvatarURL({ extension: 'png', size: 512 });
+            const user = interaction.user;
+            imageUrl = user.displayAvatarURL({ 
+                extension: user.avatar?.startsWith('a_') ? 'gif' : 'png', 
+                size: 512 
+            });
         }
 
         try {
