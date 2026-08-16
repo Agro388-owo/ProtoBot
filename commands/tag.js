@@ -3,6 +3,31 @@ const botConfig = require('../config.js');
 const fs = require('fs');
 const path = require('path');
 
+// Path to the separate tags file in the root directory (one level up from commands/)
+const tagsFilePath = path.join(__dirname, '../tags.json');
+
+// Helper function to load tags from tags.json
+function loadTags() {
+    try {
+        if (fs.existsSync(tagsFilePath)) {
+            const data = fs.readFileSync(tagsFilePath, 'utf8');
+            return JSON.parse(data);
+        }
+    } catch (error) {
+        console.error('Failed to read tags.json:', error);
+    }
+    return {};
+}
+
+// Helper function to save tags to tags.json
+function saveTags(tags) {
+    try {
+        fs.writeFileSync(tagsFilePath, JSON.stringify(tags, null, 4), 'utf8');
+    } catch (error) {
+        console.error('Failed to write tags.json:', error);
+    }
+}
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('tag')
@@ -37,71 +62,42 @@ module.exports = {
         .addSubcommand(subcommand =>
             subcommand
                 .setName('list')
-                .setDescription('View your own custom tag.')
-        )
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName('request')
-                .setDescription('Request a custom tag or form title by sending a DM to the bot owner.')
-                .addStringOption(option =>
-                    option.setName('tag')
-                          .setDescription('The custom tag you are requesting')
-                          .setRequired(true)
+                .setDescription('View a custom tag for yourself or another user.')
+                .addUserOption(option =>
+                    option.setName('target')
+                          .setDescription('Optional: The user whose tag you want to view')
+                          .setRequired(false)
                 )
         ),
 
     async execute(interaction) {
         const subcommand = interaction.options.getSubcommand();
-        const configPath = path.join(__dirname, '../config.js');
         const userId = interaction.user.id;
         const isOwner = userId === botConfig.OWNER_ID;
 
-        // 📋 Handle Subcommand: List (View own tag)
+        // Load current tags from root tags.json file
+        const userTags = loadTags();
+
+        // 📋 Handle Subcommand: List (View own tag or specified user's tag)
         if (subcommand === 'list') {
-            const tags = botConfig.userTags || {};
-            const userTag = tags[userId];
+            const targetUser = interaction.options.getUser('target') || interaction.user;
+            const userTag = userTags[targetUser.id];
 
             if (!userTag) {
+                const message = targetUser.id === userId 
+                    ? `📂 **Your Custom Tag:**\n• You don't have a custom tag set right now! Use \`/tag set\` to create one.`
+                    : `📂 **Custom Tag:**\n• <@${targetUser.id}> does not have a custom tag set right now!`;
+
                 return await interaction.reply({
-                    content: `📂 **Your Custom Tag:**\n• You don't have a custom tag set right now! Use \`/tag set\` to create one.`,
+                    content: message,
                     ephemeral: true
                 });
             }
 
             return await interaction.reply({
-                content: `📂 **Your Custom Tag:**\n• <@${userId}>: \`${userTag}\``,
+                content: `📂 **Custom Tag:**\n• <@${targetUser.id}>: \`${userTag}\``,
                 ephemeral: true
             });
-        }
-
-        // 📥 Handle Subcommand: Request Tag via DMs
-        if (subcommand === 'request') {
-            const requestedTag = interaction.options.getString('tag');
-            const user = interaction.user;
-
-            try {
-                const owner = await interaction.client.users.fetch(botConfig.OWNER_ID);
-                
-                if (owner) {
-                    await owner.send(
-                        `📬 **New Tag Request!**\n` +
-                        `• **From:** <@${user.id}> (${user.tag} / ID: \`${user.id}\`)\n` +
-                        `• **Requested Tag:** \`${requestedTag}\`\n` +
-                        `• **Server:** ${interaction.guild ? interaction.guild.name : 'Direct Message'}`
-                    );
-                }
-
-                return await interaction.reply({
-                    content: `✨ Your request for the tag **\`${requestedTag}\`** has been successfully sent to the bot owner via DM!`,
-                    ephemeral: true
-                });
-            } catch (error) {
-                console.error('Failed to send tag request DM to owner:', error);
-                return await interaction.reply({
-                    content: `❌ Failed to send your tag request to the owner. They might have DMs closed!`,
-                    ephemeral: true
-                });
-            }
         }
 
         // ⚙️ Handle Subcommand: Set Tag
@@ -119,20 +115,18 @@ module.exports = {
 
             // Determine who the tag is being applied to
             const recipientId = targetUser ? targetUser.id : userId;
-
-            if (!botConfig.userTags) botConfig.userTags = {};
-            botConfig.userTags[recipientId] = customTag;
-
-            let fileContent = fs.readFileSync(configPath, 'utf8');
-            const tagsMappingStr = `userTags: ` + JSON.stringify(botConfig.userTags, null, 4) + `,`;
-
-            if (/userTags:\s*\{[\s\S]*?\}/.test(fileContent)) {
-                fileContent = fileContent.replace(/userTags:\s*\{[\s\S]*?\}\s*,?/, tagsMappingStr);
-            } else {
-                fileContent = fileContent.replace(/module\.exports\s*=\s*\{/, `module.exports = {\n\tuserTags: ${JSON.stringify(botConfig.userTags, null, 4)},`);
+            
+            // Check slot limit (50 slots max) before adding new tags if it doesn't already exist for this user
+            const currentTagCount = Object.keys(userTags).length;
+            if (!userTags[recipientId] && currentTagCount >= 50) {
+                return await interaction.reply({
+                    content: `❌ Maximum tag capacity reached (50/50 slots)! Cannot add new custom tags.`,
+                    ephemeral: true
+                });
             }
 
-            fs.writeFileSync(configPath, fileContent, 'utf8');
+            userTags[recipientId] = customTag;
+            saveTags(userTags);
 
             return await interaction.reply({
                 content: `🏷️ Successfully set the custom tag for <@${recipientId}> to: **\`${customTag}\`**!`,
@@ -155,23 +149,15 @@ module.exports = {
             // Determine who is getting their tag removed
             const recipientId = targetUser ? targetUser.id : userId;
 
-            if (!botConfig.userTags || !botConfig.userTags[recipientId]) {
+            if (!userTags[recipientId]) {
                 return await interaction.reply({
                     content: `⚠️ <@${recipientId}> does not have a custom tag assigned!`,
                     ephemeral: true
                 });
             }
 
-            delete botConfig.userTags[recipientId];
-
-            let fileContent = fs.readFileSync(configPath, 'utf8');
-            const tagsMappingStr = `userTags: ` + JSON.stringify(botConfig.userTags, null, 4) + `,`;
-
-            if (/userTags:\s*\{[\s\S]*?\}/.test(fileContent)) {
-                fileContent = fileContent.replace(/userTags:\s*\{[\s\S]*?\}\s*,?/, tagsMappingStr);
-            }
-
-            fs.writeFileSync(configPath, fileContent, 'utf8');
+            delete userTags[recipientId];
+            saveTags(userTags);
 
             return await interaction.reply({
                 content: `🗑️ Successfully removed the custom tag from <@${recipientId}>!`,
