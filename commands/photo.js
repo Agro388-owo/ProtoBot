@@ -18,6 +18,15 @@ module.exports = {
             option.setName('image')
                   .setDescription('An image file to use')
                   .setRequired(false)
+        )
+        .addStringOption(option =>
+            option.setName('format')
+                  .setDescription('Choose output format')
+                  .setRequired(false)
+                  .addChoices(
+                      { name: 'Static (PNG)', value: 'png' },
+                      { name: 'Animated (GIF)', value: 'gif' }
+                  )
         ),
 
     async execute(interaction, senderName) {
@@ -25,20 +34,21 @@ module.exports = {
 
         const targetUser = interaction.options.getUser('user');
         const attachedImage = interaction.options.getAttachment('image');
+        const outputFormat = interaction.options.getString('format') || 'png';
 
-        // Resolve target image URL, preserving animation if it's a user avatar with a GIF
+        // Resolve target image URL based on whether user wants a gif or png extension override
         let imageUrl;
         if (attachedImage) {
             imageUrl = attachedImage.url;
         } else if (targetUser) {
             imageUrl = targetUser.displayAvatarURL({ 
-                extension: targetUser.avatar?.startsWith('a_') ? 'gif' : 'png', 
+                extension: outputFormat === 'gif' ? 'gif' : 'png', 
                 size: 512 
             });
         } else {
             const user = interaction.user;
             imageUrl = user.displayAvatarURL({ 
-                extension: user.avatar?.startsWith('a_') ? 'gif' : 'png', 
+                extension: outputFormat === 'gif' ? 'gif' : 'png', 
                 size: 512 
             });
         }
@@ -76,8 +86,9 @@ module.exports = {
             ctx.drawImage(templateImg, 0, 0, templateImg.width, templateImg.height);
 
             // --- 3. Build & Send Attachment ---
-            const buffer = await canvas.encode('png');
-            const attachment = new AttachmentBuilder(buffer, { name: 'polaroid-photo.png' });
+            const encodeFormat = outputFormat === 'gif' ? 'gif' : 'png';
+            const buffer = await canvas.encode(encodeFormat);
+            const attachment = new AttachmentBuilder(buffer, { name: `polaroid-photo.${encodeFormat}` });
 
             await interaction.editReply({
                 content: ``,
@@ -87,7 +98,7 @@ module.exports = {
         } catch (error) {
             console.error('Failed to generate photo command:', error);
             await interaction.editReply({
-                content: `❌ Could not load or process the image file. Ensure \`assets/polaroid.png\` exists and the image is a valid static PNG/JPG or compatible format!`
+                content: `❌ Could not load or process the image file. Ensure \`assets/polaroid.png\` exists and the selected format is supported!`
             });
         }
     }
