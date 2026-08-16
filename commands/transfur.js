@@ -1,4 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
+const botConfig = require('../config.js');
 
 function getRandomMessage(array) {
     return array[Math.floor(Math.random() * array.length)];
@@ -34,6 +35,12 @@ module.exports = {
         const targetUser = interaction.options.getUser('target');
         const formChoice = interaction.options.getString('form') || 'latex';
 
+        // 🛡️ Check if target is immune using the dedicated transfur list
+        const transfurImmuneList = botConfig.transfurImmuneUsers || [];
+        if (transfurImmuneList.includes(targetUser.id)) {
+            return `<@${targetUser.id}>'s body composition completely resists the transformation fluid! Their latex/creature defenses hold strong! ✨ <:protogenirl:1536430038751121499>`;
+        }
+
         // 📭 Blank / Custom option handling
         if (formChoice === 'blank') {
             if (interaction.user.id === targetUser.id) {
@@ -42,7 +49,7 @@ module.exports = {
             return `${senderName} transformed ${recipientName}...`;
         }
 
-        // 🐾 Form-specific message lists with expanded pool/substance themes
+        // 🐾 Form-specific message lists
         const formMessages = {
             latex: {
                 self: [
@@ -58,12 +65,12 @@ module.exports = {
             },
             protogen: {
                 self: [
-                    `${senderName}put on a facny visor on and became a protogen! <:protogenirl:1536430038751121499>`,
+                    `${senderName} put on a fancy visor on and became a protogen! <:protogenirl:1536430038751121499>`,
                     `${senderName} somehow became a protogen! <:protogenirl:1536430038751121499>`
                 ],
                 other: [
-                    `${senderName} threw ${recipientName} into a pool with metalic liquid, turning them into a protogen!`,
-                    `${senderName} pushed ${recipientName} into a high-tech chamber, converting them into protogen! <:protogenirl:1536430038751121499>`
+                    `${senderName} threw ${recipientName} into a pool with metallic liquid, turning them into a protogen!`,
+                    `${senderName} somehow converted ${recipientName} into protogen! <:protogenirl:1536430038751121499>`
                 ]
             },
             shark: {
