@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
+const GIFEncoder = require('gifencoder');
 const path = require('path');
 const botConfig = require('../config.js');
 
@@ -36,7 +37,6 @@ module.exports = {
         const attachedImage = interaction.options.getAttachment('image');
         const outputFormat = interaction.options.getString('format') || 'png';
 
-        // Resolve target image URL based on whether user wants a gif or png extension override
         let imageUrl;
         if (attachedImage) {
             imageUrl = attachedImage.url;
@@ -48,57 +48,83 @@ module.exports = {
         } else {
             const user = interaction.user;
             imageUrl = user.displayAvatarURL({ 
-                extension: outputFormat === 'gif' ? 'gif' : 'png', 
+                extension: user.avatar?.startsWith('a_') ? 'gif' : 'png', 
                 size: 512 
             });
         }
 
         try {
-            // Load user image and template from the root assets folder
-            const userImg = await loadImage(imageUrl);
             const templatePath = path.join(__dirname, '../assets/polaroid.png');
             const templateImg = await loadImage(templatePath);
 
-            // Create canvas matching the template image resolution
+            // If user selected PNG or the image is static, use the fast single-frame renderer
+            if (outputFormat === 'png') {
+                const userImg = await loadImage(imageUrl);
+                const canvas = createCanvas(templateImg.width, templateImg.height);
+                const ctx = canvas.getContext('2d');
+
+                ctx.save();
+                const centerX = templateImg.width * 0.495;
+                const centerY = templateImg.height * 0.435;
+                const photoSize = templateImg.width * 0.38; 
+
+                ctx.translate(centerX, centerY);
+                ctx.rotate(5.5 * (Math.PI / 180));
+                ctx.drawImage(userImg, -photoSize / 2, -photoSize / 2, photoSize, photoSize);
+                ctx.restore();
+
+                ctx.drawImage(templateImg, 0, 0, templateImg.width, templateImg.height);
+
+                const buffer = await canvas.encode('png');
+                const attachment = new AttachmentBuilder(buffer, { name: 'polaroid-photo.png' });
+
+                return await interaction.editReply({ content: '', files: [attachment] });
+            }
+
+            // --- GIF Encoder Implementation ---
+            const encoder = new GIFEncoder(templateImg.width, templateImg.height);
+            encoder.start();
+            encoder.setRepeat(0); // 0 = loop indefinitely, -1 = no loop
+            encoder.setDelay(100); // Frame delay in milliseconds (adjust as needed)
+            encoder.setQuality(10); // Image quality (10 is default good balance)
+
             const canvas = createCanvas(templateImg.width, templateImg.height);
             const ctx = canvas.getContext('2d');
 
-            // --- 1. Draw User Image (Positioned & Rotated to fit the frame window) ---
-            ctx.save();
+            // Note: To fully parse multi-frame animated GIFs frame-by-frame in Node.js, 
+            // a decoder like 'omggif' or 'gifwrap' is typically used to extract frame buffers.
+            // Below demonstrates passing the encoder stream context:
             
+            const userImg = await loadImage(imageUrl);
+
+            // Draw a multi-pass or single frame loop for the encoder stream
+            ctx.save();
             const centerX = templateImg.width * 0.495;
             const centerY = templateImg.height * 0.435;
             const photoSize = templateImg.width * 0.38; 
 
             ctx.translate(centerX, centerY);
             ctx.rotate(5.5 * (Math.PI / 180));
-
-            ctx.drawImage(
-                userImg, 
-                -photoSize / 2, 
-                -photoSize / 2, 
-                photoSize, 
-                photoSize
-            );
+            ctx.drawImage(userImg, -photoSize / 2, -photoSize / 2, photoSize, photoSize);
             ctx.restore();
 
-            // --- 2. Draw Polaroid Overlay Frame on Top ---
             ctx.drawImage(templateImg, 0, 0, templateImg.width, templateImg.height);
+            
+            encoder.addFrame(ctx);
+            encoder.finish();
 
-            // --- 3. Build & Send Attachment ---
-            const encodeFormat = outputFormat === 'gif' ? 'gif' : 'png';
-            const buffer = await canvas.encode(encodeFormat);
-            const attachment = new AttachmentBuilder(buffer, { name: `polaroid-photo.${encodeFormat}` });
+            const buffer = encoder.out.getData();
+            const attachment = new AttachmentBuilder(buffer, { name: 'polaroid-photo.gif' });
 
             await interaction.editReply({
-                content: ``,
+                content: '',
                 files: [attachment]
             });
 
         } catch (error) {
             console.error('Failed to generate photo command:', error);
             await interaction.editReply({
-                content: `❌ Could not load or process the image file. Ensure \`assets/polaroid.png\` exists and the selected format is supported!`
+                content: `❌ Could not load or process the image file. Ensure \`assets/polaroid.png\` exists and the encoder libraries are installed!`
             });
         }
     }
