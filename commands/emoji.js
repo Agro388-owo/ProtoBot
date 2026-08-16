@@ -4,22 +4,6 @@ function getRandomMessage(array) {
     return array[Math.floor(Math.random() * array.length)];
 }
 
-const emojiMap = {
-    'maiddress': '<:maiddress:1536430032572911646>',
-    'protogenirl': '<:protogenirl:1536430038751121499>', 
-    'Puropreocupado': '<:Puropreocupado:1536430030916288572>',
-    'Puro_Blush6': '<:Puro_Blush6:1536430029104353380>',
-    'Puro_Pathetic6': '<:Puro_Pathetic6:1536430027468710019>',
-    'puro_sad': '<:puro_sad:1536430025635799061>',
-    'purocute': '<:purocute:1536367584369180803>',
-    'puronervous': '<:puronervous:1536367581995335750>',
-    'puroshock': '<:puroshock:1536366927230799972>',
-    'puroblush': '<:puroblush:1536364136613806090>',
-    'puroneutral': '<:puroneutral:1536364135342669824>',
-    'Puroadorable': '<:Puroadorable:1536364133392457818>', 
-    'Thing': '<:thing:1537616433171796149>'
-};
-
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('emoji')
@@ -30,23 +14,41 @@ module.exports = {
             option.setName('name')
                   .setDescription('Which emoji to send?')
                   .setRequired(true)
-                  .addChoices(
-                      ...Object.keys(emojiMap).slice(0, 25).map(name => ({ name, value: name }))
-                  )
+                  .setAutocomplete(true) // Enables dynamic autocomplete
         ),
 
-    async execute(interaction) {
-        const emojiName = interaction.options.getString('name');
-        const emojiString = emojiMap[emojiName];
+    async autocomplete(interaction) {
+        const focusedValue = interaction.options.getFocused().toLowerCase();
+        
+        // Automatically grab all emojis the bot has access to
+        const emojis = interaction.client.emojis.cache;
 
-        if (!emojiString) {
-            return 'Emoji not found!';
+        // Map them into choice objects for Discord, filtering by what the user is typing
+        const filtered = emojis
+            .filter(emoji => emoji.name.toLowerCase().includes(focusedValue))
+            .map(emoji => ({
+                name: emoji.name,
+                value: emoji.id
+            }))
+            .slice(0, 25); // Discord allows a maximum of 25 choices
+
+        await interaction.respond(filtered);
+    },
+
+    async execute(interaction) {
+        const emojiId = interaction.options.getString('name');
+        
+        // Fetch the emoji by its ID from the client cache
+        const emoji = interaction.client.emojis.cache.get(emojiId);
+
+        if (!emoji) {
+            return await interaction.reply({ content: 'Emoji not found!', ephemeral: true });
         }
 
         const emojiVariants = [
-            ` ${emojiString}`
+            ` ${emoji.toString()}`
         ];
 
-        return getRandomMessage(emojiVariants);
+        return await interaction.reply(getRandomMessage(emojiVariants));
     }
 };
