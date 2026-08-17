@@ -1,31 +1,6 @@
 const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
-const { createCanvas, loadImage } = require('@napi-rs/canvas');
-const botConfig = require('../config.js');
-
-const owner = "Agro388-owo";
-const repo = "ProtoBot";
-const path = "assets/polaroid.png";
-const branch = "main";
-
-// Fetch template directly from GitHub repository
-async function loadTemplateBuffer() {
-    const token = botConfig.GITHUB_TOKEN;
-    const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`;
-    
-    const res = await fetch(url, {
-        headers: {
-            "Authorization": `Bearer ${token}`,
-            "User-Agent": "ProtoBot-PhotoCommand"
-        }
-    });
-
-    if (!res.ok) {
-        throw new Error(`Failed to fetch polaroid template from GitHub: ${res.statusText}`);
-    }
-
-    const arrayBuffer = await res.arrayBuffer();
-    return Buffer.from(arrayBuffer);
-}
+const sharp = require('sharp');
+const path = require('path');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -66,41 +41,72 @@ module.exports = {
         }
 
         try {
-            const [userImg, templateBuffer] = await Promise.all([
-                loadImage(imageUrl),
-                loadTemplateBuffer()
-            ]);
+            // Fetch target image/GIF buffer
+            const res = await fetch(imageUrl);
+            if (!res.ok) throw new Error('Failed to fetch input image');
+            const userImgBuffer = Buffer.from(await res.arrayBuffer());
 
-            const templateImg = await loadImage(templateBuffer);
+            const templatePath = path.join(__dirname, '../assets/polaroid.png');
+            const templateMeta = await sharp(templatePath).metadata();
+            const width = templateMeta.width;
+            const height = templateMeta.height;
 
-            const canvas = createCanvas(templateImg.width, templateImg.height);
-            const ctx = canvas.getContext('2d');
+            const photoSize = Math.round(width * 0.38);
+            const centerX = Math.round(width * 0.495);
+            const centerY = Math.round(height * 0.435);
 
-            const centerX = templateImg.width * 0.495;
-            const centerY = templateImg.height * 0.435;
-            const photoSize = templateImg.width * 0.38;
+            const topLeftX = Math.round(centerX - photoSize / 2);
+            const topLeftY = Math.round(centerY - photoSize / 2);
 
-            // 1. Draw User Image (Positioned & Rotated)
-            ctx.save();
-            ctx.translate(centerX, centerY);
-            ctx.rotate(5.5 * (Math.PI / 180));
-            ctx.drawImage(
-                userImg,
-                -photoSize / 2,
-                -photoSize / 2,
-                photoSize,
-                photoSize
-            );
-            ctx.restore();
+            if (isGif) {
+                // 1. Process animated GIF (resize & rotate with transparent background)
+                const resizedGif = await sharp(userImgBuffer, { animated: true })
+                    .resize(photoSize, photoSize, { fit: 'cover' })
+                    .rotate(5.5, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
+                    .toBuffer();
 
-            // 2. Draw Polaroid Overlay Frame on Top
-            ctx.drawImage(templateImg, 0, 0, templateImg.width, templateImg.height);
+                // 2. Composite animated GIF and Polaroid overlay together
+                const finalGifBuffer = await sharp(resizedGif, { animated: true })
+                    .composite([
+                        {
+                            input: templatePath,
+                            top: 0,
+                            left: 0,
+                            // Tile or composite overlay across all frames of the GIF sequence
+                            tile: false
+                        }
+                    ])
+                    .gif({ loop: 0 }) // Force infinite loop
+                    .toBuffer();
 
-            // 3. Encode & Output
-            const buffer = await canvas.encode('png');
-            const attachment = new AttachmentBuilder(buffer, { name: isGif ? 'polaroid-photo.gif' : 'polaroid-photo.png' });
+                const attachment = new AttachmentBuilder(finalGifBuffer, { name: 'polaroid-photo.gif' });
+                return await interaction.editReply({ files: [attachment] });
 
-            return await interaction.editReply({ files: [attachment] });
+            } else {
+                // Static image composite
+                const processedUserImg = await sharp(userImgBuffer)
+                    .resize(photoSize, photoSize, { fit: 'cover' })
+                    .rotate(5.5, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
+                    .toBuffer();
+
+                const finalImageBuffer = await sharp({
+                    create: {
+                        width: width,
+                        height: height,
+                        channels: 4,
+                        background: { r: 0, g: 0, b: 0, alpha: 0 }
+                    }
+                })
+                .composite([
+                    { input: processedUserImg, top: topLeftY, left: topLeftX },
+                    { input: templatePath, top: 0, left: 0 }
+                ])
+                .png()
+                .toBuffer();
+
+                const attachment = new AttachmentBuilder(finalImageBuffer, { name: 'polaroid-photo.png' });
+                return await interaction.editReply({ files: [attachment] });
+            }
 
         } catch (error) {
             console.error('Failed to generate photo command:', error);
