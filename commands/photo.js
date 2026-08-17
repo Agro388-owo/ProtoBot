@@ -46,7 +46,6 @@ module.exports = {
             if (!res.ok) throw new Error(`Failed to fetch image: ${res.statusText}`);
             const userImgBuffer = Buffer.from(await res.arrayBuffer());
 
-            // Points directly to <root>/assets/polaroid.png from <root>/commands/photo.js
             const templatePath = path.join(__dirname, '../assets/polaroid.png');
             
             const templateMeta = await sharp(templatePath).metadata();
@@ -60,9 +59,9 @@ module.exports = {
             const topLeftY = Math.round(centerY - photoSize / 2);
 
             if (isGif) {
+                // Sharp cannot rotate multi-page animated buffers; resize without rotate()
                 const resizedGif = await sharp(userImgBuffer, { animated: true })
                     .resize(photoSize, photoSize, { fit: 'cover' })
-                    .rotate(5.5, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
                     .toBuffer();
 
                 const finalGifBuffer = await sharp(resizedGif, { animated: true })
@@ -99,7 +98,7 @@ module.exports = {
             try {
                 await interaction.deleteReply();
                 await interaction.followUp({
-                    content: `❌ Could not process this image! (Check logs for: ${error.message}) <:Puropreocupado:1536430030916288572>`,
+                    content: `❌ Could not process this image! (If your the owner check logs for: ${error.message}) <:Puropreocupado:1536430030916288572>`,
                     flags: MessageFlags.Ephemeral
                 });
             } catch (followUpError) {
