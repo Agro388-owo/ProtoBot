@@ -20,6 +20,7 @@ module.exports = {
         ),
 
     async execute(interaction) {
+        // Defer immediately to prevent 3-second Discord interaction timeout
         await interaction.deferReply();
 
         const targetUser = interaction.options.getUser('user');
@@ -43,7 +44,7 @@ module.exports = {
         try {
             // Fetch target image/GIF buffer
             const res = await fetch(imageUrl);
-            if (!res.ok) throw new Error('Failed to fetch input image');
+            if (!res.ok) throw new Error('Failed to download target image.');
             const userImgBuffer = Buffer.from(await res.arrayBuffer());
 
             const templatePath = path.join(__dirname, '../assets/polaroid.png');
@@ -59,31 +60,27 @@ module.exports = {
             const topLeftY = Math.round(centerY - photoSize / 2);
 
             if (isGif) {
-                // 1. Process animated GIF (resize & rotate with transparent background)
+                // Resize & rotate animated GIF frame sequence
                 const resizedGif = await sharp(userImgBuffer, { animated: true })
                     .resize(photoSize, photoSize, { fit: 'cover' })
                     .rotate(5.5, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
                     .toBuffer();
 
-                // 2. Composite animated GIF and Polaroid overlay together
+                // Composite frame overlay on top of GIF
                 const finalGifBuffer = await sharp(resizedGif, { animated: true })
-                    .composite([
-                        {
-                            input: templatePath,
-                            top: 0,
-                            left: 0,
-                            // Tile or composite overlay across all frames of the GIF sequence
-                            tile: false
-                        }
-                    ])
-                    .gif({ loop: 0 }) // Force infinite loop
+                    .composite([{
+                        input: templatePath,
+                        top: 0,
+                        left: 0
+                    }])
+                    .gif({ loop: 0 })
                     .toBuffer();
 
                 const attachment = new AttachmentBuilder(finalGifBuffer, { name: 'polaroid-photo.gif' });
                 return await interaction.editReply({ files: [attachment] });
 
             } else {
-                // Static image composite
+                // Static image workflow
                 const processedUserImg = await sharp(userImgBuffer)
                     .resize(photoSize, photoSize, { fit: 'cover' })
                     .rotate(5.5, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
@@ -110,9 +107,13 @@ module.exports = {
 
         } catch (error) {
             console.error('Failed to generate photo command:', error);
-            await interaction.editReply({
-                content: `❌ Could not process this image or GIF! <:Puropreocupado:1536430030916288572>`
-            });
+            try {
+                await interaction.editReply({
+                    content: `❌ Could not process this image or GIF! <:Puropreocupado:1536430030916288572>`
+                });
+            } catch {
+                // Catch secondary response error if interaction truly expired
+            }
         }
     }
 };
