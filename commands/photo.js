@@ -46,8 +46,8 @@ module.exports = {
             if (!res.ok) throw new Error(`Failed to fetch image: ${res.statusText}`);
             const userImgBuffer = Buffer.from(await res.arrayBuffer());
 
-            // FIX: Adjust this path if your assets folder is at the root
-            const templatePath = path.join(__dirname, '../../assets/polaroid.png');
+            // Points directly to <root>/assets/polaroid.png from <root>/commands/photo.js
+            const templatePath = path.join(__dirname, '../assets/polaroid.png');
             
             const templateMeta = await sharp(templatePath).metadata();
             const width = templateMeta.width;
@@ -94,7 +94,6 @@ module.exports = {
             }
 
         } catch (error) {
-            // CRITICAL: Log the FULL error stack so you can see if it's "File not found" or something else
             console.error('PHOTO_COMMAND_ERROR:', error);
             
             try {
