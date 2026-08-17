@@ -50,10 +50,24 @@ module.exports = {
 
     async execute(interaction) {
         const emojiName = interaction.options.getString('name');
-        const emojiString = emojiMap[emojiName];
+        let emojiString = null;
+
+        // 1. Check if execution is inside a server (guild)
+        if (interaction.guild) {
+            // Find the emoji directly in the current server's custom emoji list
+            const serverEmoji = interaction.guild.emojis.cache.find(e => e.name === emojiName);
+            if (serverEmoji) {
+                emojiString = serverEmoji.toString();
+            }
+        }
+
+        // 2. Fallback to hardcoded emojiMap if not in a server or emoji not found locally
+        if (!emojiString) {
+            emojiString = emojiMap[emojiName];
+        }
 
         if (!emojiString) {
-            return await interaction.reply({ content: 'Emoji not found!', ephemeral: true });
+            return await interaction.reply({ content: 'Emoji not found!', flags: 64 });
         }
 
         const emojiVariants = [
