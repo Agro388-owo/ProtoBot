@@ -1,16 +1,44 @@
 const { SlashCommandBuilder } = require('discord.js');
 const botConfig = require('../config.js');
 
-async function saveTagsToGitHub(tagsData) {
-    const owner = "Agro388-owo";
-    const repo = "ProtoBot";
-    const path = "tags.json";
-    const branch = "main";
-    const token = botConfig.GITHUB_TOKEN; 
+const owner = "Agro388-owo";
+const repo = "ProtoBot";
+const path = "tags.json";
+const branch = "main";
 
+// Helper function to load tags directly via GitHub Contents API (bypasses raw URL caching)
+async function loadTags() {
+    const token = botConfig.GITHUB_TOKEN;
+    try {
+        const getUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`;
+        const res = await fetch(getUrl, {
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "User-Agent": "ProtoBot-TagManager",
+                "Accept": "application/vnd.github+json",
+                "Cache-Control": "no-cache"
+            }
+        });
+
+        if (res.ok) {
+            const fileData = await res.json();
+            // GitHub API returns content base64 encoded
+            const decodedContent = Buffer.from(fileData.content, 'base64').toString('utf8');
+            return JSON.parse(decodedContent);
+        }
+    } catch (error) {
+        console.error('Failed to fetch tags.json from GitHub API:', error);
+    }
+    return {};
+}
+
+// Helper function to save tags to GitHub via API
+async function saveTagsToGitHub(tagsData) {
+    const token = botConfig.GITHUB_TOKEN; 
     const contentEncoded = Buffer.from(JSON.stringify(tagsData, null, 4)).toString('base64');
 
     try {
+        // 1. Get current file SHA
         const getUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`;
         const getRes = await fetch(getUrl, {
             headers: {
@@ -26,6 +54,7 @@ async function saveTagsToGitHub(tagsData) {
             fileSha = fileData.sha;
         }
 
+        // 2. Push updated file via PUT request
         const putUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
         const putRes = await fetch(putUrl, {
             method: "PUT",
@@ -54,19 +83,6 @@ async function saveTagsToGitHub(tagsData) {
         console.error("Error communicating with GitHub API:", error);
         return false;
     }
-}
-
-async function loadTags() {
-    try {
-        const rawUrl = `https://raw.githubusercontent.com/Agro388-owo/ProtoBot/main/tags.json`;
-        const res = await fetch(rawUrl);
-        if (res.ok) {
-            return await res.json();
-        }
-    } catch (error) {
-        console.error('Failed to fetch tags.json from GitHub raw URL:', error);
-    }
-    return {};
 }
 
 module.exports = {
@@ -171,7 +187,7 @@ module.exports = {
                 return await interaction.editReply({ content: `❌ Failed to save the tag update to GitHub!` });
             }
 
-            return await interaction.editReply({ content: `🏷️ Successfully added and pushed the custom tag **\`${customTag}\`** for <@${recipientId}> to GitHub!` });
+            return await interaction.editReply({ content: `🏷️ Successfully added the custom tag **\`${customTag}\`** for <@${recipientId}>!` });
         }
 
         if (subcommand === 'remove') {
