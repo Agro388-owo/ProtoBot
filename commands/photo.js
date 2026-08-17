@@ -1,6 +1,31 @@
 const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
-const sharp = require('sharp');
-const path = require('path');
+const { createCanvas, loadImage } = require('@napi-rs/canvas');
+const botConfig = require('../config.js');
+
+const owner = "Agro388-owo";
+const repo = "ProtoBot";
+const path = "assets/polaroid.png";
+const branch = "main";
+
+// Fetch template directly from GitHub repository
+async function loadTemplateBuffer() {
+    const token = botConfig.GITHUB_TOKEN;
+    const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`;
+    
+    const res = await fetch(url, {
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "User-Agent": "ProtoBot-PhotoCommand"
+        }
+    });
+
+    if (!res.ok) {
+        throw new Error(`Failed to fetch polaroid template from GitHub: ${res.statusText}`);
+    }
+
+    const arrayBuffer = await res.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+}
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -25,7 +50,6 @@ module.exports = {
         const targetUser = interaction.options.getUser('user');
         const attachedImage = interaction.options.getAttachment('image');
 
-        // Check if the source is animated
         const isAttachedGif = attachedImage?.contentType?.includes('gif') || attachedImage?.url?.toLowerCase().endsWith('.gif');
         const target = targetUser || interaction.user;
         const isAvatarGif = target.avatar && target.avatar.startsWith('a_');
@@ -42,78 +66,41 @@ module.exports = {
         }
 
         try {
-            // Fetch input image buffer
-            const res = await fetch(imageUrl);
-            if (!res.ok) throw new Error('Failed to fetch target image');
-            const userImgBuffer = Buffer.from(await res.arrayBuffer());
+            const [userImg, templateBuffer] = await Promise.all([
+                loadImage(imageUrl),
+                loadTemplateBuffer()
+            ]);
 
-            const templatePath = path.join(__dirname, '../assets/polaroid.png');
+            const templateImg = await loadImage(templateBuffer);
 
-            // Template dimensions & composition coordinates
-            const templateMeta = await sharp(templatePath).metadata();
-            const width = templateMeta.width;
-            const height = templateMeta.height;
+            const canvas = createCanvas(templateImg.width, templateImg.height);
+            const ctx = canvas.getContext('2d');
 
-            const photoSize = Math.round(width * 0.38);
-            const centerX = Math.round(width * 0.495);
-            const centerY = Math.round(height * 0.435);
+            const centerX = templateImg.width * 0.495;
+            const centerY = templateImg.height * 0.435;
+            const photoSize = templateImg.width * 0.38;
 
-            // Compute top-left placement box for composite
-            const topLeftX = Math.round(centerX - photoSize / 2);
-            const topLeftY = Math.round(centerY - photoSize / 2);
+            // 1. Draw User Image (Positioned & Rotated)
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            ctx.rotate(5.5 * (Math.PI / 180));
+            ctx.drawImage(
+                userImg,
+                -photoSize / 2,
+                -photoSize / 2,
+                photoSize,
+                photoSize
+            );
+            ctx.restore();
 
-            if (isGif) {
-                // Resize animated user GIF frame-by-frame & rotate
-                const processedUserGif = await sharp(userImgBuffer, { animated: true })
-                    .resize(photoSize, photoSize, { fit: 'cover' })
-                    .rotate(5.5, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
-                    .toBuffer();
+            // 2. Draw Polaroid Overlay Frame on Top
+            ctx.drawImage(templateImg, 0, 0, templateImg.width, templateImg.height);
 
-                // Composite the template frame overlay over the animated GIF
-                const finalGifBuffer = await sharp(processedUserGif, { animated: true })
-                    .extend({
-                        top: topLeftY,
-                        bottom: Math.max(0, height - (topLeftY + photoSize)),
-                        left: topLeftX,
-                        right: Math.max(0, width - (topLeftX + photoSize)),
-                        background: { r: 0, g: 0, b: 0, alpha: 0 }
-                    })
-                    .composite([{
-                        input: templatePath,
-                        top: 0,
-                        left: 0
-                    }])
-                    .gif()
-                    .toBuffer();
+            // 3. Encode & Output
+            const buffer = await canvas.encode('png');
+            const attachment = new AttachmentBuilder(buffer, { name: isGif ? 'polaroid-photo.gif' : 'polaroid-photo.png' });
 
-                const attachment = new AttachmentBuilder(finalGifBuffer, { name: 'polaroid-photo.gif' });
-                return await interaction.editReply({ files: [attachment] });
-
-            } else {
-                // Static image workflow
-                const processedUserImg = await sharp(userImgBuffer)
-                    .resize(photoSize, photoSize, { fit: 'cover' })
-                    .rotate(5.5, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
-                    .toBuffer();
-
-                const finalImageBuffer = await sharp({
-                    create: {
-                        width: width,
-                        height: height,
-                        channels: 4,
-                        background: { r: 0, g: 0, b: 0, alpha: 0 }
-                    }
-                })
-                .composite([
-                    { input: processedUserImg, top: topLeftY, left: topLeftX },
-                    { input: templatePath, top: 0, left: 0 }
-                ])
-                .png()
-                .toBuffer();
-
-                const attachment = new AttachmentBuilder(finalImageBuffer, { name: 'polaroid-photo.png' });
-                return await interaction.editReply({ files: [attachment] });
-            }
+            return await interaction.editReply({ files: [attachment] });
 
         } catch (error) {
             console.error('Failed to generate photo command:', error);
