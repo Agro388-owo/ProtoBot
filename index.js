@@ -93,40 +93,134 @@ for (const file of commandFiles) {
 }
 console.log(`--- Total Commands Loaded: ${client.commands.size} ---`);
 
-// 📝 Helper function to log user interaction to users.txt
-function logUserInteraction(user) {
-    const filePath = path.join(__dirname, 'users.txt');
-    const isStillActive = client.users.cache.has(user.id);
-    const statusText = isStillActive ? 'Active (Reachable)' : 'Inactive';
+// 🐙 GitHub Integration Helper to sync users.json to your repo
+async function saveUsersToGitHub(jsonContent) {
+    const owner = "Agro388-owo";
+    const repo = "ProtoBot";
+    const filePath = "users.json";
+    const branch = "main";
+    const token = botConfig.GITHUB_TOKEN || process.env.GITHUB_TOKEN;
 
-    const userEntry = `Username: ${user.tag}\nID: ${user.id}\nStatus: ${statusText}\n-------------------------\n`;
+    if (!token) {
+        console.warn('[GITHUB SYNC] GITHUB_TOKEN not found. Skipping remote sync.');
+        return;
+    }
+
+    const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
 
     try {
-        let existingData = '';
-        if (fs.existsSync(filePath)) {
-            existingData = fs.readFileSync(filePath, 'utf8');
+        // 1. Fetch current file SHA if it exists on GitHub
+        let sha = null;
+        const getRes = await fetch(apiUrl, {
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "User-Agent": "ProtoBot-UserLogger"
+            }
+        });
+
+        if (getRes.ok) {
+            const fileData = await getRes.json();
+            sha = fileData.sha;
         }
 
-        if (!existingData.includes(user.id)) {
-            fs.appendFileSync(filePath, userEntry);
-            console.log(`[USER LOGGER] New user recorded: ${user.tag} (${user.id})`);
+        // 2. Commit updated JSON content to GitHub
+        const contentEncoded = Buffer.from(jsonContent).toString('base64');
+        const putRes = await fetch(apiUrl, {
+            method: "PUT",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json",
+                "User-Agent": "ProtoBot-UserLogger"
+            },
+            body: JSON.stringify({
+                message: "update: Sync users.json database",
+                content: contentEncoded,
+                sha: sha,
+                branch: branch
+            })
+        });
+
+        if (putRes.ok) {
+            console.log('[GITHUB SYNC] Successfully updated users.json on GitHub!');
         } else {
-            const entries = existingData.split('-------------------------\n').filter(Boolean);
-            const updatedEntries = entries.map(entry => {
-                if (entry.includes(`ID: ${user.id}`)) {
-                    return `Username: ${user.tag}\nID: ${user.id}\nStatus: ${statusText}\n`;
-                }
-                return entry;
-            });
-            fs.writeFileSync(filePath, updatedEntries.join('-------------------------\n') + (updatedEntries.length ? '-------------------------\n' : ''));
+            const errBody = await putRes.text();
+            console.error('[GITHUB SYNC ERROR] GitHub API responded with:', errBody);
         }
     } catch (err) {
-        console.error('[USER LOGGER ERROR] Failed to write to users.txt:', err);
+        console.error('[GITHUB SYNC ERROR] Failed pushing to GitHub:', err);
+    }
+}
+
+// 📝 Helper function to load, sync, and log users to users.json (Local + GitHub)
+async function syncAndLogUsers(currentUser = null) {
+    const filePath = path.join(__dirname, 'users.json');
+    let usersData = [];
+
+    try {
+        if (fs.existsSync(filePath)) {
+            const rawData = fs.readFileSync(filePath, 'utf8');
+            if (rawData.trim()) {
+                usersData = JSON.parse(rawData);
+            }
+        }
+
+        const processUser = (user, isCommandUser = false) => {
+            if (!user || user.bot) return;
+
+            const existingIndex = usersData.findIndex(u => u.id === user.id);
+            const isStillActive = client.users.cache.has(user.id);
+            const statusText = isStillActive ? 'Active (Reachable)' : 'Inactive';
+
+            if (existingIndex !== -1) {
+                usersData[existingIndex].tag = user.tag;
+                usersData[existingIndex].username = user.username;
+                usersData[existingIndex].status = statusText;
+                if (isCommandUser) {
+                    usersData[existingIndex].lastSeen = new Date().toISOString();
+                }
+            } else {
+                usersData.push({
+                    id: user.id,
+                    username: user.username,
+                    tag: user.tag,
+                    status: statusText,
+                    firstSeen: new Date().toISOString(),
+                    lastSeen: new Date().toISOString()
+                });
+                console.log(`[USER LOGGER] Recorded user: ${user.tag} (${user.id})`);
+            }
+        };
+
+        // 1. Process active command user immediately
+        if (currentUser) {
+            processUser(currentUser, true);
+        }
+
+        // 2. Scan cached members across shared servers
+        client.guilds.cache.forEach(guild => {
+            guild.members.cache.forEach(member => {
+                processUser(member.user, false);
+            });
+        });
+
+        const formattedJson = JSON.stringify(usersData, null, 2);
+
+        // Save locally
+        fs.writeFileSync(filePath, formattedJson, 'utf8');
+
+        // Sync directly to GitHub repository
+        await saveUsersToGitHub(formattedJson);
+
+    } catch (err) {
+        console.error('[USER LOGGER ERROR] Failed to update users.json:', err);
     }
 }
 
 client.once('ready', async () => {
-    console.log(`ProtoBot v0.0.3 logged in as ${client.user.tag}!`);
+    console.log(`ProtoBot logged in as ${client.user.tag}!`);
+
+    // 📝 Scan and sync existing users to users.json on startup
+    await syncAndLogUsers();
 
     client.user.setPresence({
         activities: [
@@ -157,8 +251,8 @@ client.once('ready', async () => {
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
 
-    // 📝 Automatically log user details to users.txt
-    logUserInteraction(interaction.user);
+    // 📝 Automatically log/update command user in users.json & sync to GitHub
+    syncAndLogUsers(interaction.user).catch(err => console.error(err));
 
     const command = client.commands.get(interaction.commandName);
     if (!command) return;
@@ -186,23 +280,26 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (selectedMessage) {
-            const responseMessage = await interaction.reply({ content: selectedMessage, fetchReply: true });
+            const response = await interaction.reply({ content: selectedMessage, withResponse: true });
+            const responseMessage = response.resource ? response.resource.message : response;
 
-            const filter = (reaction, reactUser) => {
-                return (reaction.emoji.name === '❌' || reaction.emoji.name === '✖️') && reactUser.id === user.id;
-            };
+            if (responseMessage && typeof responseMessage.createReactionCollector === 'function') {
+                const filter = (reaction, reactUser) => {
+                    return (reaction.emoji.name === '❌' || reaction.emoji.name === '✖️') && reactUser.id === user.id;
+                };
 
-            const collector = responseMessage.createReactionCollector({ filter, time: 60000 });
-            collector.on('collect', async () => {
-                try { await interaction.deleteReply(); } catch (e) {}
-            });
+                const collector = responseMessage.createReactionCollector({ filter, time: 60000 });
+                collector.on('collect', async () => {
+                    try { await interaction.deleteReply(); } catch (e) {}
+                });
+            }
         }
     } catch (error) {
         console.error(`Error executing ${interaction.commandName}:`, error);
         if (botConfig.debugMode) {
-            await interaction.reply({ content: `🛠️ **[DEBUG ERROR TRACE]:** \`\`\`${error.stack}\`\`\``, ephemeral: true });
+            await interaction.reply({ content: `🛠️ **[DEBUG ERROR TRACE]:** \`\`\`${error.stack}\`\`\``, flags: 64 });
         } else if (!interaction.replied && !interaction.deferred) {
-            await interaction.reply({ content: 'There was an error executing this command!', ephemeral: true });
+            await interaction.reply({ content: 'There was an error executing this command!', flags: 64 });
         }
     }
 });
