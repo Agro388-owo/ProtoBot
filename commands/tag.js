@@ -62,7 +62,7 @@ async function saveTagsToGitHub(tagsData) {
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                message: "Update tags.json with usernames via ProtoBot",
+                message: "Update tags.json and immunity rules via ProtoBot",
                 content: contentEncoded,
                 sha: fileSha,
                 branch: branch
@@ -85,7 +85,7 @@ async function saveTagsToGitHub(tagsData) {
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('tag')
-        .setDescription('Manage multiple custom tags and form titles!')
+        .setDescription('Manage custom user tags and Pale Virus immunity keywords!')
         .setIntegrationTypes([0, 1])
         .setContexts([0, 1, 2])
         .addSubcommand(subcommand =>
@@ -127,6 +127,26 @@ module.exports = {
                           .setDescription('Optional: The user whose tags you want to view')
                           .setRequired(false)
                 )
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('immunity')
+                .setDescription('[Owner Only] Manage tag keywords that grant Pale Virus immunity.')
+                .addStringOption(option =>
+                    option.setName('action')
+                          .setDescription('Choose action: add, remove, or list')
+                          .setRequired(true)
+                          .addChoices(
+                              { name: 'Add Keyword', value: 'add' },
+                              { name: 'Remove Keyword', value: 'remove' },
+                              { name: 'List Keywords', value: 'list' }
+                          )
+                )
+                .addStringOption(option =>
+                    option.setName('keyword')
+                          .setDescription('The immunity keyword (e.g. pale, latex, tiger shark)')
+                          .setRequired(false)
+                )
         ),
 
     async execute(interaction) {
@@ -138,6 +158,58 @@ module.exports = {
 
         let allUserTags = await loadTags();
 
+        // Initialize _meta array if missing
+        if (!allUserTags._meta) {
+            allUserTags._meta = {
+                immuneTags: ['latex', 'transfur', 'dark latex', 'white latex', 'protogen', 'synth', 'tiger shark', 'shark', 'squid dog']
+            };
+        }
+
+        // Subcommand: Immunity Keyword Manager
+        if (subcommand === 'immunity') {
+            const action = interaction.options.getString('action');
+            const keyword = interaction.options.getString('keyword')?.trim().toLowerCase();
+
+            if (action === 'list') {
+                const listText = allUserTags._meta.immuneTags.map((k, i) => `${i + 1}. \`${k}\``).join('\n') || 'None';
+                return await interaction.editReply({ content: `🛡️ **Current Pale Virus Immunity Keywords:**\n${listText}` });
+            }
+
+            if (!isOwner) {
+                return await interaction.editReply({ content: `❌ Only the bot owner can modify immunity rules!` });
+            }
+
+            if (!keyword) {
+                return await interaction.editReply({ content: `⚠️ Please provide a keyword when using add or remove!` });
+            }
+
+            if (action === 'add') {
+                if (allUserTags._meta.immuneTags.includes(keyword)) {
+                    return await interaction.editReply({ content: `⚠️ **\`${keyword}\`** is already in the immunity list!` });
+                }
+
+                allUserTags._meta.immuneTags.push(keyword);
+                const success = await saveTagsToGitHub(allUserTags);
+
+                if (!success) return await interaction.editReply({ content: `❌ Failed to update immunity tags on GitHub!` });
+                return await interaction.editReply({ content: `🛡️ Added **\`${keyword}\`** to the Pale Virus immunity list!` });
+            }
+
+            if (action === 'remove') {
+                const index = allUserTags._meta.immuneTags.indexOf(keyword);
+                if (index === -1) {
+                    return await interaction.editReply({ content: `⚠️ Could not find **\`${keyword}\`** in the immunity list!` });
+                }
+
+                allUserTags._meta.immuneTags.splice(index, 1);
+                const success = await saveTagsToGitHub(allUserTags);
+
+                if (!success) return await interaction.editReply({ content: `❌ Failed to update immunity tags on GitHub!` });
+                return await interaction.editReply({ content: `🗑️ Removed **\`${keyword}\`** from the Pale Virus immunity list!` });
+            }
+        }
+
+        // Subcommand: List User Tags
         if (subcommand === 'list') {
             const targetUser = interaction.options.getUser('target') || interaction.user;
             const userData = allUserTags[targetUser.id];
@@ -155,6 +227,7 @@ module.exports = {
             return await interaction.editReply({ content: `📂 **Custom Tags for <@${targetUser.id}> (${userData.username || 'Unknown'}):**\n${formattedTags}` });
         }
 
+        // Subcommand: Add Tag
         if (subcommand === 'add') {
             const customTag = interaction.options.getString('tag');
             const targetUser = interaction.options.getUser('target') || interaction.user;
@@ -172,7 +245,6 @@ module.exports = {
                     tags: []
                 };
             } else {
-                // Always keep the username updated
                 allUserTags[recipientId].username = recipientUsername;
             }
 
@@ -180,7 +252,10 @@ module.exports = {
                 return await interaction.editReply({ content: `⚠️ <@${recipientId}> already has the tag **\`${customTag}\`** in their list!` });
             }
 
-            let totalSlotsUsed = Object.values(allUserTags).reduce((acc, entry) => acc + (entry && Array.isArray(entry.tags) ? entry.tags.length : 0), 0);
+            let totalSlotsUsed = Object.entries(allUserTags)
+                .filter(([key]) => key !== '_meta')
+                .reduce((acc, [, entry]) => acc + (entry && Array.isArray(entry.tags) ? entry.tags.length : 0), 0);
+
             if (totalSlotsUsed >= 50) {
                 return await interaction.editReply({ content: `❌ Maximum global tag capacity reached (50/50 slots across all users)!` });
             }
@@ -195,6 +270,7 @@ module.exports = {
             return await interaction.editReply({ content: `🏷️ Successfully added the custom tag **\`${customTag}\`** for <@${recipientId}>! (Saved as: ${recipientUsername})` });
         }
 
+        // Subcommand: Remove Specific Tag
         if (subcommand === 'remove') {
             const customTag = interaction.options.getString('tag');
             const targetUser = interaction.options.getUser('target') || interaction.user;
