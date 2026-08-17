@@ -59,7 +59,6 @@ module.exports = {
             const topLeftY = Math.round(centerY - photoSize / 2);
 
             if (isGif) {
-                // Calculate padding needed to align GIF within full template frame
                 const bottomPadding = height - (topLeftY + photoSize);
                 const rightPadding = width - (topLeftX + photoSize);
 
@@ -73,7 +72,7 @@ module.exports = {
                         background: { r: 0, g: 0, b: 0, alpha: 0 }
                     })
                     .composite([
-                        { input: templatePath, top: 0, left: 0 }
+                        { input: templatePath, top: 0, left: 0, tile: true } // tile: true applies overlay to ALL frames!
                     ])
                     .gif({ loop: 0 })
                     .toBuffer();
