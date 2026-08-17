@@ -59,15 +59,21 @@ module.exports = {
             const topLeftY = Math.round(centerY - photoSize / 2);
 
             if (isGif) {
-                // Sharp cannot rotate multi-page animated buffers; resize without rotate()
+                // Resize the user GIF to fit inside the polaroid frame
                 const resizedGif = await sharp(userImgBuffer, { animated: true })
                     .resize(photoSize, photoSize, { fit: 'cover' })
                     .toBuffer();
 
-                const finalGifBuffer = await sharp(resizedGif, { animated: true })
-                    .composite([{ input: templatePath, top: 0, left: 0 }])
-                    .gif({ loop: 0 })
-                    .toBuffer();
+                // Create full-sized canvas matching template dimensions, then layer GIF and template
+                const finalGifBuffer = await sharp({
+                    create: { width, height, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } }
+                }, { animated: true })
+                .composite([
+                    { input: resizedGif, top: topLeftY, left: topLeftX, animated: true },
+                    { input: templatePath, top: 0, left: 0 }
+                ])
+                .gif({ loop: 0 })
+                .toBuffer();
 
                 const attachment = new AttachmentBuilder(finalGifBuffer, { name: 'polaroid-photo.gif' });
                 return await interaction.editReply({ files: [attachment] });
@@ -98,7 +104,7 @@ module.exports = {
             try {
                 await interaction.deleteReply();
                 await interaction.followUp({
-                    content: `❌ Could not process this image! (If your the owner check logs for: ${error.message}) <:Puropreocupado:1536430030916288572>`,
+                    content: `❌ Could not process this image! (Check logs for: ${error.message}) <:Puropreocupado:1536430030916288572>`,
                     flags: MessageFlags.Ephemeral
                 });
             } catch (followUpError) {
