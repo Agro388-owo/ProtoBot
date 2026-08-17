@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
+const { SlashCommandBuilder, AttachmentBuilder, MessageFlags } = require('discord.js');
 const sharp = require('sharp');
 const path = require('path');
 
@@ -20,7 +20,6 @@ module.exports = {
         ),
 
     async execute(interaction) {
-        // Defer immediately to prevent 3-second Discord interaction timeout
         await interaction.deferReply();
 
         const targetUser = interaction.options.getUser('user');
@@ -42,12 +41,14 @@ module.exports = {
         }
 
         try {
-            // Fetch target image/GIF buffer
+            // Fetch target image/GIF
             const res = await fetch(imageUrl);
-            if (!res.ok) throw new Error('Failed to download target image.');
+            if (!res.ok) throw new Error(`Failed to fetch image: ${res.statusText}`);
             const userImgBuffer = Buffer.from(await res.arrayBuffer());
 
-            const templatePath = path.join(__dirname, '../assets/polaroid.png');
+            // FIX: Adjust this path if your assets folder is at the root
+            const templatePath = path.join(__dirname, '../../assets/polaroid.png');
+            
             const templateMeta = await sharp(templatePath).metadata();
             const width = templateMeta.width;
             const height = templateMeta.height;
@@ -55,24 +56,17 @@ module.exports = {
             const photoSize = Math.round(width * 0.38);
             const centerX = Math.round(width * 0.495);
             const centerY = Math.round(height * 0.435);
-
             const topLeftX = Math.round(centerX - photoSize / 2);
             const topLeftY = Math.round(centerY - photoSize / 2);
 
             if (isGif) {
-                // Resize & rotate animated GIF frame sequence
                 const resizedGif = await sharp(userImgBuffer, { animated: true })
                     .resize(photoSize, photoSize, { fit: 'cover' })
                     .rotate(5.5, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
                     .toBuffer();
 
-                // Composite frame overlay on top of GIF
                 const finalGifBuffer = await sharp(resizedGif, { animated: true })
-                    .composite([{
-                        input: templatePath,
-                        top: 0,
-                        left: 0
-                    }])
+                    .composite([{ input: templatePath, top: 0, left: 0 }])
                     .gif({ loop: 0 })
                     .toBuffer();
 
@@ -80,19 +74,13 @@ module.exports = {
                 return await interaction.editReply({ files: [attachment] });
 
             } else {
-                // Static image workflow
                 const processedUserImg = await sharp(userImgBuffer)
                     .resize(photoSize, photoSize, { fit: 'cover' })
                     .rotate(5.5, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
                     .toBuffer();
 
                 const finalImageBuffer = await sharp({
-                    create: {
-                        width: width,
-                        height: height,
-                        channels: 4,
-                        background: { r: 0, g: 0, b: 0, alpha: 0 }
-                    }
+                    create: { width, height, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } }
                 })
                 .composite([
                     { input: processedUserImg, top: topLeftY, left: topLeftX },
@@ -106,13 +94,17 @@ module.exports = {
             }
 
         } catch (error) {
-            console.error('Failed to generate photo command:', error);
+            // CRITICAL: Log the FULL error stack so you can see if it's "File not found" or something else
+            console.error('PHOTO_COMMAND_ERROR:', error);
+            
             try {
-                await interaction.editReply({
-                    content: `❌ Could not process this image or GIF! <:Puropreocupado:1536430030916288572>`
+                await interaction.deleteReply();
+                await interaction.followUp({
+                    content: `❌ Could not process this image! (Check logs for: ${error.message}) <:Puropreocupado:1536430030916288572>`,
+                    flags: MessageFlags.Ephemeral
                 });
-            } catch {
-                // Catch secondary response error if interaction truly expired
+            } catch (followUpError) {
+                console.error('Failed to send ephemeral error:', followUpError);
             }
         }
     }
