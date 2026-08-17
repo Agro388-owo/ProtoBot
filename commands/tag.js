@@ -6,7 +6,7 @@ const repo = "ProtoBot";
 const path = "tags.json";
 const branch = "main";
 
-// Helper function to load tags directly via GitHub Contents API (bypasses raw URL caching)
+// Helper function to load tags directly via GitHub Contents API
 async function loadTags() {
     const token = botConfig.GITHUB_TOKEN;
     try {
@@ -22,7 +22,6 @@ async function loadTags() {
 
         if (res.ok) {
             const fileData = await res.json();
-            // GitHub API returns content base64 encoded
             const decodedContent = Buffer.from(fileData.content, 'base64').toString('utf8');
             return JSON.parse(decodedContent);
         }
@@ -38,7 +37,6 @@ async function saveTagsToGitHub(tagsData) {
     const contentEncoded = Buffer.from(JSON.stringify(tagsData, null, 4)).toString('base64');
 
     try {
-        // 1. Get current file SHA
         const getUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`;
         const getRes = await fetch(getUrl, {
             headers: {
@@ -54,7 +52,6 @@ async function saveTagsToGitHub(tagsData) {
             fileSha = fileData.sha;
         }
 
-        // 2. Push updated file via PUT request
         const putUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
         const putRes = await fetch(putUrl, {
             method: "PUT",
@@ -65,7 +62,7 @@ async function saveTagsToGitHub(tagsData) {
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                message: "Update tags.json via ProtoBot",
+                message: "Update tags.json with usernames via ProtoBot",
                 content: contentEncoded,
                 sha: fileSha,
                 branch: branch
@@ -143,7 +140,8 @@ module.exports = {
 
         if (subcommand === 'list') {
             const targetUser = interaction.options.getUser('target') || interaction.user;
-            const userTagList = allUserTags[targetUser.id] || [];
+            const userData = allUserTags[targetUser.id];
+            const userTagList = userData ? userData.tags : [];
 
             if (userTagList.length === 0) {
                 const message = targetUser.id === userId 
@@ -154,52 +152,60 @@ module.exports = {
             }
 
             const formattedTags = userTagList.map((t, index) => `${index + 1}. \`${t}\``).join('\n');
-            return await interaction.editReply({ content: `📂 **Custom Tags for <@${targetUser.id}>:**\n${formattedTags}` });
+            return await interaction.editReply({ content: `📂 **Custom Tags for <@${targetUser.id}> (${userData.username || 'Unknown'}):**\n${formattedTags}` });
         }
 
         if (subcommand === 'add') {
             const customTag = interaction.options.getString('tag');
-            const targetUser = interaction.options.getUser('target');
+            const targetUser = interaction.options.getUser('target') || interaction.user;
 
-            if (targetUser && !isOwner) {
+            if (targetUser.id !== userId && !isOwner) {
                 return await interaction.editReply({ content: `❌ Only the bot owner can assign tags to other users!` });
             }
 
-            const recipientId = targetUser ? targetUser.id : userId;
+            const recipientId = targetUser.id;
+            const recipientUsername = targetUser.username;
 
             if (!allUserTags[recipientId]) {
-                allUserTags[recipientId] = [];
+                allUserTags[recipientId] = {
+                    username: recipientUsername,
+                    tags: []
+                };
+            } else {
+                // Always keep the username updated
+                allUserTags[recipientId].username = recipientUsername;
             }
 
-            if (allUserTags[recipientId].includes(customTag)) {
+            if (allUserTags[recipientId].tags.includes(customTag)) {
                 return await interaction.editReply({ content: `⚠️ <@${recipientId}> already has the tag **\`${customTag}\`** in their list!` });
             }
 
-            let totalSlotsUsed = Object.values(allUserTags).reduce((acc, tags) => acc + (Array.isArray(tags) ? tags.length : 0), 0);
+            let totalSlotsUsed = Object.values(allUserTags).reduce((acc, entry) => acc + (entry && Array.isArray(entry.tags) ? entry.tags.length : 0), 0);
             if (totalSlotsUsed >= 50) {
                 return await interaction.editReply({ content: `❌ Maximum global tag capacity reached (50/50 slots across all users)!` });
             }
 
-            allUserTags[recipientId].push(customTag);
+            allUserTags[recipientId].tags.push(customTag);
             
             const success = await saveTagsToGitHub(allUserTags);
             if (!success) {
                 return await interaction.editReply({ content: `❌ Failed to save the tag update to GitHub!` });
             }
 
-            return await interaction.editReply({ content: `🏷️ Successfully added the custom tag **\`${customTag}\`** for <@${recipientId}>!` });
+            return await interaction.editReply({ content: `🏷️ Successfully added the custom tag **\`${customTag}\`** for <@${recipientId}>! (Saved as: ${recipientUsername})` });
         }
 
         if (subcommand === 'remove') {
             const customTag = interaction.options.getString('tag');
-            const targetUser = interaction.options.getUser('target');
+            const targetUser = interaction.options.getUser('target') || interaction.user;
 
-            if (targetUser && !isOwner) {
+            if (targetUser.id !== userId && !isOwner) {
                 return await interaction.editReply({ content: `❌ Only the bot owner can remove other users' custom tags!` });
             }
 
-            const recipientId = targetUser ? targetUser.id : userId;
-            const userTagList = allUserTags[recipientId] || [];
+            const recipientId = targetUser.id;
+            const userData = allUserTags[recipientId];
+            const userTagList = userData ? userData.tags : [];
 
             const tagIndex = userTagList.indexOf(customTag);
             if (tagIndex === -1) {
@@ -211,7 +217,8 @@ module.exports = {
             if (userTagList.length === 0) {
                 delete allUserTags[recipientId];
             } else {
-                allUserTags[recipientId] = userTagList;
+                allUserTags[recipientId].tags = userTagList;
+                allUserTags[recipientId].username = targetUser.username;
             }
 
             const success = await saveTagsToGitHub(allUserTags);
