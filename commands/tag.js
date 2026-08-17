@@ -1,7 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const botConfig = require('../config.js');
 
-// Helper function to save tags directly to GitHub via API so your render site updates instantly
 async function saveTagsToGitHub(tagsData) {
     const owner = "Agro388-owo";
     const repo = "ProtoBot";
@@ -12,7 +11,6 @@ async function saveTagsToGitHub(tagsData) {
     const contentEncoded = Buffer.from(JSON.stringify(tagsData, null, 4)).toString('base64');
 
     try {
-        // 1. Get the current file SHA (required by GitHub API to update an existing file)
         const getUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`;
         const getRes = await fetch(getUrl, {
             headers: {
@@ -28,7 +26,6 @@ async function saveTagsToGitHub(tagsData) {
             fileSha = fileData.sha;
         }
 
-        // 2. Create or Update the file via PUT request
         const putUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
         const putRes = await fetch(putUrl, {
             method: "PUT",
@@ -59,7 +56,6 @@ async function saveTagsToGitHub(tagsData) {
     }
 }
 
-// Helper function to load tags from the raw GitHub URL
 async function loadTags() {
     try {
         const rawUrl = `https://raw.githubusercontent.com/Agro388-owo/ProtoBot/main/tags.json`;
@@ -127,10 +123,8 @@ module.exports = {
         const userId = interaction.user.id;
         const isOwner = userId === botConfig.OWNER_ID;
 
-        // Load current tags directly from GitHub repo
         let allUserTags = await loadTags();
 
-        // 📋 Handle Subcommand: List
         if (subcommand === 'list') {
             const targetUser = interaction.options.getUser('target') || interaction.user;
             const userTagList = allUserTags[targetUser.id] || [];
@@ -147,7 +141,6 @@ module.exports = {
             return await interaction.editReply({ content: `📂 **Custom Tags for <@${targetUser.id}>:**\n${formattedTags}` });
         }
 
-        // ⚙️ Handle Subcommand: Add Tag
         if (subcommand === 'add') {
             const customTag = interaction.options.getString('tag');
             const targetUser = interaction.options.getUser('target');
@@ -181,7 +174,6 @@ module.exports = {
             return await interaction.editReply({ content: `🏷️ Successfully added and pushed the custom tag **\`${customTag}\`** for <@${recipientId}> to GitHub!` });
         }
 
-        // 🗑️ Handle Subcommand: Remove Specific Tag
         if (subcommand === 'remove') {
             const customTag = interaction.options.getString('tag');
             const targetUser = interaction.options.getUser('target');
@@ -212,105 +204,6 @@ module.exports = {
             }
 
             return await interaction.editReply({ content: `🗑️ Successfully removed and pushed the update for **\`${customTag}\`** from <@${recipientId}>!` });
-        }
-    }
-};
-                )
-        ),
-
-    async execute(interaction) {
-        const subcommand = interaction.options.getSubcommand();
-        const userId = interaction.user.id;
-        const isOwner = userId === botConfig.OWNER_ID;
-
-        // Load current tags from root tags.json file
-        const userTags = loadTags();
-
-        // 📋 Handle Subcommand: List (View own tag or specified user's tag)
-        if (subcommand === 'list') {
-            const targetUser = interaction.options.getUser('target') || interaction.user;
-            const userTag = userTags[targetUser.id];
-
-            if (!userTag) {
-                const message = targetUser.id === userId 
-                    ? `📂 **Your Custom Tag:**\n• You don't have a custom tag set right now! Use \`/tag set\` to create one.`
-                    : `📂 **Custom Tag:**\n• <@${targetUser.id}> does not have a custom tag set right now!`;
-
-                return await interaction.reply({
-                    content: message,
-                    ephemeral: true
-                });
-            }
-
-            return await interaction.reply({
-                content: `📂 **Custom Tag:**\n• <@${targetUser.id}>: \`${userTag}\``,
-                ephemeral: true
-            });
-        }
-
-        // ⚙️ Handle Subcommand: Set Tag
-        if (subcommand === 'set') {
-            const customTag = interaction.options.getString('tag');
-            const targetUser = interaction.options.getUser('target');
-
-            // If a target is specified, enforce owner-only check
-            if (targetUser && !isOwner) {
-                return await interaction.reply({ 
-                    content: `❌ Only the bot owner can assign tags to other users!`, 
-                    ephemeral: true 
-                });
-            }
-
-            // Determine who the tag is being applied to
-            const recipientId = targetUser ? targetUser.id : userId;
-            
-            // Check slot limit (50 slots max) before adding new tags if it doesn't already exist for this user
-            const currentTagCount = Object.keys(userTags).length;
-            if (!userTags[recipientId] && currentTagCount >= 50) {
-                return await interaction.reply({
-                    content: `❌ Maximum tag capacity reached (50/50 slots)! Cannot add new custom tags.`,
-                    ephemeral: true
-                });
-            }
-
-            userTags[recipientId] = customTag;
-            saveTags(userTags);
-
-            return await interaction.reply({
-                content: `🏷️ Successfully set the custom tag for <@${recipientId}> to: **\`${customTag}\`**!`,
-                ephemeral: true
-            });
-        }
-
-        // 🗑️ Handle Subcommand: Remove Tag
-        if (subcommand === 'remove') {
-            const targetUser = interaction.options.getUser('target');
-
-            // If a target is specified, enforce owner-only check
-            if (targetUser && !isOwner) {
-                return await interaction.reply({ 
-                    content: `❌ Only the bot owner can remove other users' custom tags!`, 
-                    ephemeral: true 
-                });
-            }
-
-            // Determine who is getting their tag removed
-            const recipientId = targetUser ? targetUser.id : userId;
-
-            if (!userTags[recipientId]) {
-                return await interaction.reply({
-                    content: `⚠️ <@${recipientId}> does not have a custom tag assigned!`,
-                    ephemeral: true
-                });
-            }
-
-            delete userTags[recipientId];
-            saveTags(userTags);
-
-            return await interaction.reply({
-                content: `🗑️ Successfully removed the custom tag from <@${recipientId}>!`,
-                ephemeral: true
-            });
         }
     }
 };
