@@ -15,10 +15,10 @@ module.exports = {
         const targetUser = interaction.options.getUser('target');
 
         const meowMessages = [
-            `Meow! 🐱`,
-            `Nyaa~ ✨`,
-            `*Soft meows* 🐾`,
-            `Mrrp? 🐱`
+            `Meow! <:purocute:1536367584369180803>`,
+            `Nyaa~ <:puroadorable:1536364133392457818>`,
+            `*Soft meows* <:puroblush:1536364136613806090>`,
+            `Mrrp? <:MingCat:1538665942945366016>`
         ];
 
         const randomMeow = meowMessages[Math.floor(Math.random() * meowMessages.length)];
