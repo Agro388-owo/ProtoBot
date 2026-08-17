@@ -59,21 +59,24 @@ module.exports = {
             const topLeftY = Math.round(centerY - photoSize / 2);
 
             if (isGif) {
-                // Resize the user GIF to fit inside the polaroid frame
-                const resizedGif = await sharp(userImgBuffer, { animated: true })
-                    .resize(photoSize, photoSize, { fit: 'cover' })
-                    .toBuffer();
+                // Calculate padding needed to align GIF within full template frame
+                const bottomPadding = height - (topLeftY + photoSize);
+                const rightPadding = width - (topLeftX + photoSize);
 
-                // Create full-sized canvas matching template dimensions, then layer GIF and template
-                const finalGifBuffer = await sharp({
-                    create: { width, height, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } }
-                }, { animated: true })
-                .composite([
-                    { input: resizedGif, top: topLeftY, left: topLeftX, animated: true },
-                    { input: templatePath, top: 0, left: 0 }
-                ])
-                .gif({ loop: 0 })
-                .toBuffer();
+                const finalGifBuffer = await sharp(userImgBuffer, { animated: true })
+                    .resize(photoSize, photoSize, { fit: 'cover' })
+                    .extend({
+                        top: topLeftY,
+                        bottom: Math.max(0, bottomPadding),
+                        left: topLeftX,
+                        right: Math.max(0, rightPadding),
+                        background: { r: 0, g: 0, b: 0, alpha: 0 }
+                    })
+                    .composite([
+                        { input: templatePath, top: 0, left: 0 }
+                    ])
+                    .gif({ loop: 0 })
+                    .toBuffer();
 
                 const attachment = new AttachmentBuilder(finalGifBuffer, { name: 'polaroid-photo.gif' });
                 return await interaction.editReply({ files: [attachment] });
