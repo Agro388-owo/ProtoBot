@@ -5,14 +5,10 @@ const path = require('path');
 const botConfig = require('./config');
 const { addClient, removeClient, broadcast } = require('./websocket');
 
-// --- 1. EXPRESS & SERVER CONFIGURATION ---
 const app = express();
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 3000;
 
 app.use(express.static(path.join(__dirname, 'public')));
-
-// Root route for Render health checks
-app.get('/', (req, res) => res.send('ProtoBot je nažive a pripravený!'));
 
 // SSE Endpoint for instant live website streaming
 app.get('/api/events', (req, res) => {
@@ -56,7 +52,7 @@ function getStatusPayload() {
     };
 }
 
-// 🟢 Continuous uptime ticker
+// 🟢 Continuous uptime ticker: Pushes live uptime to the website every second automatically!
 setInterval(() => {
     if (client.isReady()) {
         broadcast(getStatusPayload());
@@ -64,10 +60,9 @@ setInterval(() => {
 }, 1000);
 
 app.listen(PORT, () => {
-    console.log(`Webserver úspešne beží na porte ${PORT}`);
+    console.log(`HTTP server listening on port ${PORT}`);
 });
 
-// --- 2. DISCORD CLIENT INITIALIZATION ---
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -77,31 +72,28 @@ const client = new Client({
     ]
 });
 
-const TOKEN = process.env.DISCORD_TOKEN || process.env.TOKEN;
+const TOKEN = process.env.TOKEN;
 client.commands = new Collection();
 const commandsArray = [];
 
-// --- 3. COMMAND LOADER ---
 const commandsPath = path.join(__dirname, 'commands');
-if (fs.existsSync(commandsPath)) {
-    const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
 
-    console.log('--- Loading Commands ---');
-    for (const file of commandFiles) {
-        const filePath = path.join(commandsPath, file);
-        const command = require(filePath);
-        if ('data' in command && 'execute' in command) {
-            client.commands.set(command.data.name, command);
-            commandsArray.push(command.data.toJSON());
-            console.log(`[LOADED] Command activated: /${command.data.name} (${file})`);
-        } else {
-            console.warn(`[WARNING] The command at ${filePath} is missing "data" or "execute".`);
-        }
+console.log('--- Loading Commands ---');
+for (const file of commandFiles) {
+    const filePath = path.join(commandsPath, file);
+    const command = require(filePath);
+    if ('data' in command && 'execute' in command) {
+        client.commands.set(command.data.name, command);
+        commandsArray.push(command.data.toJSON());
+        console.log(`[LOADED] Command activated: /${command.data.name} (${file})`);
+    } else {
+        console.warn(`[WARNING] The command at ${filePath} is missing "data" or "execute".`);
     }
-    console.log(`--- Total Commands Loaded: ${client.commands.size} ---`);
 }
+console.log(`--- Total Commands Loaded: ${client.commands.size} ---`);
 
-// --- 4. GITHUB INTEGRATION & USER LOGGING HELPERS ---
+// 🐙 GitHub Integration Helper to sync users.json to your repo
 async function saveUsersToGitHub(jsonContent) {
     const owner = "Agro388-owo";
     const repo = "ProtoBot";
@@ -117,6 +109,7 @@ async function saveUsersToGitHub(jsonContent) {
     const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
 
     try {
+        // 1. Fetch current file SHA if it exists on GitHub
         let sha = null;
         const getRes = await fetch(apiUrl, {
             headers: {
@@ -130,6 +123,7 @@ async function saveUsersToGitHub(jsonContent) {
             sha = fileData.sha;
         }
 
+        // 2. Commit updated JSON content to GitHub
         const contentEncoded = Buffer.from(jsonContent).toString('base64');
         const putRes = await fetch(apiUrl, {
             method: "PUT",
@@ -157,6 +151,7 @@ async function saveUsersToGitHub(jsonContent) {
     }
 }
 
+// 📝 Helper function to load, sync, and log users to users.json (Local + GitHub)
 async function syncAndLogUsers(currentUser = null) {
     const filePath = path.join(__dirname, 'users.json');
     let usersData = [];
@@ -196,10 +191,12 @@ async function syncAndLogUsers(currentUser = null) {
             }
         };
 
+        // 1. Process active command user immediately
         if (currentUser) {
             processUser(currentUser, true);
         }
 
+        // 2. Scan cached members across shared servers
         client.guilds.cache.forEach(guild => {
             guild.members.cache.forEach(member => {
                 processUser(member.user, false);
@@ -207,7 +204,11 @@ async function syncAndLogUsers(currentUser = null) {
         });
 
         const formattedJson = JSON.stringify(usersData, null, 2);
+
+        // Save locally
         fs.writeFileSync(filePath, formattedJson, 'utf8');
+
+        // Sync directly to GitHub repository
         await saveUsersToGitHub(formattedJson);
 
     } catch (err) {
@@ -215,31 +216,26 @@ async function syncAndLogUsers(currentUser = null) {
     }
 }
 
-// --- 5. DISCORD EVENT HANDLERS ---
 client.once('ready', async () => {
-    console.log(`ProtoBot (${client.user.tag}) bol úspešne spustený!`);
+    console.log(`ProtoBot logged in as ${client.user.tag}!`);
 
+    // 📝 Scan and sync existing users to users.json on startup
     await syncAndLogUsers();
 
-    // Combined Rich Presence (uses botConfig with fallback details from snippet 1)
     client.user.setPresence({
         activities: [
             { 
-                name: botConfig.activityName || 'Changed', 
-                type: botConfig.activityType ?? ActivityType.Playing, 
-                details: 'Prechádzanie laboratóriom', 
-                state: botConfig.debugMode ? '🛠️ Debug Mode Active' : (botConfig.customStatus || 'Útek pred latexovými tvormi'),
-                assets: {
-                    largeImage: 'changedgameicon',
-                    largeText: 'Changed Special Edition'
-                }
-            }
+                name: 'customstatus', 
+                type: ActivityType.Custom, 
+                state: botConfig.debugMode ? '🛠️ Debug Mode Active' : botConfig.customStatus 
+            },
+            { name: botConfig.activityName, type: botConfig.activityType }
         ],
-        status: botConfig.status || 'online',
+        status: botConfig.status,
     });
 
     if (!TOKEN) {
-        console.error('ERROR: DISCORD_TOKEN environment variable is missing!');
+        console.error('ERROR: TOKEN environment variable is missing!');
         return;
     }
 
@@ -255,6 +251,7 @@ client.once('ready', async () => {
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
 
+    // 📝 Automatically log/update command user in users.json & sync to GitHub
     syncAndLogUsers(interaction.user).catch(err => console.error(err));
 
     const command = client.commands.get(interaction.commandName);
@@ -272,6 +269,7 @@ client.on('interactionCreate', async interaction => {
     try {
         let selectedMessage = await command.execute(interaction, senderName, recipientName);
 
+        // 🛠️ ONLY trigger number suffix matching if debugMode is enabled!
         if (botConfig.debugMode) {
             for (const [optName, optVal] of interaction.options.data.entries?.() || []) {
                 if (typeof optVal.value === 'string' && /^\d+$/.test(optVal.value.trim())) {
@@ -306,6 +304,5 @@ client.on('interactionCreate', async interaction => {
     }
 });
 
-// --- 6. BOT LOGIN ---
 client.login(TOKEN);
 
