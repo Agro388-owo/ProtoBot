@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, ContextMenuCommandBuilder, ApplicationCommandType } = require('discord.js');
 
 function getRandomMessage(array) {
     return array[Math.floor(Math.random() * array.length)];
@@ -34,47 +34,76 @@ const emojiMap = {
     'UniTheCat' : '<:UniTheCat:1539189751649935430>'
 };
 
+function resolveEmoji(interaction, emojiName) {
+    let emojiString = null;
+    if (interaction.guild) {
+        const serverEmoji = interaction.guild.emojis.cache.find(e => e.name === emojiName);
+        if (serverEmoji) emojiString = serverEmoji.toString();
+    }
+    return emojiString || emojiMap[emojiName] || null;
+}
+
+// 1. Slash Command
+const slashCommand = new SlashCommandBuilder()
+    .setName('emoji')
+    .setDescription('Send a custom emoji or reply to a message!')
+    .setIntegrationTypes([0, 1])
+    .setContexts([0, 1, 2])
+    .addStringOption(option => 
+        option.setName('name')
+              .setDescription('Which emoji to send?')
+              .setRequired(true)
+              .addChoices(
+                  ...Object.keys(emojiMap).slice(0, 25).map(name => ({ name, value: name }))
+              )
+    )
+    .addStringOption(option =>
+        option.setName('message_id')
+              .setDescription('Optional: ID of the message to reply to')
+              .setRequired(false)
+    );
+
+// 2. Context Menu (Hold Message > Apps > Emoji Reaction)
+const contextMenuCommand = new ContextMenuCommandBuilder()
+    .setName('Emoji Reply')
+    .setType(ApplicationCommandType.Message)
+    .setIntegrationTypes([0, 1])
+    .setContexts([0, 1, 2]);
+
 module.exports = {
-    data: new SlashCommandBuilder()
-        .setName('emoji')
-        .setDescription('Send a custom emoji with a blank space prefix!')
-        .setIntegrationTypes([0, 1])
-        .setContexts([0, 1, 2])
-        .addStringOption(option => 
-            option.setName('name')
-                  .setDescription('Which emoji to send?')
-                  .setRequired(true)
-                  .addChoices(
-                      ...Object.keys(emojiMap).slice(0, 25).map(name => ({ name, value: name }))
-                  )
-        ),
+    data: slashCommand,
+    contextMenu: contextMenuCommand,
 
     async execute(interaction) {
-        const emojiName = interaction.options.getString('name');
-        let emojiString = null;
+        // Handle Apps Context Menu Trigger (Message context)
+        if (interaction.isMessageContextMenuCommand()) {
+            const targetMessage = interaction.targetMessage;
+            const randomEmojiName = Object.keys(emojiMap)[Math.floor(Math.random() * Object.keys(emojiMap).length)];
+            const emojiString = resolveEmoji(interaction, randomEmojiName);
 
-        // 1. Check if execution is inside a server (guild)
-        if (interaction.guild) {
-            // Find the emoji directly in the current server's custom emoji list
-            const serverEmoji = interaction.guild.emojis.cache.find(e => e.name === emojiName);
-            if (serverEmoji) {
-                emojiString = serverEmoji.toString();
+            return await interaction.reply({
+                content: ` ${emojiString}`,
+                reply: { messageReference: targetMessage.id }
+            });
+        }
+
+        // Handle Slash Command Trigger
+        if (interaction.isChatInputCommand()) {
+            const emojiName = interaction.options.getString('name');
+            const messageId = interaction.options.getString('message_id');
+            const emojiString = resolveEmoji(interaction, emojiName);
+
+            if (!emojiString) {
+                return await interaction.reply({ content: 'Emoji not found!', flags: 64 });
             }
+
+            const payload = { content: getRandomMessage([` ${emojiString}`]) };
+
+            if (messageId) {
+                payload.reply = { messageReference: messageId, failIfNotExists: false };
+            }
+
+            return await interaction.reply(payload);
         }
-
-        // 2. Fallback to hardcoded emojiMap if not in a server or emoji not found locally
-        if (!emojiString) {
-            emojiString = emojiMap[emojiName];
-        }
-
-        if (!emojiString) {
-            return await interaction.reply({ content: 'Emoji not found!', flags: 64 });
-        }
-
-        const emojiVariants = [
-            ` ${emojiString}`
-        ];
-
-        return await interaction.reply(getRandomMessage(emojiVariants));
     }
 };
