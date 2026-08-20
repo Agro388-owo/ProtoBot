@@ -1,13 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const botConfig = require('../config.js');
 
-// Registry of all bot commands and features
-const helpItems = [
-    { name: '/help', description: 'Displays this comprehensive feature index guide.' },
-    { name: '/config', description: 'Admin panel to configure bot status, restrictions, and debug modes.' },
-    { name: '/kidnap', description: 'Playfully abducts target users with reaction-delete support.' }
-];
-
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('help')
@@ -21,6 +14,18 @@ module.exports = {
 
     async execute(interaction, senderName) {
         const indexInput = interaction.options.getInteger('index');
+
+        // Dynamically fetch all commands loaded into client.commands
+        const commandsCollection = interaction.client.commands;
+        if (!commandsCollection || commandsCollection.size === 0) {
+            return '⚠️ No registered commands found in memory!';
+        }
+
+        // Map collection to a structured array
+        const helpItems = Array.from(commandsCollection.values()).map(cmd => ({
+            name: `/${cmd.data.name}`,
+            description: cmd.data.description || 'No description provided.'
+        }));
 
         // If a specific index number was requested
         if (indexInput !== null) {
@@ -36,7 +41,7 @@ module.exports = {
             }
         }
 
-        // Otherwise, list all available features
+        // Otherwise, list all available features dynamically
         let listText = '🤖 **ProtoBot Feature & Command Directory:**\n';
         helpItems.forEach((item, idx) => {
             listText += `**${idx + 1}.** \`${item.name}\` — ${item.description}\n`;
