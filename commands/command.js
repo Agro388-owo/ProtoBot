@@ -2,6 +2,10 @@ const { SlashCommandBuilder, AttachmentBuilder, EmbedBuilder } = require('discor
 const path = require('path');
 const fs = require('fs');
 
+// 🛠️ EDIT HERE: Modify keywords and allowed file extensions for searching assets
+const VALID_KEYWORDS = ['command', 'template']; 
+const ALLOWED_EXTENSIONS = ['.js']; // e.g., ['.js', '.mjs', '.cjs']
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('command')
@@ -10,11 +14,11 @@ module.exports = {
         .setContexts([0, 1, 2])
         .addSubcommand(sub =>
             sub.setName('template')
-                .setDescription('Download the official ProtoBot command template JS file')
+                .setDescription('Download the official ProtoBot command template file')
         )
         .addSubcommand(sub =>
             sub.setName('suggest')
-                .setDescription('Suggest a new command idea or submit a .js script')
+                .setDescription('Suggest a new command idea or submit a script')
                 .addStringOption(opt =>
                     opt.setName('description')
                         .setDescription('Describe your idea or paste command code')
@@ -22,7 +26,7 @@ module.exports = {
                 )
                 .addAttachmentOption(opt =>
                     opt.setName('file')
-                        .setDescription('Upload your custom command .js file')
+                        .setDescription('Upload your custom command file')
                         .setRequired(false)
                 )
         ),
@@ -32,16 +36,36 @@ module.exports = {
         const subcommand = interaction.options.getSubcommand();
 
         if (subcommand === 'template') {
-            const templatePath = path.join(process.cwd(), 'assets', 'template-command.js');
+            const assetsDir = path.join(process.cwd(), 'assets');
 
-            if (!fs.existsSync(templatePath)) {
-                await interaction.editReply({ content: '❌ Could not find `template-command.js` inside `assets/`!' });
+            if (!fs.existsSync(assetsDir)) {
+                await interaction.editReply({ content: '❌ Could not find the `assets/` directory!' });
                 return true;
             }
 
-            const attachment = new AttachmentBuilder(templatePath, { name: 'template-command.js' });
+            // Read folder and filter for matching keywords + allowed extensions
+            const files = fs.readdirSync(assetsDir);
+            const matchedFile = files.find(file => {
+                const lower = file.toLowerCase();
+                const hasValidExt = ALLOWED_EXTENSIONS.some(ext => lower.endsWith(ext.toLowerCase()));
+                const hasKeywords = VALID_KEYWORDS.every(keyword => lower.includes(keyword.toLowerCase()));
+                
+                return hasValidExt && hasKeywords;
+            });
+
+            if (!matchedFile) {
+                await interaction.editReply({ 
+                    content: `❌ Could not find a template file with extensions (${ALLOWED_EXTENSIONS.join(', ')}) matching keywords (${VALID_KEYWORDS.join(', ')}) in \`assets/\`!` 
+                });
+                return true;
+            }
+
+            const templatePath = path.join(assetsDir, matchedFile);
+            
+            // Deliver attachment
+            const attachment = new AttachmentBuilder(templatePath, { name: matchedFile });
             await interaction.editReply({
-                content: '📦 **ProtoBot Command Template**\nDownload the file below to create new action or utility commands:',
+                content: `📦 **ProtoBot Command Template**\nFound \`${matchedFile}\`. Download below:`,
                 files: [attachment]
             });
             return true;
@@ -53,16 +77,21 @@ module.exports = {
 
             if (!textSuggestion && !fileAttachment) {
                 await interaction.editReply({
-                    content: '⚠️ You must provide either a text description or upload a `.js` file attachment!'
+                    content: '⚠️ You must provide either a text description or upload a file attachment!'
                 });
                 return true;
             }
 
-            if (fileAttachment && !fileAttachment.name.endsWith('.js')) {
-                await interaction.editReply({
-                    content: '❌ Invalid file type! Please submit a valid JavaScript file ending in `.js`.'
-                });
-                return true;
+            if (fileAttachment) {
+                const lowerFileName = fileAttachment.name.toLowerCase();
+                const hasValidExt = ALLOWED_EXTENSIONS.some(ext => lowerFileName.endsWith(ext.toLowerCase()));
+
+                if (!hasValidExt) {
+                    await interaction.editReply({
+                        content: `❌ Invalid file extension! Please submit a file ending in one of the following: ${ALLOWED_EXTENSIONS.join(', ')}`
+                    });
+                    return true;
+                }
             }
 
             const suggestionEmbed = new EmbedBuilder()
