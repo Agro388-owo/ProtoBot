@@ -8,18 +8,22 @@ const repo = "ProtoBot";
 const filePath = "tags.json";
 const branch = "main";
 
-// Local file path in root directory
-const localTagsPath = path.join(__dirname, '../tags.json');
+// Use process.cwd() to target root folder in /home/container/
+const localTagsPath = path.join(process.cwd(), 'tags.json');
 
 // Helper function to read local root file safely
 function readLocalTags() {
     try {
         if (fs.existsSync(localTagsPath)) {
             const data = fs.readFileSync(localTagsPath, 'utf8');
-            return JSON.parse(data);
+            const parsed = JSON.parse(data);
+            console.log(`[TAG DEBUG] Loaded ${Object.keys(parsed).length} keys from local file (${localTagsPath})`);
+            return parsed;
+        } else {
+            console.warn(`[TAG DEBUG] Local file does not exist at ${localTagsPath}`);
         }
     } catch (err) {
-        console.error('Error reading local tags.json:', err);
+        console.error('[TAG DEBUG] Error reading local tags.json:', err);
     }
     return {};
 }
@@ -28,8 +32,9 @@ function readLocalTags() {
 function writeLocalTags(data) {
     try {
         fs.writeFileSync(localTagsPath, JSON.stringify(data, null, 4), 'utf8');
+        console.log(`[TAG DEBUG] Wrote tags data to ${localTagsPath}`);
     } catch (err) {
-        console.error('Error writing local tags.json:', err);
+        console.error('[TAG DEBUG] Error writing local tags.json:', err);
     }
 }
 
@@ -51,23 +56,22 @@ async function loadTags() {
             const fileData = await res.json();
             const decodedContent = Buffer.from(fileData.content, 'base64').toString('utf8');
             const parsed = JSON.parse(decodedContent);
-            if (typeof parsed === 'object' && parsed !== null) {
-                // Keep local root file synced with latest GitHub version
+            if (typeof parsed === 'object' && parsed !== null && Object.keys(parsed).length > 0) {
                 writeLocalTags(parsed);
                 return parsed;
             }
+        } else {
+            console.warn(`[TAG DEBUG] GitHub fetch returned status ${res.status}`);
         }
     } catch (error) {
-        console.error('Failed to fetch tags.json from GitHub API, falling back to local file:', error);
+        console.error('[TAG DEBUG] Failed to fetch tags.json from GitHub API:', error);
     }
     
-    // Fallback to local root tags.json if GitHub request fails
     return readLocalTags();
 }
 
 // Helper function to save tags to both Local Root and GitHub
 async function saveTagsToGitHub(tagsData) {
-    // 1. Always save locally first so data isn't lost
     writeLocalTags(tagsData);
 
     const token = botConfig.GITHUB_TOKEN; 
@@ -106,15 +110,9 @@ async function saveTagsToGitHub(tagsData) {
             })
         });
 
-        if (!putRes.ok) {
-            const errBody = await putRes.text();
-            console.error("Failed to commit tags.json to GitHub:", errBody);
-            return false;
-        }
-
-        return true;
+        return putRes.ok;
     } catch (error) {
-        console.error("Error communicating with GitHub API:", error);
+        console.error("[TAG DEBUG] Error communicating with GitHub API:", error);
         return false;
     }
 }
@@ -187,7 +185,7 @@ module.exports = {
         ),
 
     async execute(interaction) {
-        await interaction.deferReply({ ephemeral: true });
+        await interaction.deferReply({ flags: 64 });
 
         try {
             const subcommand = interaction.options.getSubcommand();
@@ -196,7 +194,6 @@ module.exports = {
 
             let allUserTags = await loadTags();
 
-            // Initialize _meta object
             if (!allUserTags._meta || typeof allUserTags._meta !== 'object') {
                 allUserTags._meta = { immuneTags: [] };
             }
@@ -204,7 +201,6 @@ module.exports = {
                 allUserTags._meta.immuneTags = ['latex', 'transfur', 'dark latex', 'white latex', 'protogen', 'synth', 'tiger shark', 'shark', 'squid dog'];
             }
 
-            // Subcommand: Immunity Keyword Manager
             if (subcommand === 'immunity') {
                 const action = interaction.options.getString('action');
                 const keyword = interaction.options.getString('keyword')?.trim().toLowerCase();
@@ -246,7 +242,6 @@ module.exports = {
                 }
             }
 
-            // Subcommand: List User Tags
             if (subcommand === 'list') {
                 const targetUser = interaction.options.getUser('target') || interaction.user;
                 const userData = allUserTags[targetUser.id];
@@ -264,7 +259,6 @@ module.exports = {
                 return await interaction.editReply({ content: `📂 **Custom Tags for <@${targetUser.id}> (${userData.username || 'Unknown'}):**\n${formattedTags}` });
             }
 
-            // Subcommand: Add Tag
             if (subcommand === 'add') {
                 const customTag = interaction.options.getString('tag');
                 const targetUser = interaction.options.getUser('target') || interaction.user;
@@ -311,7 +305,6 @@ module.exports = {
                 return await interaction.editReply({ content: `🏷️ Successfully added the custom tag **\`${customTag}\`** for <@${recipientId}>! (Saved as: ${recipientUsername})` });
             }
 
-            // Subcommand: Remove Specific Tag
             if (subcommand === 'remove') {
                 const customTag = interaction.options.getString('tag');
                 const targetUser = interaction.options.getUser('target') || interaction.user;
