@@ -52,7 +52,7 @@ function getStatusPayload() {
     };
 }
 
-// 🟢 Continuous uptime ticker: Pushes live uptime to the website every second automatically!
+// 🟢 Continuous uptime ticker
 setInterval(() => {
     if (client.isReady()) {
         broadcast(getStatusPayload());
@@ -93,7 +93,7 @@ for (const file of commandFiles) {
 }
 console.log(`--- Total Commands Loaded: ${client.commands.size} ---`);
 
-// 🐙 GitHub Integration Helper to sync users.json to your repo
+// 🐙 GitHub Integration Helper to sync users.json
 async function saveUsersToGitHub(jsonContent) {
     const owner = "Agro388-owo";
     const repo = "ProtoBot";
@@ -149,7 +149,7 @@ async function saveUsersToGitHub(jsonContent) {
     }
 }
 
-// 📝 Helper function to load, sync, and log users to users.json (Local + GitHub)
+// 📝 Helper function to load, sync, and log users to users.json
 async function syncAndLogUsers(currentUser = null) {
     const filePath = path.join(__dirname, 'users.json');
     let usersData = [];
@@ -200,7 +200,6 @@ async function syncAndLogUsers(currentUser = null) {
         });
 
         const formattedJson = JSON.stringify(usersData, null, 2);
-
         fs.writeFileSync(filePath, formattedJson, 'utf8');
         await saveUsersToGitHub(formattedJson);
 
@@ -211,7 +210,6 @@ async function syncAndLogUsers(currentUser = null) {
 
 client.once('ready', async () => {
     console.log(`ProtoBot logged in as ${client.user.tag}!`);
-
     await syncAndLogUsers();
 
     client.user.setPresence({
@@ -260,18 +258,18 @@ client.on('interactionCreate', async interaction => {
     try {
         let selectedMessage = await command.execute(interaction, senderName, recipientName);
 
-        // Debug suffix logic
-        if (botConfig.debugMode) {
-            for (const [optName, optVal] of interaction.options.data.entries?.() || []) {
-                if (typeof optVal.value === 'string' && /^\d+$/.test(optVal.value.trim())) {
-                    const numericCode = parseInt(optVal.value.trim(), 10);
-                    selectedMessage += `\n🔢 **[Debug Number Match]:** Recognized sequence ID **#${numericCode}** from option \`${optVal.name}\`.`;
+        // Safely verify selectedMessage is a valid string before operating on it
+        if (typeof selectedMessage === 'string' && selectedMessage.trim().length > 0) {
+            
+            if (botConfig.debugMode) {
+                for (const [optName, optVal] of interaction.options.data.entries?.() || []) {
+                    if (typeof optVal.value === 'string' && /^\d+$/.test(optVal.value.trim())) {
+                        const numericCode = parseInt(optVal.value.trim(), 10);
+                        selectedMessage += `\n🔢 **[Debug Number Match]:** Recognized sequence ID **#${numericCode}** from option \`${optVal.name}\`.`;
+                    }
                 }
             }
-        }
 
-        // Send reply safely checking if the interaction was already deferred/replied inside execute()
-        if (selectedMessage) {
             if (interaction.replied || interaction.deferred) {
                 await interaction.editReply({ content: selectedMessage });
             } else {
@@ -292,15 +290,14 @@ client.on('interactionCreate', async interaction => {
         }
     } catch (error) {
         console.error(`Error executing ${interaction.commandName}:`, error);
-
-        const errorPayload = botConfig.debugMode 
-            ? { content: `🛠️ **[DEBUG ERROR TRACE]:** \`\`\`${error.stack}\`\`\``, flags: 64 }
-            : { content: 'There was an error executing this command!', flags: 64 };
-
-        if (interaction.replied || interaction.deferred) {
-            await interaction.followUp(errorPayload).catch(() => {});
-        } else {
-            await interaction.reply(errorPayload).catch(() => {});
+        
+        // Guard against sending error messages if the command already finished replying
+        if (!interaction.replied && !interaction.deferred) {
+            if (botConfig.debugMode) {
+                await interaction.reply({ content: `🛠️ **[DEBUG ERROR TRACE]:** \`\`\`${error.stack}\`\`\``, flags: 64 }).catch(() => {});
+            } else {
+                await interaction.reply({ content: 'There was an error executing this command!', flags: 64 }).catch(() => {});
+            }
         }
     }
 });
