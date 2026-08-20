@@ -1,16 +1,43 @@
 const { SlashCommandBuilder } = require('discord.js');
 const botConfig = require('../config.js');
+const fs = require('fs');
+const path = require('path');
 
 const owner = "Agro388-owo";
 const repo = "ProtoBot";
-const path = "tags.json";
+const filePath = "tags.json";
 const branch = "main";
 
-// Helper function to load tags directly via GitHub Contents API
+// Local file path in root directory
+const localTagsPath = path.join(__dirname, '../tags.json');
+
+// Helper function to read local root file safely
+function readLocalTags() {
+    try {
+        if (fs.existsSync(localTagsPath)) {
+            const data = fs.readFileSync(localTagsPath, 'utf8');
+            return JSON.parse(data);
+        }
+    } catch (err) {
+        console.error('Error reading local tags.json:', err);
+    }
+    return {};
+}
+
+// Helper function to write local root file
+function writeLocalTags(data) {
+    try {
+        fs.writeFileSync(localTagsPath, JSON.stringify(data, null, 4), 'utf8');
+    } catch (err) {
+        console.error('Error writing local tags.json:', err);
+    }
+}
+
+// Helper function to load tags (GitHub -> fallback Local)
 async function loadTags() {
     const token = botConfig.GITHUB_TOKEN;
     try {
-        const getUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`;
+        const getUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${branch}`;
         const res = await fetch(getUrl, {
             headers: {
                 "Authorization": `Bearer ${token}`,
@@ -24,21 +51,30 @@ async function loadTags() {
             const fileData = await res.json();
             const decodedContent = Buffer.from(fileData.content, 'base64').toString('utf8');
             const parsed = JSON.parse(decodedContent);
-            return typeof parsed === 'object' && parsed !== null ? parsed : {};
+            if (typeof parsed === 'object' && parsed !== null) {
+                // Keep local root file synced with latest GitHub version
+                writeLocalTags(parsed);
+                return parsed;
+            }
         }
     } catch (error) {
-        console.error('Failed to fetch tags.json from GitHub API:', error);
+        console.error('Failed to fetch tags.json from GitHub API, falling back to local file:', error);
     }
-    return {};
+    
+    // Fallback to local root tags.json if GitHub request fails
+    return readLocalTags();
 }
 
-// Helper function to save tags to GitHub via API
+// Helper function to save tags to both Local Root and GitHub
 async function saveTagsToGitHub(tagsData) {
+    // 1. Always save locally first so data isn't lost
+    writeLocalTags(tagsData);
+
     const token = botConfig.GITHUB_TOKEN; 
     const contentEncoded = Buffer.from(JSON.stringify(tagsData, null, 4)).toString('base64');
 
     try {
-        const getUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`;
+        const getUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${branch}`;
         const getRes = await fetch(getUrl, {
             headers: {
                 "Authorization": `Bearer ${token}`,
@@ -53,7 +89,7 @@ async function saveTagsToGitHub(tagsData) {
             fileSha = fileData.sha;
         }
 
-        const putUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+        const putUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
         const putRes = await fetch(putUrl, {
             method: "PUT",
             headers: {
@@ -63,7 +99,7 @@ async function saveTagsToGitHub(tagsData) {
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                message: "Update tags.json and immunity rules via ProtoBot",
+                message: "Update tags.json via ProtoBot",
                 content: contentEncoded,
                 sha: fileSha,
                 branch: branch
@@ -160,7 +196,7 @@ module.exports = {
 
             let allUserTags = await loadTags();
 
-            // Safely initialize _meta object and immuneTags array
+            // Initialize _meta object
             if (!allUserTags._meta || typeof allUserTags._meta !== 'object') {
                 allUserTags._meta = { immuneTags: [] };
             }
@@ -192,9 +228,8 @@ module.exports = {
                     }
 
                     allUserTags._meta.immuneTags.push(keyword);
-                    const success = await saveTagsToGitHub(allUserTags);
+                    await saveTagsToGitHub(allUserTags);
 
-                    if (!success) return await interaction.editReply({ content: `❌ Failed to update immunity tags on GitHub!` });
                     return await interaction.editReply({ content: `🛡️ Added **\`${keyword}\`** to the Pale Virus immunity list!` });
                 }
 
@@ -205,9 +240,8 @@ module.exports = {
                     }
 
                     allUserTags._meta.immuneTags.splice(index, 1);
-                    const success = await saveTagsToGitHub(allUserTags);
+                    await saveTagsToGitHub(allUserTags);
 
-                    if (!success) return await interaction.editReply({ content: `❌ Failed to update immunity tags on GitHub!` });
                     return await interaction.editReply({ content: `🗑️ Removed **\`${keyword}\`** from the Pale Virus immunity list!` });
                 }
             }
@@ -258,7 +292,6 @@ module.exports = {
                     return await interaction.editReply({ content: `⚠️ <@${recipientId}> already has the tag **\`${customTag}\`** in their list!` });
                 }
 
-                // Safe slot counter ignoring non-user keys like _meta
                 let totalSlotsUsed = Object.entries(allUserTags)
                     .filter(([key]) => key !== '_meta')
                     .reduce((acc, [, entry]) => {
@@ -273,11 +306,7 @@ module.exports = {
                 }
 
                 allUserTags[recipientId].tags.push(customTag);
-                
-                const success = await saveTagsToGitHub(allUserTags);
-                if (!success) {
-                    return await interaction.editReply({ content: `❌ Failed to save the tag update to GitHub!` });
-                }
+                await saveTagsToGitHub(allUserTags);
 
                 return await interaction.editReply({ content: `🏷️ Successfully added the custom tag **\`${customTag}\`** for <@${recipientId}>! (Saved as: ${recipientUsername})` });
             }
@@ -309,12 +338,9 @@ module.exports = {
                     allUserTags[recipientId].username = targetUser.username;
                 }
 
-                const success = await saveTagsToGitHub(allUserTags);
-                if (!success) {
-                    return await interaction.editReply({ content: `❌ Failed to update the tag removal on GitHub!` });
-                }
+                await saveTagsToGitHub(allUserTags);
 
-                return await interaction.editReply({ content: `🗑️ Successfully removed and pushed the update for **\`${customTag}\`** from <@${recipientId}>!` });
+                return await interaction.editReply({ content: `🗑️ Successfully removed **\`${customTag}\`** from <@${recipientId}>!` });
             }
         } catch (error) {
             console.error("TAG_COMMAND_ERROR:", error);
