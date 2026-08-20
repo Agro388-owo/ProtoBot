@@ -109,7 +109,6 @@ async function saveUsersToGitHub(jsonContent) {
     const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
 
     try {
-        // 1. Fetch current file SHA if it exists on GitHub
         let sha = null;
         const getRes = await fetch(apiUrl, {
             headers: {
@@ -123,7 +122,6 @@ async function saveUsersToGitHub(jsonContent) {
             sha = fileData.sha;
         }
 
-        // 2. Commit updated JSON content to GitHub
         const contentEncoded = Buffer.from(jsonContent).toString('base64');
         const putRes = await fetch(apiUrl, {
             method: "PUT",
@@ -191,12 +189,10 @@ async function syncAndLogUsers(currentUser = null) {
             }
         };
 
-        // 1. Process active command user immediately
         if (currentUser) {
             processUser(currentUser, true);
         }
 
-        // 2. Scan cached members across shared servers
         client.guilds.cache.forEach(guild => {
             guild.members.cache.forEach(member => {
                 processUser(member.user, false);
@@ -205,10 +201,7 @@ async function syncAndLogUsers(currentUser = null) {
 
         const formattedJson = JSON.stringify(usersData, null, 2);
 
-        // Save locally
         fs.writeFileSync(filePath, formattedJson, 'utf8');
-
-        // Sync directly to GitHub repository
         await saveUsersToGitHub(formattedJson);
 
     } catch (err) {
@@ -219,7 +212,6 @@ async function syncAndLogUsers(currentUser = null) {
 client.once('ready', async () => {
     console.log(`ProtoBot logged in as ${client.user.tag}!`);
 
-    // 📝 Scan and sync existing users to users.json on startup
     await syncAndLogUsers();
 
     client.user.setPresence({
@@ -251,7 +243,6 @@ client.once('ready', async () => {
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
 
-    // 📝 Automatically log/update command user in users.json & sync to GitHub
     syncAndLogUsers(interaction.user).catch(err => console.error(err));
 
     const command = client.commands.get(interaction.commandName);
@@ -269,7 +260,7 @@ client.on('interactionCreate', async interaction => {
     try {
         let selectedMessage = await command.execute(interaction, senderName, recipientName);
 
-        // 🛠️ ONLY trigger number suffix matching if debugMode is enabled!
+        // Debug suffix logic
         if (botConfig.debugMode) {
             for (const [optName, optVal] of interaction.options.data.entries?.() || []) {
                 if (typeof optVal.value === 'string' && /^\d+$/.test(optVal.value.trim())) {
@@ -279,30 +270,39 @@ client.on('interactionCreate', async interaction => {
             }
         }
 
+        // Send reply safely checking if the interaction was already deferred/replied inside execute()
         if (selectedMessage) {
-            const response = await interaction.reply({ content: selectedMessage, withResponse: true });
-            const responseMessage = response.resource ? response.resource.message : response;
+            if (interaction.replied || interaction.deferred) {
+                await interaction.editReply({ content: selectedMessage });
+            } else {
+                const response = await interaction.reply({ content: selectedMessage, withResponse: true });
+                const responseMessage = response.resource ? response.resource.message : response;
 
-            if (responseMessage && typeof responseMessage.createReactionCollector === 'function') {
-                const filter = (reaction, reactUser) => {
-                    return (reaction.emoji.name === '❌' || reaction.emoji.name === '✖️') && reactUser.id === user.id;
-                };
+                if (responseMessage && typeof responseMessage.createReactionCollector === 'function') {
+                    const filter = (reaction, reactUser) => {
+                        return (reaction.emoji.name === '❌' || reaction.emoji.name === '✖️') && reactUser.id === user.id;
+                    };
 
-                const collector = responseMessage.createReactionCollector({ filter, time: 60000 });
-                collector.on('collect', async () => {
-                    try { await interaction.deleteReply(); } catch (e) {}
-                });
+                    const collector = responseMessage.createReactionCollector({ filter, time: 60000 });
+                    collector.on('collect', async () => {
+                        try { await interaction.deleteReply(); } catch (e) {}
+                    });
+                }
             }
         }
     } catch (error) {
         console.error(`Error executing ${interaction.commandName}:`, error);
-        if (botConfig.debugMode) {
-            await interaction.reply({ content: `🛠️ **[DEBUG ERROR TRACE]:** \`\`\`${error.stack}\`\`\``, flags: 64 });
-        } else if (!interaction.replied && !interaction.deferred) {
-            await interaction.reply({ content: 'There was an error executing this command!', flags: 64 });
+
+        const errorPayload = botConfig.debugMode 
+            ? { content: `🛠️ **[DEBUG ERROR TRACE]:** \`\`\`${error.stack}\`\`\``, flags: 64 }
+            : { content: 'There was an error executing this command!', flags: 64 };
+
+        if (interaction.replied || interaction.deferred) {
+            await interaction.followUp(errorPayload).catch(() => {});
+        } else {
+            await interaction.reply(errorPayload).catch(() => {});
         }
     }
 });
 
 client.login(TOKEN);
-
