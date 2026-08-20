@@ -1,36 +1,48 @@
 {
-    "1048579285687996466": [
-        "protogen",
-        "owner"
-    ],
-    "1521264771389984940": [
-        "THE BLOXYMAN",
-        "Test Subject"
-    ],
-    "1464072486651170931": [
-        "Primagen"
-    ],
-    "1082525438015983636": [
-        "Tiger Shark"
-    ],
-    "_meta": {
-        "immuneTags": [
-            "latex",
-            "transfur",
-            "dark latex",
-            "white latex",
-            "protogen",
-            "synth",
-            "tiger shark",
-            "shark",
-            "squid dog"
-        ]
-    },
-    "1200848729880670330": {
-        "username": "ostwindmalfoybloodylady",
-        "tags": [
-            "DemonGirl",
-            "ostwindmalfoybloodylady"
-        ]
-    }
+  "_meta": {
+    "immuneTags": [
+      "latex",
+      "transfur",
+      "dark latex",
+      "white latex",
+      "protogen",
+      "synth",
+      "tiger shark",
+      "shark",
+      "squid dog"
+    ]
+  },
+  "1048579285687996466": {
+    "username": "agrobaticfinger",
+    "tags": [
+      "protogen",
+      "owner"
+    ]
+  },
+  "1521264771389984940": {
+    "username": "Bloxy",
+    "tags": [
+      "THE BLOXYMAN",
+      "Test Subject"
+    ]
+  },
+  "1464072486651170931": {
+    "username": "Unknown",
+    "tags": [
+      "Primagen"
+    ]
+  },
+  "1082525438015983636": {
+    "username": "Unknown",
+    "tags": [
+      "Tiger Shark"
+    ]
+  },
+  "1200848729880670330": {
+    "username": "ostwindmalfoybloodylady",
+    "tags": [
+      "DemonGirl",
+      "ostwindmalfoybloodylady"
+    ]
+  }
 }
