@@ -6,7 +6,16 @@ const botConfig = require('./config');
 const { addClient, removeClient, broadcast } = require('./websocket');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+
+// Set up multi-port array (detects process.env.PORT, custom port 25364, and Render port 3000)
+const PORTS = [
+    process.env.PORT,
+    25364,
+    3000
+].filter(Boolean).map(p => Number(p));
+
+// Deduplicate port numbers in case process.env.PORT matches 25364 or 3000
+const uniquePorts = [...new Set(PORTS)];
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -59,8 +68,17 @@ setInterval(() => {
     }
 }, 1000);
 
-app.listen(PORT, () => {
-    console.log(`HTTP server listening on port ${PORT}`);
+// 🌐 Bind Express server to all unique ports
+uniquePorts.forEach(port => {
+    app.listen(port, () => {
+        console.log(`[EXPRESS] Web server listening on port ${port}`);
+    }).on('error', (err) => {
+        if (err.code === 'EADDRINUSE') {
+            console.log(`[EXPRESS] Port ${port} is already in use or restricted on this host (Ignored).`);
+        } else {
+            console.error(`[EXPRESS ERROR] Failed to bind on port ${port}:`, err.message);
+        }
+    });
 });
 
 const client = new Client({
