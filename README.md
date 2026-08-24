@@ -27,8 +27,7 @@ ProtoBot is a feature-rich, customizable Discord interaction bot built with **`d
 * `/config` — Manage global bot configurations and response settings.
 * `/changelog` — View the latest updates and additions to ProtoBot.
 * `/help` — Display detailed command information and usage guides.
-
-### 🎮 Roleplay & Interactions
+## 🎮 Roleplay & Interactions
 * `/bap` — Gently bap a target user.
 * `/bite` — Take a bite out of a target user.
 * `/blow-up` — Trigger a dramatic explosion event for a target.
@@ -47,7 +46,6 @@ ProtoBot is a feature-rich, customizable Discord interaction bot built with **`d
 * `/maid-dress` — Force a targeted user (or yourself) into a frilly maid dress.
 * `/meow` — Meow playfully at someone.
 * `/murder` — Trigger a dramatic elimination sequence.
-* `/overclock` — Forcefully overclock someone's system core (requires Protogen/Primagen/Synth tag).
 * `/pat` — Pat a targeted user on the head.
 * `/photo` — Take a quick snapshot of a target.
 * `/revive` — Revive a knocked-out user back into action.
