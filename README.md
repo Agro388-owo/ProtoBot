@@ -1,3 +1,4 @@
+**ProtoBot is licensed under the GNU Affero General Public License v3.0**
 # 🤖 ProtoBot
 
 ProtoBot is a feature-rich, customizable Discord interaction bot built with **`discord.js` v14** and running on **Node.js**. It comes with dynamic command loading, a GitHub API-synced user tag system, species-aware interactions, community command submission templates, and an Express server setup for 24/7 uptime hosting.
@@ -8,7 +9,7 @@ ProtoBot is a feature-rich, customizable Discord interaction bot built with **`d
 
 * **Dynamic Command Handler:** Automatically reads and registers all interaction commands directly from the `commands/` directory on boot.
 * **Community Submissions (`/command`):** Includes built-in command templates allowing users to create, test, and suggest custom interactions directly to the bot owner for official approval.
-* **Tag & Immunity System (`/tag`):** GitHub-backed persistent user tag management, including custom tag slots, species tags, and Pale Virus immunity keywords[span_0](start_span)[span_0](end_span).
+* **Tag & Immunity System (`/tag`):** GitHub-backed persistent user tag management, including custom tag slots, species tags, and Pale Virus immunity keywords.
 * **Species-Aware Interactions (`/feed`):** Cybernetic species (Protogens, Primagens, Synths) can consume RAM and batteries, while non-cybernetic users trigger realistic choking and physical indigestion responses.
 * **Cross-Context & Server Support:** Fully configured for both Server Installations (Guild Apps) and User App Installations across servers, DMs, and group chats.
 * **Custom Bot Emojis:** Native integration of custom Discord emojis across interaction responses for maximum visual flavor.
@@ -21,7 +22,7 @@ ProtoBot is a feature-rich, customizable Discord interaction bot built with **`d
 
 ### 🏷️ Management, Submissions & Tools
 * `/command` — Generates custom command templates and guides for users to design and upload their own interactions.
-* `/tag` — Manage custom user tags, assign species roles, and configure Pale Virus immunity rules[span_1](start_span)[span_1](end_span).
+* `/tag` — Manage custom user tags, assign species roles, and configure Pale Virus immunity rules. 
 * `/suggestion` — Submit feature ideas, custom command code, or bug reports directly to the host.
 * `/config` — Manage global bot configurations and response settings.
 * `/changelog` — View the latest updates and additions to ProtoBot.
@@ -64,7 +65,7 @@ ProtoBot is a feature-rich, customizable Discord interaction bot built with **`d
 
 ### Prerequisites
 * **Node.js** (v16.9.0 or higher)
-* **GitHub Personal Access Token** (with `repo` scope for `tags.json` syncing)[span_2](start_span)[span_2](end_span)
+* **GitHub Personal Access Token** (with `repo` scope for `tags.json` syncing)
 * **Discord Bot Application Token**
 
 ### Installation & Setup
