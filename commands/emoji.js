@@ -5,6 +5,7 @@ function getRandomMessage(array) {
 }
 
 const emojiMap = {
+    'NoEatRam': '<:NoRamForU:1541510983908987031>', 
     'Bullshit': '<:Bullshit:1541509055154094081>', 
     'Ram': '<:Ram:1541508957216964668>', 
     'SusStare': '<:Sus:1541509245499875439>', 
