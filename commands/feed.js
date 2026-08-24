@@ -46,23 +46,29 @@ function isCyberneticSpecies(userTags) {
     return userTags.some(t => validTechSpecies.includes(String(t).toLowerCase()));
 }
 
+// Generates a random DDR generation between DDR1 and DDR100
+function getRandomDDR() {
+    const gen = Math.floor(Math.random() * 100) + 1;
+    return `DDR${gen}`;
+}
+
 const RESPONSES = {
     ram: {
         successSelf: [
-            "**{executor}** happily munched on a fresh stick of DDR5 RAM! <:protogenirl:1536430038751121499>",
-            "**{executor}** devoured a high-speed RAM stick! Task manager is looking great. <:Ram:1541508957216964668>"
+            "**{executor}** happily munched on a fresh stick of **{ddr}** RAM! <:protogenirl:1536430038751121499>",
+            "**{executor}** devoured a high-speed **{ddr}** RAM stick! Task manager is looking great. <:Ram:1541508957216964668>"
         ],
         failSelf: [
-            "**{executor}** tried to swallow a RAM stick, choked on the circuit board, and violently coughed it right back up! <:NoRamForU:1541510983908987031>",
-            "**{executor}** bit down on a RAM stick, chipped a tooth on the memory chips, and nearly choked!  <:Sus:1541509245499875439>"
+            "**{executor}** tried to swallow a **{ddr}** RAM stick, choked on the circuit board, and violently coughed it right back up! <:NoRamForU:1541510983908987031>",
+            "**{executor}** bit down on a **{ddr}** RAM stick, chipped a tooth on the memory chips, and nearly choked! <:Sus:1541509245499875439>"
         ],
         successOther: [
-            "**{executor}** fed a juicy stick of RAM to **{target}**! <:Ram:1541508957216964668>",
-            "**{executor}** offered top-tier DDR5 RAM to **{target}**, who happily gobbled it up! <:Puroadorable:1536364133392457818>"
+            "**{executor}** fed a juicy stick of **{ddr}** RAM to **{target}**! <:Ram:1541508957216964668>",
+            "**{executor}** offered top-tier **{ddr}** RAM to **{target}**, who happily gobbled it up! <:Puroadorable:1536364133392457818>"
         ],
         failOther: [
-            "**{executor}** tried to force-feed RAM to **{target}**, but they started choking on it! <:NoRamForU:1541510983908987031>",
-            "**{executor}** shoved a RAM stick down **{target}**'s throat, causing them to choke! <:Sus:1541509245499875439>"
+            "**{executor}** tried to force-feed **{ddr}** RAM to **{target}**, but they started choking on it! <:NoRamForU:1541510983908987031>",
+            "**{executor}** shoved a **{ddr}** RAM stick down **{target}**'s throat, causing them to choke! <:Sus:1541509245499875439>"
         ]
     },
     battery: {
@@ -129,7 +135,12 @@ function getRandomMessage(type, isSelf, executor, target, canEatTech) {
     }
 
     const template = pool[Math.floor(Math.random() * pool.length)];
-    return template.replace(/{executor}/g, executor.username).replace(/{target}/g, target.username);
+    const ddrType = getRandomDDR();
+
+    return template
+        .replace(/{executor}/g, `<@${executor.id}>`)
+        .replace(/{target}/g, `<@${target.id}>`)
+        .replace(/{ddr}/g, ddrType);
 }
 
 module.exports = {
