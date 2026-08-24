@@ -1,7 +1,10 @@
 **ProtoBot is licensed under the GNU Affero General Public License v3.0**
+
 # 🤖 ProtoBot
 
 ProtoBot is a feature-rich, customizable Discord interaction bot built with **`discord.js` v14** and running on **Node.js**. It comes with dynamic command loading, a GitHub API-synced user tag system, species-aware interactions, community command submission templates, and an Express server setup for 24/7 uptime hosting.
+
+📋 **[View TODO List](TODO.md)**
 
 ---
 
@@ -22,12 +25,13 @@ ProtoBot is a feature-rich, customizable Discord interaction bot built with **`d
 
 ### 🏷️ Management, Submissions & Tools
 * `/command` — Generates custom command templates and guides for users to design and upload their own interactions.
-* `/tag` — Manage custom user tags, assign species roles, and configure Pale Virus immunity rules. 
+* `/tag` — Manage custom user tags, assign species roles, and configure Pale Virus immunity rules.
 * `/suggestion` — Submit feature ideas, custom command code, or bug reports directly to the host.
 * `/config` — Manage global bot configurations and response settings.
 * `/changelog` — View the latest updates and additions to ProtoBot.
 * `/help` — Display detailed command information and usage guides.
-## 🎮 Roleplay & Interactions
+
+### 🎮 Roleplay & Interactions
 * `/bap` — Gently bap a target user.
 * `/bite` — Take a bite out of a target user.
 * `/blow-up` — Trigger a dramatic explosion event for a target.
@@ -72,22 +76,3 @@ ProtoBot is a feature-rich, customizable Discord interaction bot built with **`d
    ```bash
    git clone [https://github.com/Agro388-owo/ProtoBot.git](https://github.com/Agro388-owo/ProtoBot.git)
    cd ProtoBot
-
- * Install dependencies:
-   npm install discord.js express
-
- * Configure Environment Variables:
-   Create a .env file or set the following variables in your hosting panel:
-   TOKEN=your_discord_bot_token
-GITHUB_TOKEN=your_github_personal_access_token
-OWNER_ID=your_discord_user_id
-
- * Launch ProtoBot:
-   node index.js
-
-📄 License
-ProtoBot is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0).
-Under this license, you are free to fork, host, and modify ProtoBot, provided that:
- * All modified or derivative versions hosted publicly must remain open source under AGPL-3.0.
- * Original copyright notices and contributor credits are preserved.
- * Full source code is made accessible to all users interacting with the instance
