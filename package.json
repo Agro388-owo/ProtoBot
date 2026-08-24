@@ -3,7 +3,7 @@
   "version": "0.0.4",
   "description": "Just a silly ProtoBot",
   "main": "index.js",
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "engines": {
     "node": "20.x"
   },
