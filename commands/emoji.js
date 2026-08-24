@@ -5,6 +5,9 @@ function getRandomMessage(array) {
 }
 
 const emojiMap = {
+    'Bullshit': '<:Bullshit:1541509055154094081>', 
+    'Ram': '<:Ram:1541508957216964668>', 
+    'SusStare': '<:Sus:1541509245499875439>', 
     'Puro_doing_a_swim': '<:Puro_doing_a_swim:1538666516680282233>',
     'AtariSquirrel': '<:AtariSquirrel:1538666298920140890>',
     'Goober': '<:Goober:1538666294948270190>',
