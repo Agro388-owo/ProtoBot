@@ -7,13 +7,12 @@ Track active tasks, upcoming features, bug fixes, and long-term milestones for P
 ## 📌 High Priority & Licensing
 
 - [x] **Transition to AGPL-3.0 License**
-  - [x] Replace `LICENSE` file text with full AGPL v3.0 declaration.
+  - [x] Replace [LICENSE](LICENSE) file text with full AGPL v3.0 declaration.
   - [x] Update `"license": "AGPL-3.0-only"` in `package.json`.
   - [x] Add license header/notice in `README.md`.
 - [ ] **Tag System Optimization (`tags.json`)**
-  - [ ] Enhance fallback handling if GitHub API rate limits are hit[span_0](start_span)[span_0](end_span).
+  - [ ] Enhance fallback handling if GitHub API rate limits are hit.
   - [ ] Add command options to remove/manage individual user tags easily.
-  - [ ] Ensure tag permissions are strictly validated across restricted commands like `/overclock`.
 
 ---
 
@@ -28,7 +27,7 @@ Track active tasks, upcoming features, bug fixes, and long-term milestones for P
 - [ ] **Command Code Polish**
   - [ ] Standardize custom emoji fallbacks across all interaction response strings.
   - [ ] Add auto-deletion reaction collectors across remaining roleplay commands.
-
+  - [ ] Refine /help command.       
 ---
 
 ## 🌐 Server Integration & Host Management
