@@ -1,30 +1,32 @@
 const { SlashCommandBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
-const { CREDIT } = require('./credits.js');
+const { CREDIT, formatNumber, clampBalance } = require('./credits.js');
 
 const creditsFilePath = path.join(__dirname, '../credits.json');
 
-function formatNumber(num) {
-    if (num >= 1e12) return (num / 1e12).toFixed(2).replace(/\.00$/, '') + 'T';
-    if (num >= 1e9)  return (num / 1e9).toFixed(2).replace(/\.00$/, '') + 'B';
-    if (num >= 1e6)  return (num / 1e6).toFixed(2).replace(/\.00$/, '') + 'M';
-    if (num >= 1e3)  return (num / 1e3).toFixed(2).replace(/\.00$/, '') + 'K';
-    return num.toLocaleString();
-}
-
 function getDB() {
     if (fs.existsSync(creditsFilePath)) {
-        try { return JSON.parse(fs.readFileSync(creditsFilePath, 'utf8') || '{}'); } catch (e) {}
+        try {
+            const raw = fs.readFileSync(creditsFilePath, 'utf8') || '{}';
+            const parsed = JSON.parse(raw);
+            for (const id in parsed) {
+                if (parsed[id].balance !== undefined) {
+                    parsed[id].balance = clampBalance(BigInt(parsed[id].balance));
+                }
+            }
+            return parsed;
+        } catch (e) {}
     }
     return {};
 }
 
 function saveDB(db) {
-    fs.writeFileSync(creditsFilePath, JSON.stringify(db, null, 2), 'utf8');
+    const serialized = JSON.stringify(db, (key, value) =>
+        typeof value === 'bigint' ? value.toString() : value, 2);
+    fs.writeFileSync(creditsFilePath, serialized, 'utf8');
 }
 
-// Random flavor messages when a credit ticket loses
 const lossMessages = [
     "scratched off the ticket... and got a **[Blank Silver Layer]**.",
     "scratched the ticket and found **0 winning symbols**.",
@@ -74,7 +76,7 @@ module.exports = {
         if (subcommand === 'prizes') {
             return await interaction.reply({
                 content: `${CREDIT} **-- LOTTERY PRIZE POOL --** ${CREDIT}\n` +
-                       `• <:purocute:1536367584369180803> **Grand Jackpot:** ${formatNumber(1000000)} ${CREDIT} *(1 in 500,000)* — *Paid Ticket Only*\n` +
+                       `• <:purocute:1536367584369180803> **Grand Jackpot:** ${formatNumber(1000000n)} ${CREDIT} *(1 in 500,000)* — *Paid Ticket Only*\n` +
                        `• <:Ram:1541508957216964668> **Cyber Tier:** Overclocked DDR5 RAM Stick *(1 in 500)* — *Free*\n` +
                        `• <:protogenirl:1536430038751121499> **Hardware Tier:** Box of Crunchy Microchips *(1 in 100)* — *Free*\n` +
                        `• <:Puro_Blush6:1536430029104353380> **Consolation:** 50 ${CREDIT} *(1 in 100)* — *Paid Ticket Only*\n\n` +
@@ -86,11 +88,11 @@ module.exports = {
             const ticketType = interaction.options.getString('ticket_type');
             const db = getDB();
 
-            if (!db[user.id]) db[user.id] = { balance: 1000, lastDaily: null };
+            if (!db[user.id]) db[user.id] = { balance: 1000n, lastDaily: null };
 
-            // 1. CREDIT LOTTERY TICKET (Consumes Balance)
+            // 1. CREDIT LOTTERY TICKET
             if (ticketType === 'credit_ticket') {
-                const TICKET_COST = 50;
+                const TICKET_COST = 50n;
 
                 if (db[user.id].balance < TICKET_COST) {
                     return await interaction.reply({
@@ -99,15 +101,15 @@ module.exports = {
                     });
                 }
 
-                db[user.id].balance -= TICKET_COST;
+                db[user.id].balance = clampBalance(db[user.id].balance - TICKET_COST);
 
                 const ODDS = 500000;
                 const roll = Math.floor(Math.random() * ODDS) + 1;
 
                 // Grand Jackpot Win
                 if (roll === 77777) {
-                    const prize = 1000000;
-                    db[user.id].balance += prize;
+                    const prize = 1000000n;
+                    db[user.id].balance = clampBalance(db[user.id].balance + prize);
                     saveDB(db);
                     return await interaction.reply({
                         content: `<:purocute:1536367584369180803> **<@${user.id}>** HIT THE **GRAND JACKPOT**! You won **${formatNumber(prize)}** ${CREDIT}! <:Puroadorable:1536364133392457818>`
@@ -116,8 +118,8 @@ module.exports = {
 
                 // Consolation Win (1 in 100 chance)
                 if (roll % 100 === 0) {
-                    const prize = 50;
-                    db[user.id].balance += prize;
+                    const prize = 50n;
+                    db[user.id].balance = clampBalance(db[user.id].balance + prize);
                     saveDB(db);
                     return await interaction.reply({
                         content: `${CREDIT} **<@${user.id}>** scratched off a winning combo and recovered their **50** ${CREDIT}! <:purocute:1536367584369180803>`
@@ -132,7 +134,7 @@ module.exports = {
                 });
             }
 
-            // 2. FUN TICKETS (Free - No Credits Used)
+            // 2. FUN TICKETS
             if (ticketType === 'ram_ticket') {
                 const roll = Math.floor(Math.random() * 500) + 1;
                 if (roll === 500) {
