@@ -13,19 +13,24 @@ function formatNumber(num) {
     const sign = n < 0n ? '-' : '';
 
     const units = [
-        { value: 10n ** 18n, symbol: 'E' }, // Quintillion (64-bit cap)
-        { value: 10n ** 15n, symbol: 'P' }, // Quadrillion
-        { value: 10n ** 12n, symbol: 'T' }, // Trillion
-        { value: 10n ** 9n,  symbol: 'B' }, // Billion
-        { value: 10n ** 6n,  symbol: 'M' }, // Million
-        { value: 10n ** 3n,  symbol: 'K' }  // Thousand
+        { value: 10n ** 18n, symbol: 'E' }, // Quintillion / Exa (64-bit max)
+        { value: 10n ** 15n, symbol: 'P' }, // Quadrillion / Peta
+        { value: 10n ** 12n, symbol: 'T' }, // Trillion / Tera
+        { value: 10n ** 9n,  symbol: 'B' }, // Billion / Giga
+        { value: 10n ** 6n,  symbol: 'M' }, // Million / Mega
+        { value: 10n ** 3n,  symbol: 'K' }  // Thousand / Kilo
     ];
 
     for (const { value, symbol } of units) {
         if (abs >= value) {
-            const integerPart = abs / value;
-            const remainder = (abs % value) * 100n / value;
-            const decString = remainder > 0n ? `.${remainder.toString().padStart(2, '0')}`.replace(/\.?0+$/, '') : '';
+            const scaled = (abs * 100n) / value;
+            const integerPart = scaled / 100n;
+            const decimalPart = scaled % 100n;
+
+            const decString = decimalPart > 0n 
+                ? `.${decimalPart.toString().padStart(2, '0')}`.replace(/\.?0+$/, '') 
+                : '';
+
             return `${sign}${integerPart}${decString}${symbol}`;
         }
     }
