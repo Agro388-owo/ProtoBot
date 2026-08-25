@@ -1,0 +1,96 @@
+const { SlashCommandBuilder } = require('discord.js');
+const fs = require('fs');
+const path = require('path');
+const { CREDIT, PuroNervous, PuroBlush, Bullshit } = require('../emojis.js');
+
+const creditsFilePath = path.join(__dirname, '../credits.json');
+
+function loadCredits() {
+    try {
+        if (fs.existsSync(creditsFilePath)) {
+            return JSON.parse(fs.readFileSync(creditsFilePath, 'utf8') || '{}');
+        }
+    } catch (e) {}
+    return {};
+}
+
+function saveCredits(data) {
+    fs.writeFileSync(creditsFilePath, JSON.stringify(data, null, 2), 'utf8');
+}
+
+module.exports = {
+    data: new SlashCommandBuilder()
+        .setName('credits')
+        .setDescription('Manage your wallet, claim daily rewards, or send credits!')
+        .addSubcommand(sub =>
+            sub.setName('balance')
+               .setDescription('Check your current credit balance')
+               .addUserOption(opt => opt.setName('target').setDescription('User to check balance for'))
+        )
+        .addSubcommand(sub =>
+            sub.setName('daily')
+               .setDescription('Claim your daily credit reward (24h cooldown)')
+        )
+        .addSubcommand(sub =>
+            sub.setName('pay')
+               .setDescription('Transfer credits to another user')
+               .addUserOption(opt => opt.setName('target').setDescription('User to pay').setRequired(true))
+               .addIntegerOption(opt => opt.setName('amount').setDescription('Amount to send').setRequired(true).setMinValue(1))
+        ),
+
+    async execute(interaction) {
+        const subcommand = interaction.options.getSubcommand();
+        const user = interaction.user;
+        const db = loadCredits();
+
+        if (!db[user.id]) db[user.id] = { balance: 100, lastDaily: null };
+
+        // 1. Balance
+        if (subcommand === 'balance') {
+            const target = interaction.options.getUser('target') || user;
+            const bal = db[target.id]?.balance ?? 0;
+            return `💳 **<@${target.id}>**'s Balance: **${bal.toLocaleString()}** ${CREDIT}`;
+        }
+
+        // 2. Daily
+        if (subcommand === 'daily') {
+            const NOW = Date.now();
+            const COOLDOWN = 24 * 60 * 60 * 1000;
+            const lastDaily = db[user.id].lastDaily || 0;
+
+            if (NOW - lastDaily < COOLDOWN) {
+                const remainingMs = COOLDOWN - (NOW - lastDaily);
+                const hours = Math.floor(remainingMs / (1000 * 60 * 60));
+                const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+                return `${PuroNervous} You already claimed your daily payout! Try again in **${hours}h ${minutes}m**.`;
+            }
+
+            const REWARD = 250;
+            db[user.id].balance += REWARD;
+            db[user.id].lastDaily = NOW;
+            saveCredits(db);
+
+            return `${PuroBlush} **<@${user.id}>** claimed their daily reward of **+${REWARD}** ${CREDIT}!\nNew Balance: **${db[user.id].balance.toLocaleString()}** ${CREDIT}`;
+        }
+
+        // 3. Pay
+        if (subcommand === 'pay') {
+            const target = interaction.options.getUser('target');
+            const amount = interaction.options.getInteger('amount');
+
+            if (target.id === user.id) return `You cannot send funds to yourself!`;
+            if (target.bot) return `${PuroNervous} Bots don't need currency!`;
+            if (db[user.id].balance < amount) {
+                return `${PuroNervous} Insufficient funds! You only have **${db[user.id].balance.toLocaleString()}** ${CREDIT}`;
+            }
+
+            if (!db[target.id]) db[target.id] = { balance: 100, lastDaily: null };
+
+            db[user.id].balance -= amount;
+            db[target.id].balance += amount;
+            saveCredits(db);
+
+            return `${PuroBlush} **<@${user.id}>** transferred **${amount.toLocaleString()}** ${CREDIT} to **<@${target.id}>**!`;
+        }
+    }
+};
