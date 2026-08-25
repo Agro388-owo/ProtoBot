@@ -2,13 +2,7 @@ const { SlashCommandBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
-// Local Emoji Declarations
 const CREDIT = '<:Credit:1541924089256607785>';
-const puronervous = '<:puronervous:1536367581995335750>';
-const puronervous2 = '<:puronervous2:1538551211207430234>';
-const Puro_Blush = '<:Puro_Blush6:1536430029104353380>';
-const Puroadorable = '<:Puroadorable:1536364133392457818>';
-
 const creditsFilePath = path.join(__dirname, '../credits.json');
 
 function loadCredits() {
@@ -25,6 +19,7 @@ function saveCredits(data) {
 }
 
 module.exports = {
+    CREDIT, // Exported for other files to import
     data: new SlashCommandBuilder()
         .setName('credits')
         .setDescription('Manage your wallet, claim daily rewards, or send credits!')
@@ -71,7 +66,7 @@ module.exports = {
                 const hours = Math.floor(remainingMs / (1000 * 60 * 60));
                 const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
                 return await interaction.reply({
-                    content: `${puronervous} You already claimed your daily payout! Try again in **${hours}h ${minutes}m**.`
+                    content: `<:puronervous:1536367581995335750> You already claimed your daily payout! Try again in **${hours}h ${minutes}m**.`
                 });
             }
 
@@ -81,7 +76,7 @@ module.exports = {
             saveCredits(db);
 
             return await interaction.reply({
-                content: `${Puro_Blush} **<@${user.id}>** claimed their daily reward of **+${REWARD}** ${CREDIT}!\nNew Balance: **${db[user.id].balance.toLocaleString()}** ${CREDIT}`
+                content: `<:Puro_Blush6:1536430029104353380> **<@${user.id}>** claimed their daily reward of **+${REWARD}** ${CREDIT}!\nNew Balance: **${db[user.id].balance.toLocaleString()}** ${CREDIT}`
             });
         }
 
@@ -90,11 +85,11 @@ module.exports = {
             const target = interaction.options.getUser('target');
             const amount = interaction.options.getInteger('amount');
 
-            if (target.id === user.id) return await interaction.reply({ content: `${Puroadorable} You cannot send funds to yourself!` });
-            if (target.bot) return await interaction.reply({ content: `${puronervous} Bots don't need currency!` });
+            if (target.id === user.id) return await interaction.reply({ content: `<:Puroadorable:1536364133392457818> You cannot send funds to yourself!` });
+            if (target.bot) return await interaction.reply({ content: `<:puronervous:1536367581995335750> Bots don't need currency!` });
             if (db[user.id].balance < amount) {
                 return await interaction.reply({
-                    content: `${puronervous2} Insufficient funds! You only have **${db[user.id].balance.toLocaleString()}** ${CREDIT}`
+                    content: `<:puronervous2:1538551211207430234> Insufficient funds! You only have **${db[user.id].balance.toLocaleString()}** ${CREDIT}`
                 });
             }
 
@@ -105,7 +100,7 @@ module.exports = {
             saveCredits(db);
 
             return await interaction.reply({
-                content: `${Puro_Blush} **<@${user.id}>** transferred **${amount.toLocaleString()}** ${CREDIT} to **<@${target.id}>**!`
+                content: `<:Puro_Blush6:1536430029104353380> **<@${user.id}>** transferred **${amount.toLocaleString()}** ${CREDIT} to **<@${target.id}>**!`
             });
         }
     }
