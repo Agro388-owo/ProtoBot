@@ -1,8 +1,9 @@
 const { SlashCommandBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
+const botConfig = require('../config.js');
 
-const CREDIT = '<:Credit:1541924089256607785>';
+const CREDIT = '<:Credit:1541934198791737475>';
 const creditsFilePath = path.join(__dirname, '../credits.json');
 
 function formatNumber(num) {
@@ -30,7 +31,7 @@ module.exports = {
     CREDIT,
     data: new SlashCommandBuilder()
         .setName('credits')
-        .setDescription('Manage your wallet, claim daily rewards, or send credits!')
+        .setDescription('Manage your wallet, claim daily rewards, send credits, or admin tools!')
         .addSubcommand(sub =>
             sub.setName('balance')
                .setDescription('Check your current credit balance')
@@ -45,6 +46,25 @@ module.exports = {
                .setDescription('Transfer credits to another user')
                .addUserOption(opt => opt.setName('target').setDescription('User to pay').setRequired(true))
                .addIntegerOption(opt => opt.setName('amount').setDescription('Amount to send').setRequired(true).setMinValue(1))
+        )
+        // Admin Subcommands (Owner Only)
+        .addSubcommand(sub =>
+            sub.setName('add')
+               .setDescription('[ADMIN] Add credits to a user')
+               .addUserOption(opt => opt.setName('target').setDescription('User to give credits to').setRequired(true))
+               .addIntegerOption(opt => opt.setName('amount').setDescription('Amount to add').setRequired(true).setMinValue(1))
+        )
+        .addSubcommand(sub =>
+            sub.setName('remove')
+               .setDescription('[ADMIN] Remove credits from a user')
+               .addUserOption(opt => opt.setName('target').setDescription('User to take credits from').setRequired(true))
+               .addIntegerOption(opt => opt.setName('amount').setDescription('Amount to remove').setRequired(true).setMinValue(1))
+        )
+        .addSubcommand(sub =>
+            sub.setName('set')
+               .setDescription('[ADMIN] Set a user\'s credit balance')
+               .addUserOption(opt => opt.setName('target').setDescription('User balance to modify').setRequired(true))
+               .addIntegerOption(opt => opt.setName('amount').setDescription('Exact amount to set').setRequired(true).setMinValue(0))
         ),
 
     async execute(interaction) {
@@ -52,19 +72,21 @@ module.exports = {
         const user = interaction.user;
         const db = loadCredits();
 
-        // Updated default balance to 1,000 (1k)
         if (!db[user.id]) db[user.id] = { balance: 1000, lastDaily: null };
 
-        // 1. Balance
+        // --- PUBLIC / USER SUBCOMMANDS ---
+
+        // 1. Balance (Ephemeral)
         if (subcommand === 'balance') {
             const target = interaction.options.getUser('target') || user;
             const bal = db[target.id]?.balance ?? 0;
             return await interaction.reply({
-                content: `💳 **<@${target.id}>**'s Balance: **${formatNumber(bal)}** ${CREDIT}`
+                content: `💳 **<@${target.id}>**'s Balance: **${formatNumber(bal)}** ${CREDIT}`,
+                ephemeral: true
             });
         }
 
-        // 2. Daily
+        // 2. Daily (Ephemeral)
         if (subcommand === 'daily') {
             const NOW = Date.now();
             const COOLDOWN = 24 * 60 * 60 * 1000;
@@ -75,7 +97,8 @@ module.exports = {
                 const hours = Math.floor(remainingMs / (1000 * 60 * 60));
                 const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
                 return await interaction.reply({
-                    content: `<:puronervous:1536367581995335750> You already claimed your daily payout! Try again in **${hours}h ${minutes}m**.`
+                    content: `<:puronervous:1536367581995335750> You already claimed your daily payout! Try again in **${hours}h ${minutes}m**.`,
+                    ephemeral: true
                 });
             }
 
@@ -85,7 +108,8 @@ module.exports = {
             saveCredits(db);
 
             return await interaction.reply({
-                content: `<:Puro_Blush6:1536430029104353380> **<@${user.id}>** claimed their daily reward of **+${formatNumber(REWARD)}** ${CREDIT}!\nNew Balance: **${formatNumber(db[user.id].balance)}** ${CREDIT}`
+                content: `<:Puro_Blush6:1536430029104353380> You claimed your daily reward of **+${formatNumber(REWARD)}** ${CREDIT}!\nNew Balance: **${formatNumber(db[user.id].balance)}** ${CREDIT}`,
+                ephemeral: true
             });
         }
 
@@ -94,11 +118,22 @@ module.exports = {
             const target = interaction.options.getUser('target');
             const amount = interaction.options.getInteger('amount');
 
-            if (target.id === user.id) return await interaction.reply({ content: `<:Puroadorable:1536364133392457818> You cannot send funds to yourself!` });
-            if (target.bot) return await interaction.reply({ content: `<:puronervous:1536367581995335750> Bots don't need currency!` });
+            if (target.id === user.id) {
+                return await interaction.reply({ 
+                    content: `<:Puroadorable:1536364133392457818> You cannot send funds to yourself!`,
+                    ephemeral: true 
+                });
+            }
+            if (target.bot) {
+                return await interaction.reply({ 
+                    content: `<:puronervous:1536367581995335750> Bots don't need currency!`,
+                    ephemeral: true 
+                });
+            }
             if (db[user.id].balance < amount) {
                 return await interaction.reply({
-                    content: `<:puronervous2:1538551211207430234> Insufficient funds! You only have **${formatNumber(db[user.id].balance)}** ${CREDIT}`
+                    content: `<:puronervous2:1538551211207430234> Insufficient funds! You only have **${formatNumber(db[user.id].balance)}** ${CREDIT}`,
+                    ephemeral: true
                 });
             }
 
@@ -111,6 +146,51 @@ module.exports = {
             return await interaction.reply({
                 content: `<:Puro_Blush6:1536430029104353380> **<@${user.id}>** transferred **${formatNumber(amount)}** ${CREDIT} to **<@${target.id}>**!`
             });
+        }
+
+        // --- ADMIN / OWNER SUBCOMMANDS ---
+
+        const adminSubcommands = ['add', 'remove', 'set'];
+        if (adminSubcommands.includes(subcommand)) {
+            // Check if executing user matches OWNER_ID
+            if (user.id !== botConfig.OWNER_ID) {
+                return await interaction.reply({
+                    content: `<:puronervous2:1538551211207430234> Access Denied! Only the bot owner can use admin commands.`,
+                    ephemeral: true
+                });
+            }
+
+            const target = interaction.options.getUser('target');
+            const amount = interaction.options.getInteger('amount');
+
+            if (!db[target.id]) db[target.id] = { balance: 1000, lastDaily: null };
+
+            if (subcommand === 'add') {
+                db[target.id].balance += amount;
+                saveCredits(db);
+                return await interaction.reply({
+                    content: `⚙️ **[ADMIN]** Added **+${formatNumber(amount)}** ${CREDIT} to **<@${target.id}>**!\nNew Balance: **${formatNumber(db[target.id].balance)}** ${CREDIT}`,
+                    ephemeral: true
+                });
+            }
+
+            if (subcommand === 'remove') {
+                db[target.id].balance = Math.max(0, db[target.id].balance - amount);
+                saveCredits(db);
+                return await interaction.reply({
+                    content: `⚙️ **[ADMIN]** Removed **-${formatNumber(amount)}** ${CREDIT} from **<@${target.id}>**!\nNew Balance: **${formatNumber(db[target.id].balance)}** ${CREDIT}`,
+                    ephemeral: true
+                });
+            }
+
+            if (subcommand === 'set') {
+                db[target.id].balance = amount;
+                saveCredits(db);
+                return await interaction.reply({
+                    content: `⚙️ **[ADMIN]** Set **<@${target.id}>**'s balance to **${formatNumber(amount)}** ${CREDIT}!`,
+                    ephemeral: true
+                });
+            }
         }
     }
 };
