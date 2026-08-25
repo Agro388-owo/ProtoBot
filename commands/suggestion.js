@@ -27,6 +27,9 @@ module.exports = {
             console.error('Failed to send suggestion DM to owner:', error);
         }
 
-        return `✅ Thank you, ${senderName}! Your suggestion has been successfully sent to the developer. <:purocute:1536367584369180803>`;
+        return await interaction.reply({
+            content: `✅ Thank you, ${senderName}! Your suggestion has been successfully sent to the developer. <:purocute:1536367584369180803>`,
+            ephemeral: true
+        });
     }
 };
