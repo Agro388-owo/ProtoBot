@@ -4,31 +4,68 @@ const path = require('path');
 const botConfig = require('../config.js');
 
 const CREDIT = '<:Credit:1541934198791737475>';
+const MAX_64BIT_INT = 9223372036854775807n; // 2^63 - 1 (64-bit Integer Cap)
 const creditsFilePath = path.join(__dirname, '../credits.json');
 
 function formatNumber(num) {
-    if (num >= 1e12) return (num / 1e12).toFixed(2).replace(/\.00$/, '') + 'T';
-    if (num >= 1e9)  return (num / 1e9).toFixed(2).replace(/\.00$/, '') + 'B';
-    if (num >= 1e6)  return (num / 1e6).toFixed(2).replace(/\.00$/, '') + 'M';
-    if (num >= 1e3)  return (num / 1e3).toFixed(2).replace(/\.00$/, '') + 'K';
-    return num.toLocaleString();
+    const n = BigInt(num);
+    const abs = n < 0n ? -n : n;
+    const sign = n < 0n ? '-' : '';
+
+    const units = [
+        { value: 10n ** 18n, symbol: 'E' }, // Quintillion (64-bit cap)
+        { value: 10n ** 15n, symbol: 'P' }, // Quadrillion
+        { value: 10n ** 12n, symbol: 'T' }, // Trillion
+        { value: 10n ** 9n,  symbol: 'B' }, // Billion
+        { value: 10n ** 6n,  symbol: 'M' }, // Million
+        { value: 10n ** 3n,  symbol: 'K' }  // Thousand
+    ];
+
+    for (const { value, symbol } of units) {
+        if (abs >= value) {
+            const integerPart = abs / value;
+            const remainder = (abs % value) * 100n / value;
+            const decString = remainder > 0n ? `.${remainder.toString().padStart(2, '0')}`.replace(/\.?0+$/, '') : '';
+            return `${sign}${integerPart}${decString}${symbol}`;
+        }
+    }
+
+    return n.toLocaleString();
+}
+
+function clampBalance(amount) {
+    if (amount > MAX_64BIT_INT) return MAX_64BIT_INT;
+    if (amount < 0n) return 0n;
+    return amount;
 }
 
 function loadCredits() {
     try {
         if (fs.existsSync(creditsFilePath)) {
-            return JSON.parse(fs.readFileSync(creditsFilePath, 'utf8') || '{}');
+            const raw = fs.readFileSync(creditsFilePath, 'utf8') || '{}';
+            const parsed = JSON.parse(raw);
+            for (const id in parsed) {
+                if (parsed[id].balance !== undefined) {
+                    parsed[id].balance = clampBalance(BigInt(parsed[id].balance));
+                }
+            }
+            return parsed;
         }
     } catch (e) {}
     return {};
 }
 
 function saveCredits(data) {
-    fs.writeFileSync(creditsFilePath, JSON.stringify(data, null, 2), 'utf8');
+    const serialized = JSON.stringify(data, (key, value) =>
+        typeof value === 'bigint' ? value.toString() : value, 2);
+    fs.writeFileSync(creditsFilePath, serialized, 'utf8');
 }
 
 module.exports = {
     CREDIT,
+    MAX_64BIT_INT,
+    clampBalance,
+    formatNumber,
     data: new SlashCommandBuilder()
         .setName('credits')
         .setDescription('Manage your wallet, claim daily rewards, send credits, or admin tools!')
@@ -47,7 +84,6 @@ module.exports = {
                .addUserOption(opt => opt.setName('target').setDescription('User to pay').setRequired(true))
                .addIntegerOption(opt => opt.setName('amount').setDescription('Amount to send').setRequired(true).setMinValue(1))
         )
-        // Admin Subcommands (Owner Only)
         .addSubcommand(sub =>
             sub.setName('add')
                .setDescription('[ADMIN] Add credits to a user')
@@ -72,14 +108,12 @@ module.exports = {
         const user = interaction.user;
         const db = loadCredits();
 
-        if (!db[user.id]) db[user.id] = { balance: 1000, lastDaily: null };
-
-        // --- PUBLIC / USER SUBCOMMANDS ---
+        if (!db[user.id]) db[user.id] = { balance: 1000n, lastDaily: null };
 
         // 1. Balance (Ephemeral)
         if (subcommand === 'balance') {
             const target = interaction.options.getUser('target') || user;
-            const bal = db[target.id]?.balance ?? 0;
+            const bal = db[target.id]?.balance ?? 0n;
             return await interaction.reply({
                 content: `💳 **<@${target.id}>**'s Balance: **${formatNumber(bal)}** ${CREDIT}`,
                 ephemeral: true
@@ -102,8 +136,8 @@ module.exports = {
                 });
             }
 
-            const REWARD = 250;
-            db[user.id].balance += REWARD;
+            const REWARD = 250n;
+            db[user.id].balance = clampBalance(db[user.id].balance + REWARD);
             db[user.id].lastDaily = NOW;
             saveCredits(db);
 
@@ -116,7 +150,7 @@ module.exports = {
         // 3. Pay
         if (subcommand === 'pay') {
             const target = interaction.options.getUser('target');
-            const amount = interaction.options.getInteger('amount');
+            const amount = BigInt(interaction.options.getInteger('amount'));
 
             if (target.id === user.id) {
                 return await interaction.reply({ 
@@ -137,10 +171,10 @@ module.exports = {
                 });
             }
 
-            if (!db[target.id]) db[target.id] = { balance: 1000, lastDaily: null };
+            if (!db[target.id]) db[target.id] = { balance: 1000n, lastDaily: null };
 
-            db[user.id].balance -= amount;
-            db[target.id].balance += amount;
+            db[user.id].balance = clampBalance(db[user.id].balance - amount);
+            db[target.id].balance = clampBalance(db[target.id].balance + amount);
             saveCredits(db);
 
             return await interaction.reply({
@@ -148,11 +182,9 @@ module.exports = {
             });
         }
 
-        // --- ADMIN / OWNER SUBCOMMANDS ---
-
+        // Admin Subcommands (Owner Only)
         const adminSubcommands = ['add', 'remove', 'set'];
         if (adminSubcommands.includes(subcommand)) {
-            // Check if executing user matches OWNER_ID
             if (user.id !== botConfig.OWNER_ID) {
                 return await interaction.reply({
                     content: `<:puronervous2:1538551211207430234> Access Denied! Only the bot owner can use admin commands.`,
@@ -161,12 +193,12 @@ module.exports = {
             }
 
             const target = interaction.options.getUser('target');
-            const amount = interaction.options.getInteger('amount');
+            const amount = BigInt(interaction.options.getInteger('amount'));
 
-            if (!db[target.id]) db[target.id] = { balance: 1000, lastDaily: null };
+            if (!db[target.id]) db[target.id] = { balance: 1000n, lastDaily: null };
 
             if (subcommand === 'add') {
-                db[target.id].balance += amount;
+                db[target.id].balance = clampBalance(db[target.id].balance + amount);
                 saveCredits(db);
                 return await interaction.reply({
                     content: `⚙️ **[ADMIN]** Added **+${formatNumber(amount)}** ${CREDIT} to **<@${target.id}>**!\nNew Balance: **${formatNumber(db[target.id].balance)}** ${CREDIT}`,
@@ -175,7 +207,7 @@ module.exports = {
             }
 
             if (subcommand === 'remove') {
-                db[target.id].balance = Math.max(0, db[target.id].balance - amount);
+                db[target.id].balance = clampBalance(db[target.id].balance - amount);
                 saveCredits(db);
                 return await interaction.reply({
                     content: `⚙️ **[ADMIN]** Removed **-${formatNumber(amount)}** ${CREDIT} from **<@${target.id}>**!\nNew Balance: **${formatNumber(db[target.id].balance)}** ${CREDIT}`,
@@ -184,10 +216,10 @@ module.exports = {
             }
 
             if (subcommand === 'set') {
-                db[target.id].balance = amount;
+                db[target.id].balance = clampBalance(amount);
                 saveCredits(db);
                 return await interaction.reply({
-                    content: `⚙️ **[ADMIN]** Set **<@${target.id}>**'s balance to **${formatNumber(amount)}** ${CREDIT}!`,
+                    content: `⚙️ **[ADMIN]** Set **<@${target.id}>**'s balance to **${formatNumber(db[target.id].balance)}** ${CREDIT}!`,
                     ephemeral: true
                 });
             }
