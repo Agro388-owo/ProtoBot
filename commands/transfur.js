@@ -5,7 +5,6 @@ const botConfig = require('../config.js');
 
 const tagsFilePath = path.join(__dirname, '../tags.json');
 
-// Helper to load tags DB
 function getTagsDB() {
     if (fs.existsSync(tagsFilePath)) {
         try {
@@ -18,21 +17,23 @@ function getTagsDB() {
     return {};
 }
 
-// Helper to save tags DB
 function saveTagsDB(db) {
     fs.writeFileSync(tagsFilePath, JSON.stringify(db, null, 2), 'utf8');
 }
 
-// Helper to add tags without duplicating
-function addTagsToUser(userId, newTags) {
+function addTransfurTagsToUser(userId, newTags) {
     const db = getTagsDB();
     if (!db[userId]) {
-        db[userId] = [];
+        db[userId] = { userTags: [], transfurTags: [] };
+    } else if (Array.isArray(db[userId])) {
+        // Migration helper if user previously had an array
+        db[userId] = { userTags: db[userId], transfurTags: [] };
     }
 
-    const currentTags = new Set(db[userId]);
-    newTags.forEach(tag => currentTags.add(tag));
-    db[userId] = Array.from(currentTags);
+    // Overwrite or append to the transfur-specific tag array
+    const currentTransfurTags = new Set(db[userId].transfurTags || []);
+    newTags.forEach(tag => currentTransfurTags.add(tag));
+    db[userId].transfurTags = Array.from(currentTransfurTags);
 
     saveTagsDB(db);
 }
@@ -41,7 +42,6 @@ function getRandomMessage(array) {
     return array[Math.floor(Math.random() * array.length)];
 }
 
-// Mapping of transformation choices to automated tag arrays
 const formTagsMap = {
     latex: ['latex', 'transfur'],
     protogen: ['protogen', 'transfur', 'synth'],
@@ -61,7 +61,7 @@ module.exports = {
         .addUserOption(option => 
             option.setName('target')
                   .setDescription('Who is getting transformed? (Leave empty to transfur yourself)')
-                  .setRequired(false) // 👈 Set to false so target is optional
+                  .setRequired(false)
         )
         .addStringOption(option =>
             option.setName('form')
@@ -79,24 +79,22 @@ module.exports = {
         ),
 
     async execute(interaction, senderName, recipientName) {
-        // 👈 Fallback to interaction.user if no target is provided
         const targetUser = interaction.options.getUser('target') || interaction.user;
         const formChoice = interaction.options.getString('form') || 'latex';
 
-        // Update recipientName to target's ping/name if self-targeting
         const targetDisplayName = targetUser.id === interaction.user.id ? senderName : (recipientName || `<@${targetUser.id}>`);
 
-        // 🛡️ Check if target is immune using the dedicated transfur list
+        // Immunity check
         const transfurImmuneList = botConfig.transfurImmuneUsers || [];
         if (transfurImmuneList.includes(targetUser.id)) {
             return `<@${targetUser.id}>'s body composition completely resists the transformation! <:protogenirl:1536430038751121499>`;
         }
 
-        // 🏷️ Auto-assign tags to target user upon successful transformation
+        // Apply transfur-specific tags
         const tagsToApply = formTagsMap[formChoice] || ['transfur', 'latex'];
-        addTagsToUser(targetUser.id, tagsToApply);
+        addTransfurTagsToUser(targetUser.id, tagsToApply);
 
-        // 📭 Blank / Custom option handling
+        // Blank option
         if (formChoice === 'blank') {
             if (interaction.user.id === targetUser.id) {
                 return `${senderName} underwent a mysterious change...`;
@@ -104,7 +102,6 @@ module.exports = {
             return `${senderName} transformed ${targetDisplayName}...`;
         }
 
-        // 🐾 Form-specific message lists
         const formMessages = {
             latex: {
                 self: [
