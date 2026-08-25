@@ -39,6 +39,17 @@ function clampBalance(amount) {
     return amount;
 }
 
+function parseBigIntInput(str) {
+    try {
+        if (!str) return null;
+        const cleaned = str.trim().replace(/,/g, '');
+        const val = BigInt(cleaned);
+        return val < 0n ? null : val;
+    } catch {
+        return null;
+    }
+}
+
 function loadCredits() {
     try {
         if (fs.existsSync(creditsFilePath)) {
@@ -82,25 +93,25 @@ module.exports = {
             sub.setName('pay')
                .setDescription('Transfer credits to another user')
                .addUserOption(opt => opt.setName('target').setDescription('User to pay').setRequired(true))
-               .addIntegerOption(opt => opt.setName('amount').setDescription('Amount to send').setRequired(true).setMinValue(1))
+               .addStringOption(opt => opt.setName('amount').setDescription('Amount to send').setRequired(true))
         )
         .addSubcommand(sub =>
             sub.setName('add')
                .setDescription('[ADMIN] Add credits to a user')
                .addUserOption(opt => opt.setName('target').setDescription('User to give credits to').setRequired(true))
-               .addIntegerOption(opt => opt.setName('amount').setDescription('Amount to add').setRequired(true).setMinValue(1))
+               .addStringOption(opt => opt.setName('amount').setDescription('Amount to add').setRequired(true))
         )
         .addSubcommand(sub =>
             sub.setName('remove')
                .setDescription('[ADMIN] Remove credits from a user')
                .addUserOption(opt => opt.setName('target').setDescription('User to take credits from').setRequired(true))
-               .addIntegerOption(opt => opt.setName('amount').setDescription('Amount to remove').setRequired(true).setMinValue(1))
+               .addStringOption(opt => opt.setName('amount').setDescription('Amount to remove').setRequired(true))
         )
         .addSubcommand(sub =>
             sub.setName('set')
                .setDescription('[ADMIN] Set a user\'s credit balance')
                .addUserOption(opt => opt.setName('target').setDescription('User balance to modify').setRequired(true))
-               .addIntegerOption(opt => opt.setName('amount').setDescription('Exact amount to set').setRequired(true).setMinValue(0))
+               .addStringOption(opt => opt.setName('amount').setDescription('Exact amount to set').setRequired(true))
         ),
 
     async execute(interaction) {
@@ -110,7 +121,7 @@ module.exports = {
 
         if (!db[user.id]) db[user.id] = { balance: 1000n, lastDaily: null };
 
-        // 1. Balance (Ephemeral)
+        // 1. Balance
         if (subcommand === 'balance') {
             const target = interaction.options.getUser('target') || user;
             const bal = db[target.id]?.balance ?? 0n;
@@ -120,7 +131,7 @@ module.exports = {
             });
         }
 
-        // 2. Daily (Ephemeral)
+        // 2. Daily
         if (subcommand === 'daily') {
             const NOW = Date.now();
             const COOLDOWN = 24 * 60 * 60 * 1000;
@@ -150,7 +161,15 @@ module.exports = {
         // 3. Pay
         if (subcommand === 'pay') {
             const target = interaction.options.getUser('target');
-            const amount = BigInt(interaction.options.getInteger('amount'));
+            const amountInput = interaction.options.getString('amount');
+            const amount = parseBigIntInput(amountInput);
+
+            if (amount === null || amount <= 0n) {
+                return await interaction.reply({
+                    content: `<:puronervous2:1538551211207430234> Invalid amount! Please provide a positive whole number.`,
+                    ephemeral: true
+                });
+            }
 
             if (target.id === user.id) {
                 return await interaction.reply({ 
@@ -193,7 +212,15 @@ module.exports = {
             }
 
             const target = interaction.options.getUser('target');
-            const amount = BigInt(interaction.options.getInteger('amount'));
+            const amountInput = interaction.options.getString('amount');
+            const amount = parseBigIntInput(amountInput);
+
+            if (amount === null) {
+                return await interaction.reply({
+                    content: `<:puronervous2:1538551211207430234> Invalid amount! Enter a valid non-negative number up to \`9223372036854775807\`.`,
+                    ephemeral: true
+                });
+            }
 
             if (!db[target.id]) db[target.id] = { balance: 1000n, lastDaily: null };
 
