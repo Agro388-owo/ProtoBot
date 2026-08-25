@@ -5,6 +5,14 @@ const { CREDIT } = require('./credits.js');
 
 const creditsFilePath = path.join(__dirname, '../credits.json');
 
+function formatNumber(num) {
+    if (num >= 1e12) return (num / 1e12).toFixed(2).replace(/\.00$/, '') + 'T';
+    if (num >= 1e9)  return (num / 1e9).toFixed(2).replace(/\.00$/, '') + 'B';
+    if (num >= 1e6)  return (num / 1e6).toFixed(2).replace(/\.00$/, '') + 'M';
+    if (num >= 1e3)  return (num / 1e3).toFixed(2).replace(/\.00$/, '') + 'K';
+    return num.toLocaleString();
+}
+
 function getDB() {
     if (fs.existsSync(creditsFilePath)) {
         try { return JSON.parse(fs.readFileSync(creditsFilePath, 'utf8') || '{}'); } catch (e) {}
@@ -15,6 +23,18 @@ function getDB() {
 function saveDB(db) {
     fs.writeFileSync(creditsFilePath, JSON.stringify(db, null, 2), 'utf8');
 }
+
+// Random flavor messages when a credit ticket loses
+const lossMessages = [
+    "scratched off the ticket... and got a **[Blank Silver Layer]**.",
+    "scratched the ticket and found **0 winning symbols**.",
+    "opened the ticket capsule, but it was just filled with packing peanuts.",
+    "scratched off three matching **[Error 404]** icons.",
+    "scratched off the ticket and found a note reading: *\"Better luck next sweep!\"*",
+    "scratched the card... close, but no winning numbers matched!",
+    "unfolded the paper ticket to reveal **[Better Luck Next Time]**.",
+    "scratched off the foil and revealed a picture of a sad toaster."
+];
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -54,7 +74,7 @@ module.exports = {
         if (subcommand === 'prizes') {
             return await interaction.reply({
                 content: `${CREDIT} **-- LOTTERY PRIZE POOL --** ${CREDIT}\n` +
-                       `• <:purocute:1536367584369180803> **Grand Jackpot:** 1,000,000 ${CREDIT} *(1 in 500,000)* — *Paid Ticket Only*\n` +
+                       `• <:purocute:1536367584369180803> **Grand Jackpot:** ${formatNumber(1000000)} ${CREDIT} *(1 in 500,000)* — *Paid Ticket Only*\n` +
                        `• <:Ram:1541508957216964668> **Cyber Tier:** Overclocked DDR5 RAM Stick *(1 in 500)* — *Free*\n` +
                        `• <:protogenirl:1536430038751121499> **Hardware Tier:** Box of Crunchy Microchips *(1 in 100)* — *Free*\n` +
                        `• <:Puro_Blush6:1536430029104353380> **Consolation:** 50 ${CREDIT} *(1 in 100)* — *Paid Ticket Only*\n\n` +
@@ -66,7 +86,7 @@ module.exports = {
             const ticketType = interaction.options.getString('ticket_type');
             const db = getDB();
 
-            if (!db[user.id]) db[user.id] = { balance: 100, lastDaily: null };
+            if (!db[user.id]) db[user.id] = { balance: 1000, lastDaily: null };
 
             // 1. CREDIT LOTTERY TICKET (Consumes Balance)
             if (ticketType === 'credit_ticket') {
@@ -74,7 +94,8 @@ module.exports = {
 
                 if (db[user.id].balance < TICKET_COST) {
                     return await interaction.reply({
-                        content: `<:puronervous2:1538551211207430234> You don't have enough to buy a credit ticket! (Cost: **${TICKET_COST}** ${CREDIT} | Balance: **${db[user.id].balance}** ${CREDIT})`
+                        content: `<:puronervous2:1538551211207430234> You don't have enough to buy a credit ticket! (Cost: **${TICKET_COST}** ${CREDIT} | Balance: **${formatNumber(db[user.id].balance)}** ${CREDIT})`,
+                        ephemeral: true
                     });
                 }
 
@@ -83,27 +104,31 @@ module.exports = {
                 const ODDS = 500000;
                 const roll = Math.floor(Math.random() * ODDS) + 1;
 
+                // Grand Jackpot Win
                 if (roll === 77777) {
                     const prize = 1000000;
                     db[user.id].balance += prize;
                     saveDB(db);
                     return await interaction.reply({
-                        content: `<:purocute:1536367584369180803> **<@${user.id}>** HIT THE **1 IN 500,000 GRAND JACKPOT**! You won **1,000,000** ${CREDIT}! <:Puroadorable:1536364133392457818>`
+                        content: `<:purocute:1536367584369180803> **<@${user.id}>** HIT THE **GRAND JACKPOT**! You won **${formatNumber(prize)}** ${CREDIT}! <:Puroadorable:1536364133392457818>`
                     });
                 }
 
+                // Consolation Win (1 in 100 chance)
                 if (roll % 100 === 0) {
                     const prize = 50;
                     db[user.id].balance += prize;
                     saveDB(db);
                     return await interaction.reply({
-                        content: `${CREDIT} **<@${user.id}>** rolled **#${roll.toLocaleString()}** and won back their **50** ${CREDIT}! <:purocute:1536367584369180803>`
+                        content: `${CREDIT} **<@${user.id}>** scratched off a winning combo and recovered their **50** ${CREDIT}! <:purocute:1536367584369180803>`
                     });
                 }
 
+                // Loss
                 saveDB(db);
+                const randomLossMsg = lossMessages[Math.floor(Math.random() * lossMessages.length)];
                 return await interaction.reply({
-                    content: `<:thing:1537616433171796149> **<@${user.id}>** bought a Credit Lottery Ticket for 50 ${CREDIT}... and rolled **#${roll.toLocaleString()}** out of **500,000**.\nRemaining Balance: **${db[user.id].balance}** ${CREDIT}. <:puronervous:1536367581995335750>`
+                    content: `<:thing:1537616433171796149> **<@${user.id}>** bought a Credit Ticket for 50 ${CREDIT}... ${randomLossMsg}\n*Remaining Balance:* **${formatNumber(db[user.id].balance)}** ${CREDIT}. <:puronervous:1536367581995335750>`
                 });
             }
 
@@ -115,11 +140,11 @@ module.exports = {
                         ? `*(You try not to eat it immediately... but it looks delicious! <:Ram:1541508957216964668><:Sus:1541509245499875439>)*` 
                         : `*(Keep it away from local protogens! <:NoRamForU:1541510983908987031>)*`;
                     return await interaction.reply({
-                        content: `<:Ram:1541508957216964668> **<@${user.id}>** rolled **#${roll}/500** on their RAM Ticket and won an **[Ultra-Fast DDR5 64GB RAM Stick]**! ${snackMsg}`
+                        content: `<:Ram:1541508957216964668> **<@${user.id}>** pulled a RAM Ticket and won an **[Ultra-Fast DDR5 64GB RAM Stick]**! ${snackMsg}`
                     });
                 }
                 return await interaction.reply({
-                    content: `<:puronervous:1536367581995335750> **<@${user.id}>** rolled **#${roll}/500** on a RAM Ticket... No RAM this time!`
+                    content: `<:puronervous:1536367581995335750> **<@${user.id}>** checked their RAM Ticket... empty stick slot! No RAM this time.`
                 });
             }
 
@@ -130,11 +155,11 @@ module.exports = {
                         ? `*(Crunchy microchips! A perfect snack. <:protogenirl:1536430038751121499><:Puro_Blush6:1536430029104353380>)*` 
                         : `*(Looks useful for circuit work!)*`;
                     return await interaction.reply({
-                        content: `<:protogenirl:1536430038751121499> **<@${user.id}>** rolled **#${roll}/100** on their Microchip Ticket and won a **[Crispy Microchip Pack]**! ${snackMsg}`
+                        content: `<:protogenirl:1536430038751121499> **<@${user.id}>** opened their Microchip Ticket and won a **[Crispy Microchip Pack]**! ${snackMsg}`
                     });
                 }
                 return await interaction.reply({
-                    content: `<:thing:1537616433171796149> **<@${user.id}>** rolled **#${roll}/100** on a Microchip Ticket... Empty wrapper!`
+                    content: `<:thing:1537616433171796149> **<@${user.id}>** opened a Microchip Ticket... empty wrapper!`
                 });
             }
 
@@ -144,7 +169,7 @@ module.exports = {
                 const randomNumber = Math.floor(Math.random() * (MAX - MIN + 1)) + MIN;
 
                 return await interaction.reply({
-                    content: `<:Goober:1538666294948270190> **<@${user.id}>** got number: **#${randomNumber.toLocaleString()}**! <:Puroadorable:1536364133392457818>`
+                    content: `<:Goober:1538666294948270190> **<@${user.id}>** got number: **#${formatNumber(randomNumber)}**! <:Puroadorable:1536364133392457818>`
                 });
             }
         }
