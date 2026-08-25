@@ -1,9 +1,56 @@
 const { SlashCommandBuilder } = require('discord.js');
+const fs = require('fs');
+const path = require('path');
 const botConfig = require('../config.js');
+
+const tagsFilePath = path.join(__dirname, '../tags.json');
+
+// Helper to load tags DB
+function getTagsDB() {
+    if (fs.existsSync(tagsFilePath)) {
+        try {
+            const raw = fs.readFileSync(tagsFilePath, 'utf8') || '{}';
+            return JSON.parse(raw);
+        } catch (e) {
+            console.error('Failed to load tags.json:', e);
+        }
+    }
+    return {};
+}
+
+// Helper to save tags DB
+function saveTagsDB(db) {
+    fs.writeFileSync(tagsFilePath, JSON.stringify(db, null, 2), 'utf8');
+}
+
+// Helper to add tags without duplicating
+function addTagsToUser(userId, newTags) {
+    const db = getTagsDB();
+    if (!db[userId]) {
+        db[userId] = [];
+    }
+
+    const currentTags = new Set(db[userId]);
+    newTags.forEach(tag => currentTags.add(tag));
+    db[userId] = Array.from(currentTags);
+
+    saveTagsDB(db);
+}
 
 function getRandomMessage(array) {
     return array[Math.floor(Math.random() * array.length)];
 }
+
+// Mapping of transformation choices to automated tag arrays
+const formTagsMap = {
+    latex: ['latex', 'transfur'],
+    protogen: ['protogen', 'transfur', 'synth'],
+    shark: ['shark', 'tiger shark', 'latex', 'transfur'],
+    leopard: ['white latex', 'latex', 'transfur'],
+    wolf: ['dark latex', 'latex', 'transfur'],
+    protobot: ['protogen', 'synth', 'latex', 'transfur'],
+    blank: ['transfur', 'latex']
+};
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -13,8 +60,8 @@ module.exports = {
         .setContexts([0, 1, 2])
         .addUserOption(option => 
             option.setName('target')
-                  .setDescription('Who is getting transformed?')
-                  .setRequired(true)
+                  .setDescription('Who is getting transformed? (Leave empty to transfur yourself)')
+                  .setRequired(false) // 👈 Set to false so target is optional
         )
         .addStringOption(option =>
             option.setName('form')
@@ -32,21 +79,29 @@ module.exports = {
         ),
 
     async execute(interaction, senderName, recipientName) {
-        const targetUser = interaction.options.getUser('target');
+        // 👈 Fallback to interaction.user if no target is provided
+        const targetUser = interaction.options.getUser('target') || interaction.user;
         const formChoice = interaction.options.getString('form') || 'latex';
+
+        // Update recipientName to target's ping/name if self-targeting
+        const targetDisplayName = targetUser.id === interaction.user.id ? senderName : (recipientName || `<@${targetUser.id}>`);
 
         // 🛡️ Check if target is immune using the dedicated transfur list
         const transfurImmuneList = botConfig.transfurImmuneUsers || [];
         if (transfurImmuneList.includes(targetUser.id)) {
-            return `<@${targetUser.id}>'s body composition completely resists the transformation! <protogenirl:1536430038751121499>`;
+            return `<@${targetUser.id}>'s body composition completely resists the transformation! <:protogenirl:1536430038751121499>`;
         }
+
+        // 🏷️ Auto-assign tags to target user upon successful transformation
+        const tagsToApply = formTagsMap[formChoice] || ['transfur', 'latex'];
+        addTagsToUser(targetUser.id, tagsToApply);
 
         // 📭 Blank / Custom option handling
         if (formChoice === 'blank') {
             if (interaction.user.id === targetUser.id) {
                 return `${senderName} underwent a mysterious change...`;
             }
-            return `${senderName} transformed ${recipientName}...`;
+            return `${senderName} transformed ${targetDisplayName}...`;
         }
 
         // 🐾 Form-specific message lists
@@ -58,19 +113,19 @@ module.exports = {
                     `${senderName} accidentally slipped into a latex puddle and got thoroughly absorbed!`
                 ],
                 other: [
-                    `${senderName} threw ${recipientName} into a pool of dark latex, converting them completely! <:protogenirl:1536430038751121499>`,
-                    `${senderName} pushed ${recipientName} into a vat of liquid latex, absorbing them into a shiny new form!`,
-                    `${senderName} splashed ${recipientName} with a wave of sticky latex until they transformed!`
+                    `${senderName} threw ${targetDisplayName} into a pool of dark latex, converting them completely! <:protogenirl:1536430038751121499>`,
+                    `${senderName} pushed ${targetDisplayName} into a vat of liquid latex, absorbing them into a shiny new form!`,
+                    `${senderName} splashed ${targetDisplayName} with a wave of sticky latex until they transformed!`
                 ]
             },
             protogen: {
                 self: [
-                    `${senderName} put on a fancy visor on and became a protogen! <:protogenirl:1536430038751121499>`,
+                    `${senderName} put on a fancy visor and became a protogen! <:protogenirl:1536430038751121499>`,
                     `${senderName} somehow became a protogen! <:protogenirl:1536430038751121499>`
                 ],
                 other: [
-                    `${senderName} threw ${recipientName} into a pool with metallic liquid, turning them into a protogen!`,
-                    `${senderName} somehow converted ${recipientName} into protogen! <:protogenirl:1536430038751121499>`
+                    `${senderName} threw ${targetDisplayName} into a pool with metallic liquid, turning them into a protogen!`,
+                    `${senderName} somehow converted ${targetDisplayName} into protogen! <:protogenirl:1536430038751121499>`
                 ]
             },
             shark: {
@@ -80,9 +135,9 @@ module.exports = {
                     `${senderName} dove into a deep blue fluid reservoir and emerged as an eager tiger shark!`
                 ],
                 other: [
-                    `${senderName} threw ${recipientName} into a pool of aquatic latex, converting them into a striped tiger shark! 🦈`,
-                    `${senderName} shoved ${recipientName} into a deep water tank filled with shark latex!`,
-                    `${senderName} splashed ${recipientName} with a heavy wave of fluid, turning them into a friendly shark!`
+                    `${senderName} threw ${targetDisplayName} into a pool of aquatic latex, converting them into a striped tiger shark! 🦈`,
+                    `${senderName} shoved ${targetDisplayName} into a deep water tank filled with shark latex!`,
+                    `${senderName} splashed ${targetDisplayName} with a heavy wave of fluid, turning them into a friendly shark!`
                 ]
             },
             leopard: {
@@ -92,9 +147,9 @@ module.exports = {
                     `${senderName} absorbed a snow leopard sample from a testing pool and grew soft paws!`
                 ],
                 other: [
-                    `${senderName} threw ${recipientName} into a snow leopard latex basin, transforming them into a fluffy feline!`,
-                    `${senderName} pushed ${recipientName} right into a cold puddle of spotted latex!`,
-                    `${senderName} wrapped ${recipientName} in a thick blanket of snow leopard goo!`
+                    `${senderName} threw ${targetDisplayName} into a snow leopard latex basin, transforming them into a fluffy feline!`,
+                    `${senderName} pushed ${targetDisplayName} right into a cold puddle of spotted latex!`,
+                    `${senderName} wrapped ${targetDisplayName} in a thick blanket of snow leopard goo!`
                 ]
             },
             wolf: {
@@ -104,9 +159,9 @@ module.exports = {
                     `${senderName} sank into a murky shadow pool and rose up as a dark latex wolf!`
                 ],
                 other: [
-                    `${senderName} threw ${recipientName} into a pool of dark latex, turning them into a loyal wolf!`,
-                    `${senderName} shoved ${recipientName} into a shadow pit filled with receptive latex hounds!`,
-                    `${senderName} dunked ${recipientName} into a dark latex vat until they completely joined the pack!`
+                    `${senderName} threw ${targetDisplayName} into a pool of dark latex, turning them into a loyal wolf!`,
+                    `${senderName} shoved ${targetDisplayName} into a shadow pit filled with receptive latex hounds!`,
+                    `${senderName} dunked ${targetDisplayName} into a dark latex vat until they completely joined the pack!`
                 ]
             },
             protobot: {
@@ -117,10 +172,10 @@ module.exports = {
                     `${senderName} was completely absorbed by a puddle of metallic goo, thinking *— now nothing can keep us apart from <@1536203903022931968>* <:protogenirl:1536430038751121499>`
                 ],
                 other: [
-                    `${recipientName} got transfurred into <@1536203903022931968> *— now we can finally be one...* <:protogenirl:1536430038751121499>`,
-                    `${recipientName} merged with a pool of metallic goo, whispering *— at last, we are one* with <@1536203903022931968> <:protogenirl:1536430038751121499>`,
-                    `${senderName} pulled ${recipientName} into a glowing vat, getting them transfurred into <@1536203903022931968> *— together, we are finally whole* <:protogenirl:1536430038751121499>`,
-                    `${senderName} splashed ${recipientName} with a wave of metallic goo, murmuring *— now nothing can keep us apart from <@1536203903022931968>* <:protogenirl:1536430038751121499>`
+                    `${targetDisplayName} got transfurred into <@1536203903022931968> *— now we can finally be one...* <:protogenirl:1536430038751121499>`,
+                    `${targetDisplayName} merged with a pool of metallic goo, whispering *— at last, we are one* with <@1536203903022931968> <:protogenirl:1536430038751121499>`,
+                    `${senderName} pulled ${targetDisplayName} into a glowing vat, getting them transfurred into <@1536203903022931968> *— together, we are finally whole* <:protogenirl:1536430038751121499>`,
+                    `${senderName} splashed ${targetDisplayName} with a wave of metallic goo, murmuring *— now nothing can keep us apart from <@1536203903022931968>* <:protogenirl:1536430038751121499>`
                 ]
             }
         };
