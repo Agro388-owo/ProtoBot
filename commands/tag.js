@@ -117,6 +117,21 @@ async function saveTagsToGitHub(tagsData) {
     }
 }
 
+// Helper to normalize user object structure across old and new schemas
+function normalizeUserData(entry) {
+    if (!entry) return { userTags: [], transfurTags: [] };
+    
+    // Legacy array fallback
+    if (Array.isArray(entry.tags)) {
+        return { userTags: entry.tags, transfurTags: [] };
+    }
+
+    return {
+        userTags: Array.isArray(entry.userTags) ? entry.userTags : [],
+        transfurTags: Array.isArray(entry.transfurTags) ? entry.transfurTags : []
+    };
+}
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('tag')
@@ -244,10 +259,10 @@ module.exports = {
 
             if (subcommand === 'list') {
                 const targetUser = interaction.options.getUser('target') || interaction.user;
-                const userData = allUserTags[targetUser.id];
-                const userTagList = (userData && Array.isArray(userData.tags)) ? userData.tags : [];
+                const rawData = allUserTags[targetUser.id];
+                const { userTags, transfurTags } = normalizeUserData(rawData);
 
-                if (userTagList.length === 0) {
+                if (userTags.length === 0 && transfurTags.length === 0) {
                     const message = targetUser.id === userId 
                         ? `📂 **Your Custom Tags:**\n• You don't have any custom tags set right now! Use \`/tag add\` to create one.`
                         : `📂 **Custom Tags:**\n• <@${targetUser.id}> does not have any custom tags set right now!`;
@@ -255,8 +270,15 @@ module.exports = {
                     return await interaction.editReply({ content: message });
                 }
 
-                const formattedTags = userTagList.map((t, index) => `${index + 1}. \`${t}\``).join('\n');
-                return await interaction.editReply({ content: `📂 **Custom Tags for <@${targetUser.id}> (${userData.username || 'Unknown'}):**\n${formattedTags}` });
+                let response = `📂 **Tags for <@${targetUser.id}> (${rawData?.username || 'Unknown'}):**\n`;
+                if (userTags.length > 0) {
+                    response += `**User Tags:**\n${userTags.map((t, i) => `${i + 1}. \`${t}\``).join('\n')}\n`;
+                }
+                if (transfurTags.length > 0) {
+                    response += `**Transfur Tags:**\n${transfurTags.map((t, i) => `${i + 1}. \`${t}\``).join('\n')}`;
+                }
+
+                return await interaction.editReply({ content: response });
             }
 
             if (subcommand === 'add') {
@@ -273,33 +295,36 @@ module.exports = {
                 if (!allUserTags[recipientId]) {
                     allUserTags[recipientId] = {
                         username: recipientUsername,
-                        tags: []
+                        userTags: [],
+                        transfurTags: []
                     };
                 } else {
-                    allUserTags[recipientId].username = recipientUsername;
-                    if (!Array.isArray(allUserTags[recipientId].tags)) {
-                        allUserTags[recipientId].tags = [];
-                    }
+                    // Normalize existing entry
+                    const normalized = normalizeUserData(allUserTags[recipientId]);
+                    allUserTags[recipientId] = {
+                        username: recipientUsername,
+                        userTags: normalized.userTags,
+                        transfurTags: normalized.transfurTags
+                    };
                 }
 
-                if (allUserTags[recipientId].tags.includes(customTag)) {
-                    return await interaction.editReply({ content: `⚠️ <@${recipientId}> already has the tag **\`${customTag}\`** in their list!` });
+                if (allUserTags[recipientId].userTags.includes(customTag)) {
+                    return await interaction.editReply({ content: `⚠️ <@${recipientId}> already has the tag **\`${customTag}\`** in their user tag list!` });
                 }
 
+                // Global limit check across userTags
                 let totalSlotsUsed = Object.entries(allUserTags)
                     .filter(([key]) => key !== '_meta')
                     .reduce((acc, [, entry]) => {
-                        if (entry && Array.isArray(entry.tags)) {
-                            return acc + entry.tags.length;
-                        }
-                        return acc;
+                        const normalized = normalizeUserData(entry);
+                        return acc + normalized.userTags.length;
                     }, 0);
 
                 if (totalSlotsUsed >= 50) {
                     return await interaction.editReply({ content: `❌ Maximum global tag capacity reached (50/50 slots across all users)!` });
                 }
 
-                allUserTags[recipientId].tags.push(customTag);
+                allUserTags[recipientId].userTags.push(customTag);
                 await saveTagsToGitHub(allUserTags);
 
                 return await interaction.editReply({ content: `🏷️ Successfully added the custom tag **\`${customTag}\`** for <@${recipientId}>! (Saved as: ${recipientUsername})` });
@@ -314,21 +339,30 @@ module.exports = {
                 }
 
                 const recipientId = targetUser.id;
-                const userData = allUserTags[recipientId];
-                const userTagList = (userData && Array.isArray(userData.tags)) ? userData.tags : [];
-
-                const tagIndex = userTagList.indexOf(customTag);
-                if (tagIndex === -1) {
-                    return await interaction.editReply({ content: `⚠️ Could not find the tag **\`${customTag}\`** for <@${recipientId}>!` });
+                const entry = allUserTags[recipientId];
+                
+                if (!entry) {
+                    return await interaction.editReply({ content: `⚠️ Could not find any tags for <@${recipientId}>!` });
                 }
 
-                userTagList.splice(tagIndex, 1);
+                const normalized = normalizeUserData(entry);
+                const tagIndex = normalized.userTags.indexOf(customTag);
 
-                if (userTagList.length === 0) {
+                if (tagIndex === -1) {
+                    return await interaction.editReply({ content: `⚠️ Could not find the custom user tag **\`${customTag}\`** for <@${recipientId}>!` });
+                }
+
+                normalized.userTags.splice(tagIndex, 1);
+
+                // If both arrays are empty, delete user key completely
+                if (normalized.userTags.length === 0 && normalized.transfurTags.length === 0) {
                     delete allUserTags[recipientId];
                 } else {
-                    allUserTags[recipientId].tags = userTagList;
-                    allUserTags[recipientId].username = targetUser.username;
+                    allUserTags[recipientId] = {
+                        username: targetUser.username,
+                        userTags: normalized.userTags,
+                        transfurTags: normalized.transfurTags
+                    };
                 }
 
                 await saveTagsToGitHub(allUserTags);
