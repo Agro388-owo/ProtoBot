@@ -60,10 +60,21 @@ module.exports = {
         const immuneKeywords = allUserTags._meta?.immuneTags || DEFAULT_IMMUNE_KEYWORDS;
 
         const userData = allUserTags[targetId];
-        const userTagList = userData && Array.isArray(userData.tags) ? userData.tags : [];
+        
+        // Extract tags directly from transfurTags (supporting legacy array/userTags fallbacks)
+        let transfurTagList = [];
+        if (userData) {
+            if (Array.isArray(userData.transfurTags)) {
+                transfurTagList = userData.transfurTags;
+            } else if (Array.isArray(userData)) {
+                transfurTagList = userData;
+            } else if (Array.isArray(userData.userTags)) {
+                transfurTagList = userData.userTags;
+            }
+        }
 
-        // Check target user's tags against immunity keywords
-        const hasImmunityTag = userTagList.some(tag => 
+        // Check target user's transfurTags against immunity keywords
+        const hasImmunityTag = transfurTagList.some(tag => 
             immuneKeywords.some(keyword => tag.toLowerCase().includes(keyword.toLowerCase()))
         );
 
