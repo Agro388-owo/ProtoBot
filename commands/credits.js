@@ -131,7 +131,7 @@ module.exports = {
             const target = interaction.options.getUser('target') || user;
             const bal = db[target.id]?.balance ?? 0n;
             return await interaction.reply({
-                content: `💳 **<@${target.id}>**'s Balance: **${formatNumber(bal)}** ${CREDIT}`,
+                content: `💳 **<@${target.id}>**'s Balance: **${formatNumber(bal)}**${CREDIT}`,
                 ephemeral: true
             });
         }
@@ -158,7 +158,7 @@ module.exports = {
             saveCredits(db);
 
             return await interaction.reply({
-                content: `<:Puro_Blush6:1536430029104353380> You claimed your daily reward of **+${formatNumber(REWARD)}** ${CREDIT}!\nNew Balance: **${formatNumber(db[user.id].balance)}** ${CREDIT}`,
+                content: `<:Puro_Blush6:1536430029104353380> You claimed your daily reward of **+${formatNumber(REWARD)}**${CREDIT}!\nNew Balance: **${formatNumber(db[user.id].balance)}** ${CREDIT}`,
                 ephemeral: true
             });
         }
@@ -190,7 +190,7 @@ module.exports = {
             }
             if (db[user.id].balance < amount) {
                 return await interaction.reply({
-                    content: `<:puronervous2:1538551211207430234> Insufficient funds! You only have **${formatNumber(db[user.id].balance)}** ${CREDIT}`,
+                    content: `<:puronervous2:1538551211207430234> Insufficient funds! You only have **${formatNumber(db[user.id].balance)}**${CREDIT}`,
                     ephemeral: true
                 });
             }
@@ -202,7 +202,7 @@ module.exports = {
             saveCredits(db);
 
             return await interaction.reply({
-                content: `<:Puro_Blush6:1536430029104353380> **<@${user.id}>** transferred **${formatNumber(amount)}** ${CREDIT} to **<@${target.id}>**!`
+                content: `<:Puro_Blush6:1536430029104353380> **<@${user.id}>** transferred **${formatNumber(amount)}**${CREDIT} to **<@${target.id}>**!`
             });
         }
 
@@ -233,7 +233,7 @@ module.exports = {
                 db[target.id].balance = clampBalance(db[target.id].balance + amount);
                 saveCredits(db);
                 return await interaction.reply({
-                    content: `⚙️ **[ADMIN]** Added **+${formatNumber(amount)}** ${CREDIT} to **<@${target.id}>**!\nNew Balance: **${formatNumber(db[target.id].balance)}** ${CREDIT}`,
+                    content: `⚙️ **[ADMIN]** Added **+${formatNumber(amount)}** ${CREDIT} to **<@${target.id}>**!\nNew Balance: **${formatNumber(db[target.id].balance)}**${CREDIT}`,
                     ephemeral: true
                 });
             }
@@ -242,7 +242,7 @@ module.exports = {
                 db[target.id].balance = clampBalance(db[target.id].balance - amount);
                 saveCredits(db);
                 return await interaction.reply({
-                    content: `⚙️ **[ADMIN]** Removed **-${formatNumber(amount)}** ${CREDIT} from **<@${target.id}>**!\nNew Balance: **${formatNumber(db[target.id].balance)}** ${CREDIT}`,
+                    content: `⚙️ **[ADMIN]** Removed **-${formatNumber(amount)}** ${CREDIT} from **<@${target.id}>**!\nNew Balance: **${formatNumber(db[target.id].balance)}**${CREDIT}`,
                     ephemeral: true
                 });
             }
@@ -251,7 +251,7 @@ module.exports = {
                 db[target.id].balance = clampBalance(amount);
                 saveCredits(db);
                 return await interaction.reply({
-                    content: `⚙️ **[ADMIN]** Set **<@${target.id}>**'s balance to **${formatNumber(db[target.id].balance)}** ${CREDIT}!`,
+                    content: `⚙️ **[ADMIN]** Set **<@${target.id}>**'s balance to **${formatNumber(db[target.id].balance)}**${CREDIT}!`,
                     ephemeral: true
                 });
             }
