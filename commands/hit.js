@@ -52,20 +52,20 @@ module.exports = {
         let message = '';
 
         if (customObject) {
-            // Using custom item input
+            // Using custom item input with user pings
             if (isSelf) {
-                message = `**${executor.username}** somehow managed to hit themselves with **${customObject}**! ${reactionEmoji}`;
+                message = `<@${executor.id}> somehow managed to hit themselves with **${customObject}**! ${reactionEmoji}`;
             } else {
-                message = `**${executor.username}** whacked **${target.username}** over the head with **${customObject}**! ${reactionEmoji}`;
+                message = `<@${executor.id}> whacked <@${target.id}> over the head with **${customObject}**! ${reactionEmoji}`;
             }
         } else {
-            // Picking a random item from the pool
+            // Picking a random item from the pool with user pings
             const randomItem = RANDOM_OBJECTS[Math.floor(Math.random() * RANDOM_OBJECTS.length)];
             
             if (isSelf) {
-                message = `**${executor.username}** swung wildly and hit themselves with **${randomItem.name}**! ${randomItem.emoji}`;
+                message = `<@${executor.id}> swung wildly and hit themselves with **${randomItem.name}**! ${randomItem.emoji}`;
             } else {
-                message = `**${executor.username}** hit **${target.username}** with **${randomItem.name}**! ${randomItem.emoji}`;
+                message = `<@${executor.id}> hit <@${target.id}> with **${randomItem.name}**! ${randomItem.emoji}`;
             }
         }
 
