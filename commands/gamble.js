@@ -66,7 +66,7 @@ module.exports = {
 
         if (db[user.id].balance < wager) {
             return await interaction.reply({
-                content: `<:puronervous2:1538551211207430234> Insufficient funds! You only have **${formatNumber(db[user.id].balance)}** ${CREDIT}`,
+                content: `<:puronervous2:1538551211207430234> Insufficient funds! You only have **${formatNumber(db[user.id].balance)}**${CREDIT}`,
                 ephemeral: true
             });
         }
@@ -82,7 +82,7 @@ module.exports = {
             saveDB(db);
 
             return await interaction.reply({
-                content: `<:purocute:1536367584369180803> **<@${user.id}>** wagered **${formatNumber(wager)}** ${CREDIT} and HIT THE **1/150 JACKPOT**!\nWon **+${formatNumber(payout)}** ${CREDIT}! New Balance: **${formatNumber(db[user.id].balance)}** ${CREDIT} <:Puroadorable:1536364133392457818>`
+                content: `<:purocute:1536367584369180803> **<@${user.id}>** wagered **${formatNumber(wager)}** ${CREDIT} and HIT THE **1/150 JACKPOT**!\nWon **+${formatNumber(payout)}**${CREDIT}! New Balance: **${formatNumber(db[user.id].balance)}**${CREDIT} <:Puroadorable:1536364133392457818>`
             });
         } else {
             // LOSS: Deduct wagered amount
@@ -90,7 +90,7 @@ module.exports = {
             saveDB(db);
 
             return await interaction.reply({
-                content: `<:thing:1537616433171796149> **<@${user.id}>** wagered **${formatNumber(wager)}** ${CREDIT}... and lost it all! (1 in 150 chance missed)\nRemaining Balance: **${formatNumber(db[user.id].balance)}** ${CREDIT}. <:puronervous:1536367581995335750>`
+                content: `<:thing:1537616433171796149> **<@${user.id}>** wagered **${formatNumber(wager)}**${CREDIT}... and lost it all! \nRemaining Balance: **${formatNumber(db[user.id].balance)}**${CREDIT}. <:puronervous:1536367581995335750>`
             });
         }
     }
