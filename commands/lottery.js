@@ -75,12 +75,12 @@ module.exports = {
 
         if (subcommand === 'prizes') {
             return await interaction.reply({
-                content: `${CREDIT} **-- LOTTERY PRIZE POOL --** ${CREDIT}\n` +
-                       `• <:purocute:1536367584369180803> **Grand Jackpot:** ${formatNumber(1000000n)} ${CREDIT} *(1 in 500,000)* — *Paid Ticket Only*\n` +
+                content: `${CREDIT} **-- LOTTERY PRIZE POOL --**${CREDIT}\n` +
+                       `• <:purocute:1536367584369180803> **Grand Jackpot:** ${formatNumber(1000000n)}${CREDIT} *(1 in 500,000)* — *Paid Ticket Only*\n` +
                        `• <:Ram:1541508957216964668> **Cyber Tier:** Overclocked DDR5 RAM Stick *(1 in 500)* — *Free*\n` +
                        `• <:protogenirl:1536430038751121499> **Hardware Tier:** Box of Crunchy Microchips *(1 in 100)* — *Free*\n` +
-                       `• <:Puro_Blush6:1536430029104353380> **Consolation:** 50 ${CREDIT} *(1 in 100)* — *Paid Ticket Only*\n\n` +
-                       `*Ticket Cost:* **50** ${CREDIT} for Credit Ticket`
+                       `• <:Puro_Blush6:1536430029104353380> **Consolation:** 50${CREDIT} *(1 in 100)* — *Paid Ticket Only*\n\n` +
+                       `*Ticket Cost:* **50**${CREDIT} for Credit Ticket`
             });
         }
 
@@ -96,7 +96,7 @@ module.exports = {
 
                 if (db[user.id].balance < TICKET_COST) {
                     return await interaction.reply({
-                        content: `<:puronervous2:1538551211207430234> You don't have enough to buy a credit ticket! (Cost: **${TICKET_COST}** ${CREDIT} | Balance: **${formatNumber(db[user.id].balance)}** ${CREDIT})`,
+                        content: `<:puronervous2:1538551211207430234> You don't have enough to buy a credit ticket! (Cost: **${TICKET_COST}**${CREDIT} | Balance: **${formatNumber(db[user.id].balance)}**${CREDIT})`,
                         ephemeral: true
                     });
                 }
@@ -112,7 +112,7 @@ module.exports = {
                     db[user.id].balance = clampBalance(db[user.id].balance + prize);
                     saveDB(db);
                     return await interaction.reply({
-                        content: `<:purocute:1536367584369180803> **<@${user.id}>** HIT THE **GRAND JACKPOT**! You won **${formatNumber(prize)}** ${CREDIT}! <:Puroadorable:1536364133392457818>`
+                        content: `<:purocute:1536367584369180803> **<@${user.id}>** HIT THE **GRAND JACKPOT**! You won **${formatNumber(prize)}**${CREDIT}! <:Puroadorable:1536364133392457818>`
                     });
                 }
 
@@ -122,7 +122,7 @@ module.exports = {
                     db[user.id].balance = clampBalance(db[user.id].balance + prize);
                     saveDB(db);
                     return await interaction.reply({
-                        content: `${CREDIT} **<@${user.id}>** scratched off a winning combo and recovered their **50** ${CREDIT}! <:purocute:1536367584369180803>`
+                        content: `${CREDIT} **<@${user.id}>** scratched off a winning combo and recovered their **50**${CREDIT}! <:purocute:1536367584369180803>`
                     });
                 }
 
@@ -130,7 +130,7 @@ module.exports = {
                 saveDB(db);
                 const randomLossMsg = lossMessages[Math.floor(Math.random() * lossMessages.length)];
                 return await interaction.reply({
-                    content: `<:thing:1537616433171796149> **<@${user.id}>** bought a Credit Ticket for 50 ${CREDIT}... ${randomLossMsg}\n*Remaining Balance:* **${formatNumber(db[user.id].balance)}** ${CREDIT}. <:puronervous:1536367581995335750>`
+                    content: `<:thing:1537616433171796149> **<@${user.id}>** bought a Credit Ticket for 50${CREDIT}... ${randomLossMsg}\n*Remaining Balance:* **${formatNumber(db[user.id].balance)}**${CREDIT}. <:puronervous:1536367581995335750>`
                 });
             }
 
