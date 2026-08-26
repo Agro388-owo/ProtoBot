@@ -52,8 +52,8 @@ const untransfurSelfMessages = [
 ];
 
 const untransfurOtherMessages = [
-    "${senderName} sprayed ${targetDisplayName} with a high-grade solvent, washing away all transfur tags!",
-    "${senderName} pushed ${targetDisplayName} through the emergency decontamination gate, restoring their original form!"
+    "${senderName} sprayed ${targetDisplayName} with a high-grade solvent, washing away all latex goo!",
+    "${senderName} somehow untransfurred ${targetDisplayName}!"
 ];
 
 module.exports = {
@@ -79,14 +79,14 @@ module.exports = {
             const template = getRandomMessage(untransfurSelfMessages);
             const msg = template.replace('${senderName}', senderName);
             return hadTags 
-                ? `${msg} ✨ *(Transfur tags removed)*` 
-                : `${senderName} tried to untransfur, but they don't have any active transfur tags!`;
+                ? `${msg} ✨ **` 
+                : `${senderName} isn't transfurred!`;
         } else {
             const template = getRandomMessage(untransfurOtherMessages);
             const msg = template.replace('${senderName}', senderName).replace('${targetDisplayName}', targetDisplayName);
             return hadTags 
-                ? `${msg} ✨ *(Transfur tags removed)*` 
-                : `${targetDisplayName} doesn't have any active transfur tags to cleanse!`;
+                ? `${msg} ✨ **` 
+                : `${targetDisplayName} isn't transfurred!`;
         }
     }
 };
