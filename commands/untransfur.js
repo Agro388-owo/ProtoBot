@@ -30,8 +30,8 @@ function clearTransfurTagsOnly(userId) {
     if (hadTransfurTags) {
         db[userId].transfurTags = [];
         
-        // Clean up empty object if no other userTags remain
-        if ((!db[userId].userTags || db[userId].userTags.length === 0)) {
+        // Clean up empty user object if no other userTags remain
+        if (!db[userId].userTags || db[userId].userTags.length === 0) {
             delete db[userId];
         }
 
@@ -72,20 +72,20 @@ module.exports = {
         const targetUser = interaction.options.getUser('target') || interaction.user;
         const targetDisplayName = targetUser.id === interaction.user.id ? senderName : (recipientName || `<@${targetUser.id}>`);
 
-        // Only removes the tags stored inside the transfurTags array
+        // Cleanses transfurTags only
         const hadTags = clearTransfurTagsOnly(targetUser.id);
 
         if (interaction.user.id === targetUser.id) {
             const template = getRandomMessage(untransfurSelfMessages);
             const msg = template.replace('${senderName}', senderName);
             return hadTags 
-                ? `${msg} ✨ **` 
+                ? `${msg} ✨` 
                 : `${senderName} isn't transfurred!`;
         } else {
             const template = getRandomMessage(untransfurOtherMessages);
             const msg = template.replace('${senderName}', senderName).replace('${targetDisplayName}', targetDisplayName);
             return hadTags 
-                ? `${msg} ✨ **` 
+                ? `${msg} ✨` 
                 : `${targetDisplayName} isn't transfurred!`;
         }
     }
