@@ -41,7 +41,9 @@ const emojiMap = {
     'UniTheCat': '<:UniTheCat:1539189751649935430>', 
     'Shorkboi': '<:Shorkboi:1542381402526449704>', 
     'Credit': '<:Credit:1541934198791737475>', 
-    'Credit_old': '<:Credit_old:1541924089256607785>'
+    'Credit_old': '<:Credit_old:1541924089256607785>', 
+    'Agro388': '<:Agro388:1542396105738948689>', 
+    'ProtoBot': '<:ProtoBot:1542397144315600996>'
 };
 
 const allKeys = Object.keys(emojiMap);
