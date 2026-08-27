@@ -6,6 +6,8 @@ const botConfig = require('../config.js');
 const { CREDIT, formatNumber, clampBalance } = require('./credits.js');
 
 const SHORKBOI_ID = '1082525438015983636';
+const SPYTHEPROOT_ID = '1464072486651170931';
+
 const fishingCooldowns = new Map();
 const COOLDOWN_DURATION = 30 * 1000;
 
@@ -15,17 +17,24 @@ const creditsFilePath = path.join(__dirname, '../credits.json');
 const DEFAULT_LOOT_CONFIG = {
     mode: "relative",
     items: [
-        { id: "pipe", name: "a Rusty Metal Pipe", emoji: "<:thing:1537616433171796149>", catchCredits: "5", sellValue: "5", chance: 24, sellable: true },
-        { id: "duck", name: "a Squeaky Rubber Duck", emoji: "<:Goober:1538666294948270190>", catchCredits: "10", sellValue: "5", chance: 20, sellable: true },
-        { id: "salmon", name: "a Fresh Salmon", emoji: "<:Puro_doing_a_swim:1538666516680282233>", catchCredits: "25", sellValue: "10", chance: 18, sellable: true },
-        { id: "ram", name: "a High-Speed DDR5 RAM Stick", emoji: "<:Ram:1541508957216964668>", catchCredits: "50", sellValue: "15", chance: 14, sellable: true },
-        { id: "battery", name: "a Heavy Lithium Battery", emoji: "<:puroshock:1536366927230799972>", catchCredits: "100", sellValue: "25", chance: 10, sellable: true },
-        { id: "core", name: "a Glowing Latex Core", emoji: "<:CuteBlackCub:1538665557325254737>", catchCredits: "250", sellValue: "50", chance: 7, sellable: true },
-        { id: "pc", name: "an Entire Desktop Tower", emoji: "<:protogenirl:1536430038751121499>", catchCredits: "500", sellValue: "100", chance: 4, sellable: true },
-        { id: "statue", name: "GOLDEN BLOXY STATUE", emoji: "<:DrKStare:1538665762162483372>", catchCredits: "1000", sellValue: "150", chance: 2, sellable: true },
+        { id: "pipe", name: "a Rusty Metal Pipe", emoji: "<:thing:1537616433171796149>", catchCredits: "5", sellValue: "5", chance: 20, sellable: true },
+        { id: "soda_can", name: "an Aluminum Soda Can", emoji: "🥤", catchCredits: "8", sellValue: "2", chance: 18, sellable: true },
+        { id: "duck", name: "a Squeaky Rubber Duck", emoji: "<:Goober:1538666294948270190>", catchCredits: "10", sellValue: "5", chance: 16, sellable: true },
+        { id: "salmon", name: "a Fresh Salmon", emoji: "<:Puro_doing_a_swim:1538666516680282233>", catchCredits: "25", sellValue: "10", chance: 14, sellable: true },
+        { id: "ram", name: "a High-Speed DDR5 RAM Stick", emoji: "<:Ram:1541508957216964668>", catchCredits: "50", sellValue: "15", chance: 10, sellable: true },
+        { id: "copper_wire", name: "a Bundle of Copper Wire", emoji: "🧵", catchCredits: "120", sellValue: "80", chance: 8, sellable: true },
+        { id: "battery", name: "a Heavy Lithium Battery", emoji: "<:puroshock:1536366927230799972>", catchCredits: "100", sellValue: "25", chance: 6, sellable: true },
+        { id: "core", name: "a Glowing Latex Core", emoji: "<:CuteBlackCub:1538665557325254737>", catchCredits: "250", sellValue: "50", chance: 4, sellable: true },
+        { id: "pc", name: "an Entire Desktop Tower", emoji: "<:protogenirl:1536430038751121499>", catchCredits: "500", sellValue: "100", chance: 3, sellable: true },
+        { id: "statue", name: "GOLDEN BLOXY STATUE", emoji: "<:DrKStare:1538665762162483372>", catchCredits: "1000", sellValue: "150", chance: 1.5, sellable: true },
         { id: "robloxinoli", name: "GOLDEN ROBLOXINOLI STATUE", emoji: "<:DrKStare:1538665762162483372>", catchCredits: "1750", sellValue: "200", chance: 1, sellable: true },
-        { id: "shorkboi", name: "Shorkboi", emoji: "<:Shorkboi:1542381402526449704>", catchCredits: "5000", sellValue: "0", chance: 0.5, sellable: false },
-        { id: "ring", name: "Ancient Stargate Dialing Ring", emoji: "<:InsaneCat:1538666024251953152>", catchCredits: "2500", sellValue: "250", chance: 0.5, sellable: false }
+        { id: "iridium_cube", name: "a Solid Iridium Cube", emoji: "🧊", catchCredits: "3200", sellValue: "1500", chance: 0.8, sellable: true },
+        { id: "tracer_ammo", name: "a Box of 7.62×39mm Red Tracer Rounds", emoji: "📦", catchCredits: "4500", sellValue: "2200", chance: 0.5, sellable: true },
+        { id: "uox_fuel", name: "a UOX Fuel Assembly", emoji: "☢️", catchCredits: "6000", sellValue: "3000", chance: 0.3, sellable: true, flavor: "*Surprisingly, it's still warm after sitting underwater for 30 years...*" },
+        { id: "mox_fuel", name: "a MOX Fuel Assembly", emoji: "☣️", catchCredits: "7500", sellValue: "4000", chance: 0.2, sellable: true, flavor: "*Faintly glowing, and still noticeably warm after 30 years underwater...*" },
+        { id: "ring", name: "Ancient Stargate Dialing Ring", emoji: "<:InsaneCat:1538666024251953152>", catchCredits: "2500", sellValue: "250", chance: 0.5, sellable: false },
+        { id: "shorkboi", name: "Shorkboi", emoji: "<:Shorkboi:1542381402526449704>", catchCredits: "5000", sellValue: "0", chance: 0.1, sellable: false },
+        { id: "spytheproot", name: "SpyTheProot", emoji: "<:SpyTheProot:1542483331734573148>", catchCredits: "5000", sellValue: "0", chance: 0.1, sellable: false }
     ]
 };
 
@@ -178,7 +187,7 @@ module.exports = {
         // Check configuration for cast privacy
         const isPublic = botConfig.CAST_MESSAGE_PUBLIC ?? true;
 
-        // === 1. CAST SUBCOMMAND (PUBLIC OR EPHEMERAL ACCORDING TO CONFIG) ===
+        // === 1. CAST SUBCOMMAND ===
         if (subcommand === 'cast' && !group) {
             await interaction.deferReply({ flags: isPublic ? 0 : MessageFlags.Ephemeral });
             const now = Date.now();
@@ -213,11 +222,23 @@ module.exports = {
                 });
             }
 
+            if (itemCaught.id === 'spytheproot') {
+                return await interaction.editReply({
+                    content: `🔍 **PROOT ENCOUNTER!** ${nameDisplay} cast their line and fished out <@${SPYTHEPROOT_ID}> ${itemCaught.emoji}!\n` +
+                             `**+${formatNumber(itemCaught.catchCredits)}**${CREDIT} *(Current Balance: **${formatNumber(newBalance)}**${CREDIT})*`
+                });
+            }
+
             if (itemCaught.catchCredits >= 1000n) {
+                let rareDesc = `${nameDisplay} cast their line into the pool and reeled in a legendary artifact!`;
+                if (itemCaught.flavor) {
+                    rareDesc += `\n\n${itemCaught.flavor}`;
+                }
+
                 const rareEmbed = new EmbedBuilder()
                     .setColor(0xFFD700)
                     .setTitle('🌟 ULTRA RARE CATCH! 🌟')
-                    .setDescription(`${nameDisplay} cast their line into the pool and reeled in a legendary artifact!`)
+                    .setDescription(rareDesc)
                     .addFields(
                         { name: 'Item Caught', value: `${itemCaught.emoji} **${itemCaught.name}**`, inline: true },
                         { name: 'Reward', value: `**+${formatNumber(itemCaught.catchCredits)}**${CREDIT}`, inline: true },
@@ -228,8 +249,12 @@ module.exports = {
                 return await interaction.editReply({ embeds: [rareEmbed] });
             }
 
-            const responseMessage = `${nameDisplay} cast their line into the pool and reeled in **${itemCaught.name}** ${itemCaught.emoji}!\n` +
+            let responseMessage = `${nameDisplay} cast their line into the pool and reeled in **${itemCaught.name}** ${itemCaught.emoji}!\n` +
                 `**+${formatNumber(itemCaught.catchCredits)}**${CREDIT} *(Current Balance: **${formatNumber(newBalance)}**${CREDIT})*`;
+
+            if (itemCaught.flavor) {
+                responseMessage += `\n${itemCaught.flavor}`;
+            }
 
             await interaction.editReply({ content: responseMessage });
             return true;
@@ -260,16 +285,19 @@ module.exports = {
             const newBalance = addFishingReward(targetUser.id, itemCaught.catchCredits);
             const targetDisplay = botConfig.PING_ON_PUBLIC_MESSAGES ? `<@${targetUser.id}>` : `**${targetUser.username}**`;
 
-            await interaction.reply({
-                content: `🛠️ **[Admin Force Catch]** ${targetDisplay} was given **${itemCaught.name}** ${itemCaught.emoji}!\n` +
-                         `**+${formatNumber(itemCaught.catchCredits)}**${CREDIT} *(Current Balance: **${formatNumber(newBalance)}**${CREDIT})*`
-            });
+            let catchMsg = `🛠️ **[Admin Force Catch]** ${targetDisplay} was given **${itemCaught.name}** ${itemCaught.emoji}!\n` +
+                           `**+${formatNumber(itemCaught.catchCredits)}**${CREDIT} *(Current Balance: **${formatNumber(newBalance)}**${CREDIT})*`;
+
+            if (itemCaught.flavor) {
+                catchMsg += `\n${itemCaught.flavor}`;
+            }
+
+            await interaction.reply({ content: catchMsg });
             return true;
         }
 
         // === 3. LOOT GROUP SUBCOMMANDS ===
         if (group === 'loot') {
-            // --- LOOT LIST ---
             if (subcommand === 'list') {
                 const itemsList = lootConfig.items.map(item =>
                     `• ${item.emoji} **${item.name}** (\`${item.id}\`)\n` +
@@ -286,7 +314,6 @@ module.exports = {
                 return true;
             }
 
-            // ADMIN GUARD for add/remove
             if (!isOwner && !isAdmin) {
                 await interaction.reply({
                     content: '❌ You do not have permission to modify the fishing loot table!',
@@ -295,7 +322,6 @@ module.exports = {
                 return null;
             }
 
-            // --- LOOT ADD ---
             if (subcommand === 'add') {
                 const id = interaction.options.getString('id').trim().toLowerCase();
                 const name = interaction.options.getString('name').trim();
@@ -332,7 +358,6 @@ module.exports = {
                 return true;
             }
 
-            // --- LOOT REMOVE ---
             if (subcommand === 'remove') {
                 const id = interaction.options.getString('id').trim().toLowerCase();
                 const index = lootConfig.items.findIndex(i => i.id === id);
