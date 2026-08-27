@@ -85,6 +85,8 @@ module.exports = {
     data: new SlashCommandBuilder()
         .setName('credits')
         .setDescription('Manage your wallet, claim daily rewards, send credits, or admin tools!')
+        .setIntegrationTypes([0, 1]) // Guild install (0) and User app install (1)
+        .setContexts([0, 1, 2])         // Guild channels (0), Bot DM (1), and Private Channels/Group DMs (2)
         .addSubcommand(sub =>
             sub.setName('balance')
                .setDescription('Check your current credit balance')
@@ -116,7 +118,7 @@ module.exports = {
             sub.setName('set')
                .setDescription('[ADMIN] Set a user\'s credit balance')
                .addUserOption(opt => opt.setName('target').setDescription('User balance to modify').setRequired(true))
-               .addStringOption(opt => opt.setName('amount').setDescription('Exact amount to set').setRequired(true))
+               .addStringOption(opt => opt.setName('amount').setDescription('Amount to set').setRequired(true))
         ),
 
     async execute(interaction) {
