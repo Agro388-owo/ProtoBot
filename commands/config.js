@@ -51,6 +51,13 @@ module.exports = {
                 .setDescription('Manage /snap mass ping settings')
                 .addSubcommand(sub => sub.setName('toggle').setDescription('Toggle @everyone ping on a channel-wide snap'))
                 .addSubcommand(sub => sub.setName('status').setDescription('Check current snap mass ping setting'))
+        )
+        .addSubcommandGroup(group =>
+            group
+                .setName('public-pings')
+                .setDescription('Manage public user tagging in commands')
+                .addSubcommand(sub => sub.setName('toggle').setDescription('Toggle whether commands mention users directly in public messages'))
+                .addSubcommand(sub => sub.setName('status').setDescription('Check current public ping setting'))
         ),
 
     async execute(interaction) {
@@ -142,6 +149,19 @@ module.exports = {
             else if (subcommand === 'status') {
                 const stateText = botConfig.snapAllowMassPing ? '🚨 **ENABLED**' : '🛡️ **DISABLED**';
                 await interaction.reply({ content: `**Snap Mass Ping Status:** ${stateText}`, ephemeral: true });
+                return null;
+            }
+        }
+        else if (group === 'public-pings') {
+            if (subcommand === 'toggle') {
+                botConfig.PING_ON_PUBLIC_MESSAGES = !botConfig.PING_ON_PUBLIC_MESSAGES;
+                const stateText = botConfig.PING_ON_PUBLIC_MESSAGES ? '🔔 **ENABLED (User Mentions On)**' : '🔕 **DISABLED (Plain Text Names)**';
+                await interaction.reply({ content: `**Public Ping Mode** updated: ${stateText}`, ephemeral: true });
+                return null;
+            }
+            else if (subcommand === 'status') {
+                const stateText = botConfig.PING_ON_PUBLIC_MESSAGES ? '🔔 **ENABLED**' : '🔕 **DISABLED**';
+                await interaction.reply({ content: `**Public Ping Mode Status:** ${stateText}`, ephemeral: true });
                 return null;
             }
         }
