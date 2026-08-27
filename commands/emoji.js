@@ -50,7 +50,7 @@ function resolveEmoji(interaction, emojiName) {
     return emojiString || emojiMap[emojiName] || null;
 }
 
-// 1. Slash Command
+// 1. Slash Command with Autocomplete
 const slashCommand = new SlashCommandBuilder()
     .setName('emoji')
     .setDescription('Send a custom emoji or reply to a message!')
@@ -60,9 +60,7 @@ const slashCommand = new SlashCommandBuilder()
         option.setName('name')
               .setDescription('Which emoji to send?')
               .setRequired(true)
-              .addChoices(
-                  ...Object.keys(emojiMap).slice(0, 25).map(name => ({ name, value: name }))
-              )
+              .setAutocomplete(true)
     )
     .addStringOption(option =>
         option.setName('message_id')
@@ -80,6 +78,21 @@ const contextMenuCommand = new ContextMenuCommandBuilder()
 module.exports = {
     data: slashCommand,
     contextMenu: contextMenuCommand,
+
+    // Autocomplete Handler
+    async autocomplete(interaction) {
+        const focusedValue = interaction.options.getFocused().toLowerCase();
+        const choices = Object.keys(emojiMap);
+
+        // Filter keys by what user typed, capped at Discord's 25 item limit
+        const filtered = choices
+            .filter(choice => choice.toLowerCase().includes(focusedValue))
+            .slice(0, 25);
+
+        await interaction.respond(
+            filtered.map(choice => ({ name: choice, value: choice }))
+        );
+    },
 
     async execute(interaction) {
         // Handle Apps Context Menu Trigger (Message context)
