@@ -4,7 +4,7 @@ const path = require('path');
 const botConfig = require('../config.js');
 
 const { CREDIT, formatNumber, clampBalance } = require('./credits.js');
-const { checkAndAwardBadges } = require('./badgeSystem.js');
+const { checkAndAwardBadges } = require('../badgeSystem.js');
 
 const SHORKBOI_ID = '1082525438015983636';
 const SPYTHEPROOT_ID = '1464072486651170931';
