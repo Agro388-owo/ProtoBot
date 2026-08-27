@@ -10,7 +10,6 @@ const fishingCooldowns = new Map();
 const COOLDOWN_DURATION = 30 * 1000;
 
 const lootFilePath = path.join(__dirname, '../fishing_loot.json');
-const invFilePath = path.join(__dirname, '../inventories.json');
 const creditsFilePath = path.join(__dirname, '../credits.json');
 
 const DEFAULT_LOOT_CONFIG = {
@@ -24,7 +23,7 @@ const DEFAULT_LOOT_CONFIG = {
         { id: "core", name: "a Glowing Latex Core", emoji: "<:CuteBlackCub:1538665557325254737>", catchCredits: "250", sellValue: "50", chance: 7, sellable: true },
         { id: "pc", name: "an Entire Desktop Tower", emoji: "<:protogenirl:1536430038751121499>", catchCredits: "500", sellValue: "100", chance: 4, sellable: true },
         { id: "statue", name: "GOLDEN BLOXY STATUE", emoji: "<:DrKStare:1538665762162483372>", catchCredits: "1000", sellValue: "150", chance: 2, sellable: true },
-        { id: "bloxinoli", name: "GOLDEN BLOXINOLI STATUE", emoji: "<:DrKStare:1538665762162483372>", catchCredits: "1750", sellValue: "200", chance: 1, sellable: true },
+        { id: "robloxinoli", name: "GOLDEN ROBLOXINOLI STATUE", emoji: "<:DrKStare:1538665762162483372>", catchCredits: "1750", sellValue: "200", chance: 1, sellable: true },
         { id: "shorkboi", name: "Wild Shorkboi", emoji: "<:Shorkboi:1542381402526449704>", catchCredits: "5000", sellValue: "0", chance: 0.1, sellable: false },
         { id: "ring", name: "Ancient Stargate Dialing Ring", emoji: "<:InsaneCat:1538666024251953152>", catchCredits: "2500", sellValue: "250", chance: 0.5, sellable: false }
     ]
@@ -107,35 +106,6 @@ function addFishingReward(userId, rewardAmount) {
     return db[userId].balance;
 }
 
-function addItemToInventory(userId, item) {
-    let db = {};
-    try {
-        if (fs.existsSync(invFilePath)) {
-            db = JSON.parse(fs.readFileSync(invFilePath, 'utf8') || '{}');
-        }
-    } catch (e) {
-        console.error('Failed to load inventories.json:', e);
-    }
-
-    if (!db[userId]) db[userId] = [];
-
-    const existingItem = db[userId].find(i => i.id === item.id);
-    if (existingItem) {
-        existingItem.count = (existingItem.count || 1) + 1;
-    } else {
-        db[userId].push({
-            id: item.id,
-            name: item.name,
-            emoji: item.emoji || '📦',
-            value: (item.sellValue || 5n).toString(),
-            sellable: item.sellable ?? true,
-            count: 1
-        });
-    }
-
-    fs.writeFileSync(invFilePath, JSON.stringify(db, null, 2), 'utf8');
-}
-
 function getRandomCatch(lootConfig) {
     const { mode, items } = lootConfig;
     if (!items || items.length === 0) return null;
@@ -161,6 +131,12 @@ module.exports = {
         .addSubcommand(sub =>
             sub.setName('cast')
                .setDescription('Cast your fishing line!')
+        )
+        .addSubcommand(sub =>
+            sub.setName('catch')
+               .setDescription('[Admin] Force a specific catch for a target user')
+               .addUserOption(opt => opt.setName('target').setDescription('The target user').setRequired(true))
+               .addStringOption(opt => opt.setName('item_id').setDescription('ID of the item to give').setRequired(true))
         )
         .addSubcommandGroup(group =>
             group.setName('loot')
@@ -199,9 +175,12 @@ module.exports = {
         const isOwner = userId === ownerId;
         const isAdmin = interaction.memberPermissions?.has(8n);
 
-        // === 1. CAST SUBCOMMAND (PUBLIC) ===
+        // Check configuration for cast privacy
+        const isPublic = botConfig.CAST_MESSAGE_PUBLIC ?? true;
+
+        // === 1. CAST SUBCOMMAND (PUBLIC OR EPHEMERAL ACCORDING TO CONFIG) ===
         if (subcommand === 'cast' && !group) {
-            await interaction.deferReply();
+            await interaction.deferReply({ flags: isPublic ? 0 : MessageFlags.Ephemeral });
             const now = Date.now();
 
             if (fishingCooldowns.has(userId)) {
@@ -224,15 +203,13 @@ module.exports = {
 
             const itemCaught = getRandomCatch(lootConfig);
             const newBalance = addFishingReward(userId, itemCaught.catchCredits);
-            addItemToInventory(userId, itemCaught);
 
             const nameDisplay = botConfig.PING_ON_PUBLIC_MESSAGES ? `<@${userId}>` : `**${user.username}**`;
 
             if (itemCaught.id === 'shorkboi') {
                 return await interaction.editReply({
                     content: `🚨 **SHORK ENCOUNTER!** ${nameDisplay} cast their line and reeled in <@${SHORKBOI_ID}>! 🦈\n` +
-                             `**+${formatNumber(itemCaught.catchCredits)}**${CREDIT} *(Current Balance: **${formatNumber(newBalance)}**${CREDIT})*\n` +
-                             `*He was safely secured in storage.*`
+                             `**+${formatNumber(itemCaught.catchCredits)}**${CREDIT} *(Current Balance: **${formatNumber(newBalance)}**${CREDIT})*`
                 });
             }
 
@@ -246,20 +223,51 @@ module.exports = {
                         { name: 'Reward', value: `**+${formatNumber(itemCaught.catchCredits)}**${CREDIT}`, inline: true },
                         { name: 'Total Balance', value: `**${formatNumber(newBalance)}**${CREDIT}`, inline: false }
                     )
-                    .setFooter({ text: 'Stored in Inventory | ProtoBot Fishing Log' });
+                    .setFooter({ text: 'ProtoBot Fishing Log' });
 
                 return await interaction.editReply({ embeds: [rareEmbed] });
             }
 
             const responseMessage = `${nameDisplay} cast their line into the pool and reeled in **${itemCaught.name}** ${itemCaught.emoji}!\n` +
-                `**+${formatNumber(itemCaught.catchCredits)}**${CREDIT} *(Current Balance: **${formatNumber(newBalance)}**${CREDIT})*\n` +
-                `📦 *Item stored in your inventory! (Resale value: ${formatNumber(itemCaught.sellValue)}${CREDIT})*`;
+                `**+${formatNumber(itemCaught.catchCredits)}**${CREDIT} *(Current Balance: **${formatNumber(newBalance)}**${CREDIT})*`;
 
             await interaction.editReply({ content: responseMessage });
             return true;
         }
 
-        // === 2. LOOT GROUP SUBCOMMANDS ===
+        // === 2. CATCH SUBCOMMAND (ADMIN ONLY) ===
+        if (subcommand === 'catch' && !group) {
+            if (!isOwner && !isAdmin) {
+                await interaction.reply({
+                    content: '❌ You do not have permission to force a catch!',
+                    flags: MessageFlags.Ephemeral
+                });
+                return null;
+            }
+
+            const targetUser = interaction.options.getUser('target');
+            const itemId = interaction.options.getString('item_id').trim().toLowerCase();
+
+            const itemCaught = lootConfig.items.find(i => i.id === itemId);
+            if (!itemCaught) {
+                await interaction.reply({
+                    content: `⚠️ Could not find an item with ID \`${itemId}\` in the fishing loot table!`,
+                    flags: MessageFlags.Ephemeral
+                });
+                return null;
+            }
+
+            const newBalance = addFishingReward(targetUser.id, itemCaught.catchCredits);
+            const targetDisplay = botConfig.PING_ON_PUBLIC_MESSAGES ? `<@${targetUser.id}>` : `**${targetUser.username}**`;
+
+            await interaction.reply({
+                content: `🛠️ **[Admin Force Catch]** ${targetDisplay} was given **${itemCaught.name}** ${itemCaught.emoji}!\n` +
+                         `**+${formatNumber(itemCaught.catchCredits)}**${CREDIT} *(Current Balance: **${formatNumber(newBalance)}**${CREDIT})*`
+            });
+            return true;
+        }
+
+        // === 3. LOOT GROUP SUBCOMMANDS ===
         if (group === 'loot') {
             // --- LOOT LIST ---
             if (subcommand === 'list') {
