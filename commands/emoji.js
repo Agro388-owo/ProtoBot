@@ -27,7 +27,7 @@ const emojiMap = {
     'protogenirl': '<:protogenirl:1536430038751121499>',
     'maiddress': '<:maiddress:1536430032572911646>',
 
-    // --- PAGE 2 (Items 21 - 34) ---
+    // --- PAGE 2 (Items 21 - 36) ---
     'Puropreocupado': '<:Puropreocupado:1536430030916288572>',
     'Puro_Blush': '<:Puro_Blush6:1536430029104353380>',
     'Puro_Pathetic': '<:Puro_Pathetic6:1536430027468710019>',
