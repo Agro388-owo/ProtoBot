@@ -27,7 +27,7 @@ const emojiMap = {
     'protogenirl': '<:protogenirl:1536430038751121499>',
     'maiddress': '<:maiddress:1536430032572911646>',
 
-    // --- PAGE 2 (Items 21 - 39) ---
+    // --- PAGE 2 (Items 21 - 40) ---
     'Puropreocupado': '<:Puropreocupado:1536430030916288572>',
     'Puro_Blush': '<:Puro_Blush6:1536430029104353380>',
     'Puro_Pathetic': '<:Puro_Pathetic6:1536430027468710019>',
@@ -39,19 +39,23 @@ const emojiMap = {
     'puroneutral': '<:puroneutral:1536364135342669824>',
     'Puroadorable': '<:Puroadorable:1536364133392457818>', 
     'UniTheCat': '<:UniTheCat:1539189751649935430>', 
-    'Shorkboi': '<:Shorkboi:1542381402526449704>', 
     'Credit': '<:Credit:1541934198791737475>', 
     'Credit_old': '<:Credit_old:1541924089256607785>', 
+
+    // --- PEOPLE / USER EMOJIS ---
+    'Shorkboi': '<:Shorkboi:1542381402526449704>',
+    'SpyTheProot': '<:SpyTheProot:1542483331734573148>',
     'Agro388': '<:Agro388:1542396105738948689>', 
     'ProtoBot': '<:ProtoBot:1542397144315600996>', 
     'Bloxy': '<:Bloxy:1542398280699220040>', 
     'Steven130': '<:Steven130:1542399890783604787>', 
     'Benjamin391': '<:Benjamin391:1542399892381507665>'
 };
-// --- DONT FORGET TO ADD NEW PAGE WHEN EMOJI PAGE REACHES 20-24 EMOJIS
+
 const allKeys = Object.keys(emojiMap);
 const page1Keys = allKeys.slice(0, 20);
 const page2Keys = allKeys.slice(20, 40);
+const page3Keys = allKeys.slice(40, 60);
 
 function resolveEmoji(interaction, emojiName) {
     let emojiString = null;
@@ -93,7 +97,21 @@ const slashCommand = new SlashCommandBuilder()
            )
     );
 
-// 2. Context Menu (Hold Message > Apps > Emoji Reaction)
+// Add Page 3 dynamically if emojis spill past 40 choices
+if (page3Keys.length > 0) {
+    slashCommand.addSubcommand(sub =>
+        sub.setName('page3')
+           .setDescription('Select an emoji from Page 3')
+           .addStringOption(opt =>
+               opt.setName('name')
+                  .setDescription('Which emoji to send?')
+                  .setRequired(true)
+                  .addChoices(...page3Keys.map(k => ({ name: k, value: k })))
+           )
+    );
+}
+
+// 2. Context Menu (Hold Message > Apps > Emoji Reply)
 const contextMenuCommand = new ContextMenuCommandBuilder()
     .setName('Emoji Reply')
     .setType(ApplicationCommandType.Message)
