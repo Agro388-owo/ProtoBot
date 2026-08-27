@@ -4,7 +4,7 @@ const fs = require('fs');
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('summon-bloxy')
+        .setName('bloxy')
         .setDescription('Summon Bloxy.')
         .setContexts([
             InteractionContextType.Guild,
