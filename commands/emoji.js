@@ -27,7 +27,7 @@ const emojiMap = {
     'protogenirl': '<:protogenirl:1536430038751121499>',
     'maiddress': '<:maiddress:1536430032572911646>',
 
-    // --- PAGE 2 (Items 21 - 37) ---
+    // --- PAGE 2 (Items 21 - 39) ---
     'Puropreocupado': '<:Puropreocupado:1536430030916288572>',
     'Puro_Blush': '<:Puro_Blush6:1536430029104353380>',
     'Puro_Pathetic': '<:Puro_Pathetic6:1536430027468710019>',
@@ -44,7 +44,9 @@ const emojiMap = {
     'Credit_old': '<:Credit_old:1541924089256607785>', 
     'Agro388': '<:Agro388:1542396105738948689>', 
     'ProtoBot': '<:ProtoBot:1542397144315600996>', 
-    'Bloxy': '<:Bloxy:1542398280699220040>'
+    'Bloxy': '<:Bloxy:1542398280699220040>', 
+    'Steven130': '<:Steven130:1542399890783604787>', 
+    'Benjamin391': '<:Benjamin391:1542399892381507665>'
 };
 
 const allKeys = Object.keys(emojiMap);
