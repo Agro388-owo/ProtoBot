@@ -25,7 +25,7 @@ const DEFAULT_LOOT_CONFIG = {
         { id: "pc", name: "an Entire Desktop Tower", emoji: "<:protogenirl:1536430038751121499>", catchCredits: "500", sellValue: "100", chance: 4, sellable: true },
         { id: "statue", name: "GOLDEN BLOXY STATUE", emoji: "<:DrKStare:1538665762162483372>", catchCredits: "1000", sellValue: "150", chance: 2, sellable: true },
         { id: "bloxinoli", name: "GOLDEN BLOXINOLI STATUE", emoji: "<:DrKStare:1538665762162483372>", catchCredits: "1750", sellValue: "200", chance: 1, sellable: true },
-        { id: "shorkboi", name: "Wild Shorkboi", emoji: "🦈", catchCredits: "5000", sellValue: "0", chance: 0.1, sellable: false },
+        { id: "shorkboi", name: "Wild Shorkboi", emoji: "<:Shorkboi:1542381402526449704>", catchCredits: "5000", sellValue: "0", chance: 0.1, sellable: false },
         { id: "ring", name: "Ancient Stargate Dialing Ring", emoji: "<:InsaneCat:1538666024251953152>", catchCredits: "2500", sellValue: "250", chance: 0.5, sellable: false }
     ]
 };
