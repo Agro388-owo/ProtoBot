@@ -58,6 +58,13 @@ module.exports = {
                 .setDescription('Manage public user tagging in commands')
                 .addSubcommand(sub => sub.setName('toggle').setDescription('Toggle whether commands mention users directly in public messages'))
                 .addSubcommand(sub => sub.setName('status').setDescription('Check current public ping setting'))
+        )
+        .addSubcommandGroup(group =>
+            group
+                .setName('fishing-visibility')
+                .setDescription('Manage /fishing cast response privacy')
+                .addSubcommand(sub => sub.setName('toggle').setDescription('Toggle whether /fishing cast replies are public or ephemeral'))
+                .addSubcommand(sub => sub.setName('status').setDescription('Check current fishing response visibility setting'))
         ),
 
     async execute(interaction) {
@@ -162,6 +169,19 @@ module.exports = {
             else if (subcommand === 'status') {
                 const stateText = botConfig.PING_ON_PUBLIC_MESSAGES ? '🔔 **ENABLED**' : '🔕 **DISABLED**';
                 await interaction.reply({ content: `**Public Ping Mode Status:** ${stateText}`, ephemeral: true });
+                return null;
+            }
+        }
+        else if (group === 'fishing-visibility') {
+            if (subcommand === 'toggle') {
+                botConfig.CAST_MESSAGE_PUBLIC = !botConfig.CAST_MESSAGE_PUBLIC;
+                const stateText = botConfig.CAST_MESSAGE_PUBLIC ? '📢 **PUBLIC**' : '🔒 **EPHEMERAL**';
+                await interaction.reply({ content: `**/fishing cast response visibility** updated: ${stateText}`, ephemeral: true });
+                return null;
+            }
+            else if (subcommand === 'status') {
+                const stateText = botConfig.CAST_MESSAGE_PUBLIC ? '📢 **PUBLIC**' : '🔒 **EPHEMERAL**';
+                await interaction.reply({ content: `**Fishing Response Visibility:** ${stateText}`, ephemeral: true });
                 return null;
             }
         }
