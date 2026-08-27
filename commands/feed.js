@@ -40,10 +40,39 @@ async function loadTagsData() {
     return {};
 }
 
-// Check if user has any of the valid species tags
-function isCyberneticSpecies(userTags) {
-    if (!Array.isArray(userTags)) return false;
-    return userTags.some(t => validTechSpecies.includes(String(t).toLowerCase()));
+// Check if user entry or tags match any of the valid species
+function isCyberneticSpecies(userEntry) {
+    if (!userEntry) return false;
+
+    let extractedTags = [];
+
+    // 1. Direct species property check if stored on the entry
+    if (userEntry.species && typeof userEntry.species === 'string') {
+        extractedTags.push(userEntry.species.toLowerCase());
+    }
+
+    // 2. Handle tags array (handles array of strings OR array of objects with .name or .tag)
+    if (Array.isArray(userEntry.tags)) {
+        userEntry.tags.forEach(t => {
+            if (typeof t === 'string') {
+                extractedTags.push(t.toLowerCase());
+            } else if (typeof t === 'object' && t !== null) {
+                if (t.name) extractedTags.push(String(t.name).toLowerCase());
+                if (t.tag) extractedTags.push(String(t.tag).toLowerCase());
+                if (t.species) extractedTags.push(String(t.species).toLowerCase());
+            }
+        });
+    }
+
+    // 3. Handle object-style tags structure if applicable
+    if (typeof userEntry.tags === 'object' && !Array.isArray(userEntry.tags) && userEntry.tags !== null) {
+        Object.values(userEntry.tags).forEach(t => {
+            if (typeof t === 'string') extractedTags.push(t.toLowerCase());
+            else if (t && t.name) extractedTags.push(String(t.name).toLowerCase());
+        });
+    }
+
+    return extractedTags.some(tag => validTechSpecies.includes(tag));
 }
 
 // Generates a random DDR generation between DDR1 and DDR100
@@ -246,10 +275,9 @@ module.exports = {
 
         const recipient = isSelf ? executor : target;
         const allTags = await loadTagsData();
-        const recipientEntry = allTags[recipient.id];
-        const recipientTags = (recipientEntry && Array.isArray(recipientEntry.tags)) ? recipientEntry.tags : [];
+        const recipientEntry = allTags[recipient.id] || {};
 
-        const canEatTech = isCyberneticSpecies(recipientTags);
+        const canEatTech = isCyberneticSpecies(recipientEntry);
         const message = getRandomMessage(subcommand, isSelf, executor, target, canEatTech);
 
         await interaction.editReply({ content: message });
