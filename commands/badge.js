@@ -28,7 +28,7 @@ function saveCreditsDB(data) {
     }
 }
 
-// Helper to safely send ephemeral error/warning messages without crashing in DMs
+// Safely send responses (ephemeral in servers, regular in DMs)
 function sendPrivateReply(interaction, content) {
     if (interaction.inGuild()) {
         return interaction.reply({ content, flags: MessageFlags.Ephemeral });
@@ -40,9 +40,8 @@ module.exports = {
     data: new SlashCommandBuilder()
         .setName('badge')
         .setDescription('View and manage bot badges')
-        .setIntegrationTypes([0, 1]) // 0: Guild Install, 1: User Install (Works everywhere!)
-        .setContexts([0, 1, 2])       // 0: Guild, 1: Bot DM, 2: Private Channel / Group DM
-        // Public Subcommands
+        .setIntegrationTypes([0, 1]) // 0: Guild Install, 1: User Install
+        .setContexts([0, 1, 2])      // 0: Guild, 1: Bot DM, 2: Private Channel / Group DM
         .addSubcommand(sub =>
             sub.setName('list')
                .setDescription('View all available system and custom badges'))
@@ -50,7 +49,6 @@ module.exports = {
             sub.setName('view')
                .setDescription('Check badges owned by a specific user')
                .addUserOption(opt => opt.setName('user').setDescription('Target user').setRequired(false)))
-        // Owner-Only Subcommands
         .addSubcommand(sub =>
             sub.setName('create')
                .setDescription('[Owner] Create a custom badge')
@@ -78,7 +76,6 @@ module.exports = {
         const subcommand = interaction.options.getSubcommand();
         const creditsDB = loadCreditsDB();
         
-        // Dynamically pull owner ID from config
         const ownerId = botConfig.OWNER_ID || botConfig.ownerId;
         const isOwner = interaction.user.id === ownerId;
         
@@ -90,7 +87,7 @@ module.exports = {
 
         const allBadges = getAllBadges();
 
-        // ------------------ PUBLIC COMMANDS ------------------
+        // ------------------ PUBLIC SUBCOMMANDS ------------------
         if (subcommand === 'list') {
             const listText = Object.values(allBadges).map(b => {
                 const reqText = b.req ? ` *(Req: ${BigInt(b.req.toString()).toLocaleString()} credits)*` : ' *(Manual Award)*';
@@ -124,7 +121,7 @@ module.exports = {
             return interaction.reply({ embeds: [embed] });
         }
 
-        // ------------------ OWNER COMMANDS ------------------
+        // ------------------ OWNER SUBCOMMANDS ------------------
         if (subcommand === 'create') {
             const id = interaction.options.getString('id').toUpperCase();
             const name = interaction.options.getString('name');
