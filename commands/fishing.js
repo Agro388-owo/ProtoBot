@@ -5,6 +5,7 @@ const botConfig = require('../config.js');
 
 const { CREDIT, formatNumber, clampBalance } = require('./credits.js');
 
+const SHORKBOI_ID = '1082525438015983636';
 const fishingCooldowns = new Map();
 const COOLDOWN_DURATION = 30 * 1000;
 
@@ -24,6 +25,7 @@ const DEFAULT_LOOT_CONFIG = {
         { id: "pc", name: "an Entire Desktop Tower", emoji: "<:protogenirl:1536430038751121499>", catchCredits: "500", sellValue: "100", chance: 4, sellable: true },
         { id: "statue", name: "GOLDEN BLOXY STATUE", emoji: "<:DrKStare:1538665762162483372>", catchCredits: "1000", sellValue: "150", chance: 2, sellable: true },
         { id: "bloxinoli", name: "GOLDEN BLOXINOLI STATUE", emoji: "<:DrKStare:1538665762162483372>", catchCredits: "1750", sellValue: "200", chance: 1, sellable: true },
+        { id: "shorkboi", name: "Wild Shorkboi", emoji: "🦈", catchCredits: "5000", sellValue: "0", chance: 0.1, sellable: false },
         { id: "ring", name: "Ancient Stargate Dialing Ring", emoji: "<:InsaneCat:1538666024251953152>", catchCredits: "2500", sellValue: "250", chance: 0.5, sellable: false }
     ]
 };
@@ -147,7 +149,8 @@ module.exports = {
 
     async execute(interaction) {
         const subcommand = interaction.options.getSubcommand();
-        const userId = interaction.user.id;
+        const user = interaction.user;
+        const userId = user.id;
         const lootConfig = loadLootDB();
 
         if (subcommand === 'cast') {
@@ -178,14 +181,26 @@ module.exports = {
             // 2. Grant catch credits reward directly
             const newBalance = addFishingReward(userId, itemCaught.catchCredits);
 
-            // 3. Store item in user's inventory (with low resale value)
+            // 3. Store item in user's inventory
             addItemToInventory(userId, itemCaught);
+
+            // Format username string based on config toggle
+            const nameDisplay = botConfig.PING_ON_PUBLIC_MESSAGES ? `<@${userId}>` : `**${user.username}**`;
+
+            if (itemCaught.id === 'shorkboi') {
+                return await interaction.editReply({
+                    content: `🚨 **SHORK ENCOUNTER!** ${nameDisplay} cast their line and reeled in <@${SHORKBOI_ID}>! 🦈\n` +
+                             `**+${formatNumber(itemCaught.catchCredits)}**${CREDIT} *(Current Balance: **${formatNumber(newBalance)}**${CREDIT})*\n` +
+                             `*He was safely secured in storage.*`,
+                    flags: MessageFlags.Ephemeral
+                });
+            }
 
             if (itemCaught.catchCredits >= 1000n) {
                 const rareEmbed = new EmbedBuilder()
                     .setColor(0xFFD700)
                     .setTitle('🌟 ULTRA RARE CATCH! 🌟')
-                    .setDescription(`<@${userId}> cast their line into the pool and reeled in a legendary artifact!`)
+                    .setDescription(`${nameDisplay} cast their line into the pool and reeled in a legendary artifact!`)
                     .addFields(
                         { name: 'Item Caught', value: `${itemCaught.emoji} **${itemCaught.name}**`, inline: true },
                         { name: 'Reward', value: `**+${formatNumber(itemCaught.catchCredits)}**${CREDIT}`, inline: true },
@@ -199,7 +214,7 @@ module.exports = {
                 });
             }
 
-            const responseMessage = `<@${userId}> cast their line into the pool and reeled in **${itemCaught.name}** ${itemCaught.emoji}!\n` +
+            const responseMessage = `${nameDisplay} cast their line into the pool and reeled in **${itemCaught.name}** ${itemCaught.emoji}!\n` +
                 `**+${formatNumber(itemCaught.catchCredits)}**${CREDIT} *(Current Balance: **${formatNumber(newBalance)}**${CREDIT})*\n` +
                 `📦 *Item stored in your inventory! (Resale value: ${formatNumber(itemCaught.sellValue)}${CREDIT})*`;
 
