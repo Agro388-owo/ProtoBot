@@ -5,6 +5,7 @@ function getRandomMessage(array) {
 }
 
 const emojiMap = {
+    // --- PAGE 1 (Items 1 - 20) ---
     'NoEatRam': '<:NoRamForU:1541510983908987031>', 
     'Bullshit': '<:Bullshit:1541509055154094081>', 
     'Ram': '<:Ram:1541508957216964668>', 
@@ -25,6 +26,8 @@ const emojiMap = {
     'thing': '<:thing:1537616433171796149>',
     'protogenirl': '<:protogenirl:1536430038751121499>',
     'maiddress': '<:maiddress:1536430032572911646>',
+
+    // --- PAGE 2 (Items 21 - 34) ---
     'Puropreocupado': '<:Puropreocupado:1536430030916288572>',
     'Puro_Blush': '<:Puro_Blush6:1536430029104353380>',
     'Puro_Pathetic': '<:Puro_Pathetic6:1536430027468710019>',
@@ -41,6 +44,10 @@ const emojiMap = {
     'Credit_old': '<:Credit_old:1541924089256607785>'
 };
 
+const allKeys = Object.keys(emojiMap);
+const page1Keys = allKeys.slice(0, 20);
+const page2Keys = allKeys.slice(20, 40);
+
 function resolveEmoji(interaction, emojiName) {
     let emojiString = null;
     if (interaction.guild) {
@@ -50,22 +57,35 @@ function resolveEmoji(interaction, emojiName) {
     return emojiString || emojiMap[emojiName] || null;
 }
 
-// 1. Slash Command with Autocomplete
+// 1. Slash Command with Page Subcommands
 const slashCommand = new SlashCommandBuilder()
     .setName('emoji')
     .setDescription('Send a custom emoji or reply to a message!')
     .setIntegrationTypes([0, 1])
     .setContexts([0, 1, 2])
-    .addStringOption(option => 
-        option.setName('name')
-              .setDescription('Which emoji to send?')
-              .setRequired(true)
-              .setAutocomplete(true)
+
+    // --- Subcommand Page 1 ---
+    .addSubcommand(sub =>
+        sub.setName('page1')
+           .setDescription('Select an emoji from Page 1')
+           .addStringOption(opt =>
+               opt.setName('name')
+                  .setDescription('Which emoji to send?')
+                  .setRequired(true)
+                  .addChoices(...page1Keys.map(k => ({ name: k, value: k })))
+           )
     )
-    .addStringOption(option =>
-        option.setName('message_id')
-              .setDescription('Optional: ID of the message to reply to')
-              .setRequired(false)
+
+    // --- Subcommand Page 2 ---
+    .addSubcommand(sub =>
+        sub.setName('page2')
+           .setDescription('Select an emoji from Page 2')
+           .addStringOption(opt =>
+               opt.setName('name')
+                  .setDescription('Which emoji to send?')
+                  .setRequired(true)
+                  .addChoices(...page2Keys.map(k => ({ name: k, value: k })))
+           )
     );
 
 // 2. Context Menu (Hold Message > Apps > Emoji Reaction)
@@ -79,26 +99,11 @@ module.exports = {
     data: slashCommand,
     contextMenu: contextMenuCommand,
 
-    // Autocomplete Handler
-    async autocomplete(interaction) {
-        const focusedValue = interaction.options.getFocused().toLowerCase();
-        const choices = Object.keys(emojiMap);
-
-        // Filter keys by what user typed, capped at Discord's 25 item limit
-        const filtered = choices
-            .filter(choice => choice.toLowerCase().includes(focusedValue))
-            .slice(0, 25);
-
-        await interaction.respond(
-            filtered.map(choice => ({ name: choice, value: choice }))
-        );
-    },
-
     async execute(interaction) {
         // Handle Apps Context Menu Trigger (Message context)
         if (interaction.isMessageContextMenuCommand()) {
             const targetMessage = interaction.targetMessage;
-            const randomEmojiName = Object.keys(emojiMap)[Math.floor(Math.random() * Object.keys(emojiMap).length)];
+            const randomEmojiName = allKeys[Math.floor(Math.random() * allKeys.length)];
             const emojiString = resolveEmoji(interaction, randomEmojiName);
 
             return await interaction.reply({
@@ -110,20 +115,13 @@ module.exports = {
         // Handle Slash Command Trigger
         if (interaction.isChatInputCommand()) {
             const emojiName = interaction.options.getString('name');
-            const messageId = interaction.options.getString('message_id');
             const emojiString = resolveEmoji(interaction, emojiName);
 
             if (!emojiString) {
                 return await interaction.reply({ content: 'Emoji not found!', flags: 64 });
             }
 
-            const payload = { content: getRandomMessage([` ${emojiString}`]) };
-
-            if (messageId) {
-                payload.reply = { messageReference: messageId, failIfNotExists: false };
-            }
-
-            return await interaction.reply(payload);
+            return await interaction.reply({ content: getRandomMessage([` ${emojiString}`]) });
         }
     }
 };
