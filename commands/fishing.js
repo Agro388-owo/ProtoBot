@@ -125,7 +125,7 @@ function addFishingReward(userId, rewardAmount) {
     return db[userId].balance;
 }
 
-// 🎣 Dynamic System-Based Catch Logic
+// Dynamic System-Based Catch Logic
 function getRandomCatch(lootConfig) {
     const { mode, items } = lootConfig;
     if (!items || items.length === 0) return null;
@@ -146,7 +146,7 @@ function getRandomCatch(lootConfig) {
 
     // Mode 2: Fixed 100% Direct Scale (Out of 100)
     if (mode === 'fixed_100') {
-        const roll = Math.random() * 100; // Roll 0 - 100
+        const roll = Math.random() * 100;
         let cumulative = 0;
 
         for (const item of items) {
@@ -155,13 +155,11 @@ function getRandomCatch(lootConfig) {
                 return item;
             }
         }
-        // Fallback to lowest item if cumulative sum is under 100 and roll misses all thresholds
         return items[0];
     }
 
     // Mode 3: Independent Individual Drop Rolls
     if (mode === 'independent') {
-        // Sort rarest first (lowest chance value) so rare items check priority
         const sortedItems = [...items].sort((a, b) => a.chance - b.chance);
 
         for (const item of sortedItems) {
@@ -170,7 +168,6 @@ function getRandomCatch(lootConfig) {
                 return item;
             }
         }
-        // Fallback to most common item if no rolls pass
         return sortedItems[sortedItems.length - 1];
     }
 
@@ -211,10 +208,10 @@ module.exports = {
         )
         .addSubcommandGroup(group =>
             group.setName('loot')
-                 .setDescription('[ADMIN] Manage the fishing loot table.')
+                 .setDescription('Manage or view the fishing loot table.')
                  .addSubcommand(sub =>
                     sub.setName('add')
-                       .setDescription('Add a new item to the active loot table.')
+                       .setDescription('[ADMIN] Add a new item to the active loot table.')
                        .addStringOption(opt => opt.setName('id').setDescription('Unique ID (e.g. keycard)').setRequired(true))
                        .addStringOption(opt => opt.setName('name').setDescription('Display name of the item').setRequired(true))
                        .addStringOption(opt => opt.setName('credits').setDescription('Reward amount in credits').setRequired(true))
@@ -223,7 +220,7 @@ module.exports = {
                  )
                  .addSubcommand(sub =>
                     sub.setName('remove')
-                       .setDescription('Remove an item from the active loot table by ID.')
+                       .setDescription('[ADMIN] Remove an item from the active loot table by ID.')
                        .addStringOption(opt => opt.setName('id').setDescription('ID of the item to remove').setRequired(true))
                  )
                  .addSubcommand(sub =>
@@ -249,7 +246,7 @@ module.exports = {
 
         const lootConfig = loadLootDB();
 
-        // 👑 ADMIN DROP SYSTEM MANAGEMENT
+        // ⚙️ SYSTEM MANAGEMENT (Owner Only)
         if (subcommandGroup === 'system') {
             if (!isOwner) {
                 return await interaction.reply({
@@ -266,15 +263,15 @@ module.exports = {
                     .addFields(
                         { 
                             name: '1. Relative Weight (`relative`) - Default', 
-                            value: 'Adds all item weights into a total sum. An item’s probability equals `(item_chance / total_weight) * 100`. Adding new items dilutes existing chances.' 
+                            value: 'Adds all item weights into a total sum. An item’s probability equals `(item_chance / total_weight) * 100`.' 
                         },
                         { 
                             name: '2. Strict Percentage (`fixed_100`)', 
-                            value: 'Treats the chance directly as a percentage out of 100%. Rolls a single number between 0 and 100. Sum of all items should ideally equal 100%.' 
+                            value: 'Treats the chance directly as a percentage out of 100%. Rolls a single number between 0 and 100.' 
                         },
                         { 
                             name: '3. Independent Rolls (`independent`)', 
-                            value: 'Rolls an individual percentage check for each item starting from rarest to most common. If an item passes its roll, it drops instantly.' 
+                            value: 'Rolls an individual percentage check for each item starting from rarest to most common.' 
                         }
                     )
                     .setFooter({ text: 'ProtoBot System Engine' });
@@ -297,15 +294,9 @@ module.exports = {
             }
         }
 
-        // 👑 ADMIN LOOT TABLE MANAGEMENT
+        // 🎣 LOOT TABLE MANAGEMENT
         if (subcommandGroup === 'loot') {
-            if (!isOwner) {
-                return await interaction.reply({
-                    content: `<:puronervous2:1538551211207430234> Access Denied! Only the bot owner can manage the loot table.`,
-                    ephemeral: true
-                });
-            }
-
+            // 🌐 PUBLIC: /fishing loot list
             if (subcommand === 'list') {
                 const items = lootConfig.items;
                 const totalWeight = items.reduce((sum, item) => sum + item.chance, 0);
@@ -330,6 +321,14 @@ module.exports = {
                     .setFooter({ text: `Total Summed Weight: ${totalWeight.toFixed(2)} | Active Mode: ${lootConfig.mode}` });
 
                 return await interaction.reply({ embeds: [listEmbed], ephemeral: true });
+            }
+
+            // 👑 OWNER ONLY: /fishing loot add & /fishing loot remove
+            if (!isOwner) {
+                return await interaction.reply({
+                    content: `<:puronervous2:1538551211207430234> Access Denied! Only the bot owner can modify the loot table.`,
+                    ephemeral: true
+                });
             }
 
             if (subcommand === 'add') {
@@ -394,7 +393,7 @@ module.exports = {
             }
         }
 
-        // 👑 Owner-Only /fishing catch command
+        // 👑 OWNER ONLY: /fishing catch
         if (subcommand === 'catch') {
             if (!isOwner) {
                 return await interaction.reply({
@@ -431,7 +430,7 @@ module.exports = {
             return true;
         }
 
-        // Standard /fishing cast workflow
+        // 🌐 PUBLIC: /fishing cast
         if (subcommand === 'cast') {
             await interaction.deferReply();
             const now = Date.now();
