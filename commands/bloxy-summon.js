@@ -1,11 +1,16 @@
-const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
+const { SlashCommandBuilder, AttachmentBuilder, InteractionContextType } = require('discord.js');
 const path = require('path');
 const fs = require('fs');
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('bloxy')
-        .setDescription('Summon Bloxy.'),
+        .setName('summon-bloxy')
+        .setDescription('Summon Bloxy.')
+        .setContexts([
+            InteractionContextType.Guild,
+            InteractionContextType.BotDM,
+            InteractionContextType.PrivateChannel
+        ]),
 
     async execute(interaction) {
         const filePath = path.join(__dirname, '..', 'assets/goober/Bloxy.png');
