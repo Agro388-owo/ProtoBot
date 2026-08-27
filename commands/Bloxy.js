@@ -8,10 +8,10 @@ module.exports = {
         .setDescription('Summon Bloxy.'),
 
     async execute(interaction) {
-        const filePath = path.join(__dirname, '..', 'assets/bloxy/Bloxy.png');
+        const filePath = path.join(__dirname, '..', 'assets/goober/Bloxy.png');
 
         if (!fs.existsSync(filePath)) {
-            return interaction.reply({ content: `⚠️ Bloxy.png not found at assets/bloxy/!`, ephemeral: true });
+            return interaction.reply({ content: `⚠️ Bloxy.png not found at assets/goober/!`, ephemeral: true });
         }
 
         const file = new AttachmentBuilder(filePath);
