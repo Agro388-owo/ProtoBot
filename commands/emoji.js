@@ -35,7 +35,10 @@ const emojiMap = {
     'puroblush': '<:puroblush:1536364136613806090>',
     'puroneutral': '<:puroneutral:1536364135342669824>',
     'Puroadorable': '<:Puroadorable:1536364133392457818>', 
-    'UniTheCat' : '<:UniTheCat:1539189751649935430>'
+    'UniTheCat': '<:UniTheCat:1539189751649935430>', 
+    'Shorkboi': '<:Shorkboi:1542381402526449704>', 
+    'Credit': '<:Credit:1541934198791737475>', 
+    'Credit_old': '<:Credit_old:1541924089256607785>'
 };
 
 function resolveEmoji(interaction, emojiName) {
