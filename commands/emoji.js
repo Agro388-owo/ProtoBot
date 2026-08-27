@@ -48,7 +48,7 @@ const emojiMap = {
     'Steven130': '<:Steven130:1542399890783604787>', 
     'Benjamin391': '<:Benjamin391:1542399892381507665>'
 };
-
+// --- DONT FORGET TO ADD NEW PAGE WHEN EMOJI PAGE REACHES 20-24 EMOJIS
 const allKeys = Object.keys(emojiMap);
 const page1Keys = allKeys.slice(0, 20);
 const page2Keys = allKeys.slice(20, 40);
