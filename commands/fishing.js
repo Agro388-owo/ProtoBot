@@ -52,6 +52,22 @@ function loadLootDB() {
     return DEFAULT_LOOT_CONFIG;
 }
 
+function saveLootDB(config) {
+    try {
+        const serialized = {
+            mode: config.mode || "relative",
+            items: config.items.map(item => ({
+                ...item,
+                catchCredits: item.catchCredits.toString(),
+                sellValue: item.sellValue.toString()
+            }))
+        };
+        fs.writeFileSync(lootFilePath, JSON.stringify(serialized, null, 2), 'utf8');
+    } catch (e) {
+        console.error('Failed to save fishing_loot.json:', e);
+    }
+}
+
 function loadCreditsDB() {
     try {
         if (fs.existsSync(creditsFilePath)) {
@@ -145,23 +161,54 @@ module.exports = {
         .addSubcommand(sub =>
             sub.setName('cast')
                .setDescription('Cast your fishing line!')
+        )
+        .addSubcommandGroup(group =>
+            group.setName('loot')
+                .setDescription('View or manage fishing loot table')
+                .addSubcommand(sub =>
+                    sub.setName('list')
+                       .setDescription('List all catchable items in the fishing loot table')
+                )
+                .addSubcommand(sub =>
+                    sub.setName('add')
+                       .setDescription('[Admin] Add a new item to the fishing loot table')
+                       .addStringOption(opt => opt.setName('id').setDescription('Unique ID (e.g. gold_fish)').setRequired(true))
+                       .addStringOption(opt => opt.setName('name').setDescription('Display Name (e.g. Golden Fish)').setRequired(true))
+                       .addStringOption(opt => opt.setName('emoji').setDescription('Emoji string (e.g. 🐠 or custom emoji code)').setRequired(true))
+                       .addNumberOption(opt => opt.setName('chance').setDescription('Drop chance percentage/weight').setRequired(true))
+                       .addStringOption(opt => opt.setName('catch_credits').setDescription('Credits rewarded upon catch').setRequired(true))
+                       .addStringOption(opt => opt.setName('sell_value').setDescription('Resale value').setRequired(true))
+                       .addBooleanOption(opt => opt.setName('sellable').setDescription('Can this item be sold?').setRequired(false))
+                )
+                .addSubcommand(sub =>
+                    sub.setName('remove')
+                       .setDescription('[Admin] Remove an item from the fishing loot table by ID')
+                       .addStringOption(opt => opt.setName('id').setDescription('The ID of the item to remove').setRequired(true))
+                )
         ),
 
     async execute(interaction) {
+        const group = interaction.options.getSubcommandGroup(false);
         const subcommand = interaction.options.getSubcommand();
         const user = interaction.user;
         const userId = user.id;
         const lootConfig = loadLootDB();
 
-        if (subcommand === 'cast') {
-            await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        // Check ownership/admin permissions
+        const ownerId = botConfig.OWNER_ID || botConfig.ownerId;
+        const isOwner = userId === ownerId;
+        const isAdmin = interaction.memberPermissions?.has(8n);
+
+        // === 1. CAST SUBCOMMAND (PUBLIC) ===
+        if (subcommand === 'cast' && !group) {
+            await interaction.deferReply();
             const now = Date.now();
 
             if (fishingCooldowns.has(userId)) {
                 const expirationTime = fishingCooldowns.get(userId) + COOLDOWN_DURATION;
                 if (now < expirationTime) {
                     const timeLeft = Math.ceil((expirationTime - now) / 1000);
-                    return await interaction.editReply({
+                    return await interaction.followUp({
                         embeds: [
                             new EmbedBuilder()
                                 .setColor(0xFFA500)
@@ -175,24 +222,17 @@ module.exports = {
 
             fishingCooldowns.set(userId, now);
 
-            // 1. Roll item
             const itemCaught = getRandomCatch(lootConfig);
-
-            // 2. Grant catch credits reward directly
             const newBalance = addFishingReward(userId, itemCaught.catchCredits);
-
-            // 3. Store item in user's inventory
             addItemToInventory(userId, itemCaught);
 
-            // Format username string based on config toggle
             const nameDisplay = botConfig.PING_ON_PUBLIC_MESSAGES ? `<@${userId}>` : `**${user.username}**`;
 
             if (itemCaught.id === 'shorkboi') {
                 return await interaction.editReply({
                     content: `🚨 **SHORK ENCOUNTER!** ${nameDisplay} cast their line and reeled in <@${SHORKBOI_ID}>! 🦈\n` +
                              `**+${formatNumber(itemCaught.catchCredits)}**${CREDIT} *(Current Balance: **${formatNumber(newBalance)}**${CREDIT})*\n` +
-                             `*He was safely secured in storage.*`,
-                    flags: MessageFlags.Ephemeral
+                             `*He was safely secured in storage.*`
                 });
             }
 
@@ -208,21 +248,103 @@ module.exports = {
                     )
                     .setFooter({ text: 'Stored in Inventory | ProtoBot Fishing Log' });
 
-                return await interaction.editReply({
-                    embeds: [rareEmbed],
-                    flags: MessageFlags.Ephemeral
-                });
+                return await interaction.editReply({ embeds: [rareEmbed] });
             }
 
             const responseMessage = `${nameDisplay} cast their line into the pool and reeled in **${itemCaught.name}** ${itemCaught.emoji}!\n` +
                 `**+${formatNumber(itemCaught.catchCredits)}**${CREDIT} *(Current Balance: **${formatNumber(newBalance)}**${CREDIT})*\n` +
                 `📦 *Item stored in your inventory! (Resale value: ${formatNumber(itemCaught.sellValue)}${CREDIT})*`;
 
-            await interaction.editReply({
-                content: responseMessage,
-                flags: MessageFlags.Ephemeral
-            });
+            await interaction.editReply({ content: responseMessage });
             return true;
+        }
+
+        // === 2. LOOT GROUP SUBCOMMANDS ===
+        if (group === 'loot') {
+            // --- LOOT LIST ---
+            if (subcommand === 'list') {
+                const itemsList = lootConfig.items.map(item =>
+                    `• ${item.emoji} **${item.name}** (\`${item.id}\`)\n` +
+                    `  └ Chance: \`${item.chance}%\` | Catch: **+${formatNumber(item.catchCredits)}**${CREDIT} | Value: **${formatNumber(item.sellValue)}**${CREDIT}`
+                ).join('\n');
+
+                const embed = new EmbedBuilder()
+                    .setTitle('🎣 Fishing Loot Table')
+                    .setColor(0x3498DB)
+                    .setDescription(itemsList || '*No items configured.*')
+                    .setFooter({ text: `Total Items: ${lootConfig.items.length}` });
+
+                await interaction.reply({ embeds: [embed] });
+                return true;
+            }
+
+            // ADMIN GUARD for add/remove
+            if (!isOwner && !isAdmin) {
+                await interaction.reply({
+                    content: '❌ You do not have permission to modify the fishing loot table!',
+                    flags: MessageFlags.Ephemeral
+                });
+                return null;
+            }
+
+            // --- LOOT ADD ---
+            if (subcommand === 'add') {
+                const id = interaction.options.getString('id').trim().toLowerCase();
+                const name = interaction.options.getString('name').trim();
+                const emoji = interaction.options.getString('emoji').trim();
+                const chance = interaction.options.getNumber('chance');
+                const catchCreditsStr = interaction.options.getString('catch_credits').trim();
+                const sellValueStr = interaction.options.getString('sell_value').trim();
+                const sellable = interaction.options.getBoolean('sellable') ?? true;
+
+                if (lootConfig.items.some(i => i.id === id)) {
+                    await interaction.reply({
+                        content: `⚠️ An item with ID \`${id}\` already exists!`,
+                        flags: MessageFlags.Ephemeral
+                    });
+                    return null;
+                }
+
+                const newItem = {
+                    id,
+                    name,
+                    emoji,
+                    chance,
+                    catchCredits: BigInt(catchCreditsStr),
+                    sellValue: BigInt(sellValueStr),
+                    sellable
+                };
+
+                lootConfig.items.push(newItem);
+                saveLootDB(lootConfig);
+
+                await interaction.reply({
+                    content: `✅ Successfully added ${emoji} **${name}** (\`${id}\`) to the fishing loot table!`
+                });
+                return true;
+            }
+
+            // --- LOOT REMOVE ---
+            if (subcommand === 'remove') {
+                const id = interaction.options.getString('id').trim().toLowerCase();
+                const index = lootConfig.items.findIndex(i => i.id === id);
+
+                if (index === -1) {
+                    await interaction.reply({
+                        content: `⚠️ Could not find an item with ID \`${id}\` in the loot table!`,
+                        flags: MessageFlags.Ephemeral
+                    });
+                    return null;
+                }
+
+                const [removed] = lootConfig.items.splice(index, 1);
+                saveLootDB(lootConfig);
+
+                await interaction.reply({
+                    content: `🗑️ Removed ${removed.emoji} **${removed.name}** (\`${id}\`) from the fishing loot table!`
+                });
+                return true;
+            }
         }
     }
 };
