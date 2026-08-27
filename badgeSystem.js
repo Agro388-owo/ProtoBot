@@ -11,20 +11,34 @@ const DEFAULT_BADGES = {
     MAX_CAP:     { id: "MAX_CAP",     emoji: "<:Sus:1541509245499875439>", name: "Integer Overlord", desc: "Hit 64-bit BigInt max cap", req: 9223372036854775807n, type: "balance" }
 };
 
-// Load custom badges from file
+// Load custom badges from file and parse numerical thresholds into BigInt
 function loadCustomBadges() {
     if (!fs.existsSync(CUSTOM_BADGES_FILE)) return {};
     try {
         const raw = fs.readFileSync(CUSTOM_BADGES_FILE, 'utf8');
-        return JSON.parse(raw);
-    } catch {
+        const parsed = JSON.parse(raw);
+        
+        for (const key in parsed) {
+            if (parsed[key].req !== undefined) {
+                parsed[key].req = BigInt(parsed[key].req);
+            }
+        }
+        return parsed;
+    } catch (e) {
+        console.error('Failed to load custom_badges.json:', e);
         return {};
     }
 }
 
-// Save custom badges to file
+// Save custom badges to file safely stringifying BigInt values
 function saveCustomBadges(badges) {
-    fs.writeFileSync(CUSTOM_BADGES_FILE, JSON.stringify(badges, null, 2));
+    try {
+        const serialized = JSON.stringify(badges, (key, value) =>
+            typeof value === 'bigint' ? value.toString() : value, 2);
+        fs.writeFileSync(CUSTOM_BADGES_FILE, serialized, 'utf8');
+    } catch (e) {
+        console.error('Failed to save custom_badges.json:', e);
+    }
 }
 
 // Get all active badges merged
@@ -36,6 +50,8 @@ function getAllBadges() {
 // Award threshold-based badges dynamically
 function checkAndAwardBadges(userData) {
     if (!userData.badges) userData.badges = [];
+    
+    // Ensure current balance is evaluated as BigInt
     const currentBalance = BigInt(userData.balance || 0);
     const allBadges = getAllBadges();
     const newBadges = [];
