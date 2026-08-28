@@ -56,9 +56,12 @@ const emojiMap = {
 };
 
 const allKeys = Object.keys(emojiMap);
-const page1Keys = allKeys.slice(0, 20);
-const page2Keys = allKeys.slice(20, 40);
-const page3Keys = allKeys.slice(40, 60);
+const PAGE_SIZE = 20;
+const pages = [];
+
+for (let i = 0; i < allKeys.length; i += PAGE_SIZE) {
+    pages.push(allKeys.slice(i, i + PAGE_SIZE));
+}
 
 function resolveEmoji(interaction, emojiName) {
     let emojiString = null;
@@ -69,56 +72,31 @@ function resolveEmoji(interaction, emojiName) {
     return emojiString || emojiMap[emojiName] || null;
 }
 
-// 1. Slash Command with Page Subcommands
+// 1. Slash Command Builder
 const slashCommand = new SlashCommandBuilder()
     .setName('emoji')
     .setDescription('Send a custom emoji or reply to a message!')
     .setIntegrationTypes([0, 1])
     .setContexts([0, 1, 2]);
 
-// --- Subcommand Page 1 ---
-if (page1Keys.length > 0) {
-    slashCommand.addSubcommand(sub =>
-        sub.setName('page1')
-           .setDescription('Select an emoji from Page 1')
-           .addStringOption(opt =>
-               opt.setName('name')
-                  .setDescription('Which emoji to send?')
-                  .setRequired(true)
-                  .addChoices(...page1Keys.map(k => ({ name: k, value: k })))
-           )
-    );
-}
+// Dynamically generate subcommands for all pages
+pages.forEach((pageKeys, index) => {
+    const pageNumber = index + 1;
+    if (pageKeys.length > 0) {
+        slashCommand.addSubcommand(sub =>
+            sub.setName(`page${pageNumber}`)
+               .setDescription(`Select an emoji from Page ${pageNumber}`)
+               .addStringOption(opt =>
+                   opt.setName('name')
+                      .setDescription('Which emoji to send?')
+                      .setRequired(true)
+                      .addChoices(...pageKeys.map(k => ({ name: k, value: k })))
+               )
+        );
+    }
+});
 
-// --- Subcommand Page 2 ---
-if (page2Keys.length > 0) {
-    slashCommand.addSubcommand(sub =>
-        sub.setName('page2')
-           .setDescription('Select an emoji from Page 2')
-           .addStringOption(opt =>
-               opt.setName('name')
-                  .setDescription('Which emoji to send?')
-                  .setRequired(true)
-                  .addChoices(...page2Keys.map(k => ({ name: k, value: k })))
-           )
-    );
-}
-
-// --- Subcommand Page 3 ---
-if (page3Keys.length > 0) {
-    slashCommand.addSubcommand(sub =>
-        sub.setName('page3')
-           .setDescription('Select an emoji from Page 3')
-           .addStringOption(opt =>
-               opt.setName('name')
-                  .setDescription('Which emoji to send?')
-                  .setRequired(true)
-                  .addChoices(...page3Keys.map(k => ({ name: k, value: k })))
-           )
-    );
-}
-
-// 2. Context Menu (Hold Message > Apps > Emoji Reply)
+// 2. Context Menu Command
 const contextMenuCommand = new ContextMenuCommandBuilder()
     .setName('Emoji Reply')
     .setType(ApplicationCommandType.Message)
@@ -130,7 +108,7 @@ module.exports = {
     contextMenu: contextMenuCommand,
 
     async execute(interaction) {
-        // Handle Apps Context Menu Trigger (Message context)
+        // Context Menu Handler
         if (interaction.isMessageContextMenuCommand()) {
             const targetMessage = interaction.targetMessage;
             const randomEmojiName = allKeys[Math.floor(Math.random() * allKeys.length)];
@@ -142,7 +120,7 @@ module.exports = {
             });
         }
 
-        // Handle Slash Command Trigger
+        // Slash Command Handler
         if (interaction.isChatInputCommand()) {
             const emojiName = interaction.options.getString('name');
             const emojiString = resolveEmoji(interaction, emojiName);
