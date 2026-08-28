@@ -12,8 +12,9 @@ const SPYTHEPROOT_ID = '1464072486651170931';
 const fishingCooldowns = new Map();
 const COOLDOWN_DURATION = 30 * 1000;
 
-const lootFilePath = path.join(__dirname, '../fishing_loot.json');
-const creditsFilePath = path.join(__dirname, '../credits.json');
+const lootFilePath = path.resolve(process.cwd(), 'fishing_loot.json');
+const creditsFilePath = path.resolve(process.cwd(), 'credits.json');
+const inventoryFilePath = path.resolve(process.cwd(), 'inventory.json');
 
 const DEFAULT_LOOT_CONFIG = {
     mode: "relative",
@@ -29,8 +30,8 @@ const DEFAULT_LOOT_CONFIG = {
         { id: "core", name: "a Glowing Latex Core", emoji: "<:CuteBlackCub:1538665557325254737>", catchCredits: 250n, sellValue: 50n, chance: 4, sellable: true },
         { id: "cult_tracker", name: "a Cult Tracker", emoji: "👁️", catchCredits: -250n, sellValue: 0n, chance: 0.1, sellable: false },
         { id: "pc", name: "an Entire Desktop Tower", emoji: "<:protogenirl:1536430038751121499>", catchCredits: 500n, sellValue: 100n, chance: 2.5, sellable: true },
-        { id: "statue", name: "GOLDEN BLOXY STATUE", emoji: "<:DrKStare:1538665762162483372>", catchCredits: 1000n, sellValue: 150n, chance: 1.2, sellable: true },
-        { id: "robloxinoli", name: "GOLDEN ROBLOXINOLI STATUE", emoji: "<:DrKStare:1538665762162483372>", catchCredits: 1750n, sellValue: 200n, chance: 1, sellable: true },
+        { id: "statue", name: "GOLDEN BLOXY STATUE", emoji: "<:BloxyStatue:1542833919651610695>", catchCredits: 1000n, sellValue: 150n, chance: 1.2, sellable: true },
+        { id: "robloxinoli", name: "GOLDEN ROBLOXINOLI STATUE", emoji: "<:RobloxiNoliStatue:1542834047494131712>", catchCredits: 1750n, sellValue: 200n, chance: 1, sellable: true },
         { id: "iridium_cube", name: "a Solid Iridium Cube", emoji: "🧊", catchCredits: 3200n, sellValue: 1500n, chance: 0.8, sellable: true },
         { id: "tracer_ammo", name: "a Box of 7.62×39mm Red Tracer Rounds", emoji: "📦", catchCredits: 4500n, sellValue: 2200n, chance: 0.5, sellable: true },
         { id: "uox_fuel", name: "a UOX Fuel Assembly", emoji: "☢️", catchCredits: 6000n, sellValue: 3000n, chance: 0.3, sellable: true, flavor: "*Surprisingly, it's still warm after sitting underwater for 30 years...*" },
@@ -40,6 +41,23 @@ const DEFAULT_LOOT_CONFIG = {
         { id: "spytheproot", name: "SpyTheProot", emoji: "<:SpyTheProot:1542483331734573148>", catchCredits: 5000n, sellValue: 0n, chance: 0.5, sellable: false }
     ]
 };
+
+function addItemToInventory(userId, itemId) {
+    try {
+        let db = {};
+        if (fs.existsSync(inventoryFilePath)) {
+            const raw = fs.readFileSync(inventoryFilePath, 'utf8').trim();
+            db = raw ? JSON.parse(raw) : {};
+        }
+
+        if (!db[userId]) db[userId] = [];
+        db[userId].push(itemId.toLowerCase());
+
+        fs.writeFileSync(inventoryFilePath, JSON.stringify(db, null, 2), 'utf8');
+    } catch (e) {
+        console.error('Failed to save caught item to inventory:', e);
+    }
+}
 
 function loadLootDB() {
     try {
@@ -127,7 +145,6 @@ function getRandomCatch(lootConfig, mode = 'coastal', userLuckLevel = 0) {
 
     let modifiedItems = items.map(item => ({ ...item }));
 
-    // Deep sea mode increases hazards (latex) but boosts valuable loot
     if (mode === 'deepsea') {
         modifiedItems = modifiedItems.map(item => {
             if (item.id === 'latex_sample') return { ...item, chance: item.chance * 2.5 };
@@ -136,9 +153,8 @@ function getRandomCatch(lootConfig, mode = 'coastal', userLuckLevel = 0) {
         });
     }
 
-    // Apply Luck Upgrades (bought from /shop)
     if (userLuckLevel > 0) {
-        const luckMultiplier = 1 + (userLuckLevel * 0.15); // +15% rare drop chance per luck level
+        const luckMultiplier = 1 + (userLuckLevel * 0.15);
         modifiedItems = modifiedItems.map(item => {
             if (item.catchCredits > 200n) {
                 return { ...item, chance: item.chance * luckMultiplier };
@@ -247,7 +263,6 @@ module.exports = {
 
             const itemCaught = getRandomCatch(lootConfig, mode, userLuckLevel);
 
-            // SPECIAL EVENT: Benjamin's Transfur Event
             if (itemCaught.id === 'latex_sample') {
                 const loss = mode === 'deepsea' ? -300n : -150n;
                 const newBalance = addFishingReward(userId, loss);
@@ -269,7 +284,6 @@ module.exports = {
                 return await interaction.editReply({ embeds: [transfurEmbed] });
             }
 
-            // SPECIAL EVENT: Steven's Cult Tracker Robbery
             if (itemCaught.id === 'cult_tracker') {
                 const coreItem = lootConfig.items.find(i => i.id === 'core');
                 const coreValue = coreItem ? coreItem.catchCredits : 250n;
@@ -297,11 +311,13 @@ module.exports = {
                 return await interaction.editReply({ embeds: [robberyEmbed] });
             }
 
-            // Apply deepsea multiplier to base rewards
             let finalReward = itemCaught.catchCredits;
             if (mode === 'deepsea' && finalReward > 0n) {
-                finalReward = (finalReward * 15n) / 10n; // 1.5x reward boost
+                finalReward = (finalReward * 15n) / 10n;
             }
+
+            // Save standard catch directly to user inventory on disk
+            addItemToInventory(userId, itemCaught.id);
 
             const newBalance = addFishingReward(userId, finalReward);
             const nameDisplay = botConfig.PING_ON_PUBLIC_MESSAGES ? `<@${userId}>` : `**${user.username}**`;
@@ -373,6 +389,7 @@ module.exports = {
                 return null;
             }
 
+            addItemToInventory(targetUser.id, itemCaught.id);
             const newBalance = addFishingReward(targetUser.id, itemCaught.catchCredits);
             const targetDisplay = botConfig.PING_ON_PUBLIC_MESSAGES ? `<@${targetUser.id}>` : `**${targetUser.username}**`;
 
