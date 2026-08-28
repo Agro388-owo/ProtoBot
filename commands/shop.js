@@ -12,6 +12,30 @@ const LUCK_UPGRADE_BASE_COST = 2000n;
 const LUCK_UPGRADE_COST_MULTIPLIER = 1.8;
 const MAX_LUCK_LEVEL = 5;
 
+// Default items fallback from fishing command
+const FALLBACK_ITEMS = [
+    { id: "pipe", name: "a Rusty Metal Pipe", emoji: "<:thing:1537616433171796149>", catchCredits: 5n, sellValue: 5n, chance: 18, sellable: true },
+    { id: "soda_can", name: "an Aluminum Soda Can", emoji: "🥤", catchCredits: 8n, sellValue: 2n, chance: 16, sellable: true },
+    { id: "duck", name: "a Squeaky Rubber Duck", emoji: "<:Goober:1538666294948270190>", catchCredits: 10n, sellValue: 5n, chance: 14, sellable: true },
+    { id: "latex_sample", name: "a Strange Latex Puddle", emoji: "<:puroshock:1536366927230799972>", catchCredits: -150n, sellValue: 0n, chance: 8, sellable: false },
+    { id: "salmon", name: "a Fresh Salmon", emoji: "<:Puro_doing_a_swim:1538666516680282233>", catchCredits: 25n, sellValue: 10n, chance: 12, sellable: true },
+    { id: "ram", name: "a High-Speed DDR5 RAM Stick", emoji: "<:Ram:1541508957216964668>", catchCredits: 50n, sellValue: 15n, chance: 9, sellable: true },
+    { id: "copper_wire", name: "a Bundle of Copper Wire", emoji: "🧵", catchCredits: 120n, sellValue: 80n, chance: 7, sellable: true },
+    { id: "battery", name: "a Heavy Lithium Battery", emoji: "<:puroshock:1536366927230799972>", catchCredits: 100n, sellValue: 25n, chance: 5, sellable: true },
+    { id: "core", name: "a Glowing Latex Core", emoji: "<:CuteBlackCub:1538665557325254737>", catchCredits: 250n, sellValue: 50n, chance: 4, sellable: true },
+    { id: "cult_tracker", name: "a Cult Tracker", emoji: "👁️", catchCredits: -250n, sellValue: 0n, chance: 0.1, sellable: false },
+    { id: "pc", name: "an Entire Desktop Tower", emoji: "<:protogenirl:1536430038751121499>", catchCredits: 500n, sellValue: 100n, chance: 2.5, sellable: true },
+    { id: "statue", name: "GOLDEN BLOXY STATUE", emoji: "<:BloxyStatue:1542833919651610695>", catchCredits: 1000n, sellValue: 150n, chance: 1.2, sellable: true },
+    { id: "robloxinoli", name: "GOLDEN ROBLOXINOLI STATUE", emoji: "<:RobloxiNoliStatue:1542834047494131712>", catchCredits: 1750n, sellValue: 200n, chance: 1, sellable: true },
+    { id: "iridium_cube", name: "a Solid Iridium Cube", emoji: "🧊", catchCredits: 3200n, sellValue: 1500n, chance: 0.8, sellable: true },
+    { id: "tracer_ammo", name: "a Box of 7.62×39mm Red Tracer Rounds", emoji: "📦", catchCredits: 4500n, sellValue: 2200n, chance: 0.5, sellable: true },
+    { id: "uox_fuel", name: "a UOX Fuel Assembly", emoji: "☢️", catchCredits: 6000n, sellValue: 3000n, chance: 0.3, sellable: true },
+    { id: "mox_fuel", name: "a MOX Fuel Assembly", emoji: "☣️", catchCredits: 7500n, sellValue: 4000n, chance: 0.2, sellable: true },
+    { id: "ring", name: "Ancient Stargate Dialing Ring", emoji: "<:InsaneCat:1538666024251953152>", catchCredits: 2500n, sellValue: 250n, chance: 0.5, sellable: false },
+    { id: "shorkboi", name: "Shorkboi", emoji: "<:Shorkboi:1542381402526449704>", catchCredits: 5000n, sellValue: 0n, chance: 0.5, sellable: false },
+    { id: "spytheproot", name: "SpyTheProot", emoji: "<:SpyTheProot:1542483331734573148>", catchCredits: 5000n, sellValue: 0n, chance: 0.5, sellable: false }
+];
+
 function loadCreditsDB() {
     try {
         if (fs.existsSync(creditsFilePath)) {
@@ -65,16 +89,24 @@ function loadLootDB() {
         if (fs.existsSync(lootFilePath)) {
             const raw = fs.readFileSync(lootFilePath, 'utf8') || '{}';
             const parsed = JSON.parse(raw);
-            return (parsed.items || []).map(item => ({
-                ...item,
-                sellValue: BigInt(item.sellValue || "0"),
-                sellable: item.sellable ?? true
-            }));
+            if (parsed.items && parsed.items.length > 0) {
+                return parsed.items.map(item => ({
+                    ...item,
+                    sellValue: BigInt(item.sellValue || "0"),
+                    sellable: item.sellable ?? true
+                }));
+            }
         }
     } catch (e) {
         console.error('Failed to load fishing_loot.json in shop:', e);
     }
-    return [];
+
+    // Return fallback items if fishing_loot.json does not exist yet
+    return FALLBACK_ITEMS.map(item => ({
+        ...item,
+        sellValue: BigInt(item.sellValue || "0"),
+        sellable: item.sellable ?? true
+    }));
 }
 
 function getUpgradeCost(currentLevel) {
@@ -206,7 +238,7 @@ module.exports = {
         if (subcommand === 'sell') {
             const itemId = interaction.options.getString('item_id').trim().toLowerCase();
             const lootItems = loadLootDB();
-            const targetItem = lootItems.find(i => i.id === itemId);
+            const targetItem = lootItems.find(i => i.id.toLowerCase() === itemId);
 
             if (!targetItem) {
                 return await interaction.reply({
@@ -217,7 +249,11 @@ module.exports = {
 
             const inventoryDB = loadInventoryDB();
             const userInventory = inventoryDB[userId] || [];
-            const itemIndex = userInventory.findIndex(i => i.toLowerCase() === itemId);
+
+            const itemIndex = userInventory.findIndex(item => {
+                const storedId = typeof item === 'string' ? item : item?.id;
+                return storedId && storedId.toLowerCase() === itemId;
+            });
 
             if (itemIndex === -1) {
                 return await interaction.reply({
