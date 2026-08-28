@@ -1,12 +1,14 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
 const fs = require('fs');
-const path = require('path');
+const path = path = require('path');
 
 const { CREDIT, formatNumber, clampBalance } = require('./credits.js');
 
+const GLOBAL_CREDIT = '۞';
 const creditsFilePath = path.resolve(process.cwd(), 'credits.json');
+const globalCreditsFilePath = path.resolve(process.cwd(), 'global_credits.json');
 
-function loadCredits() {
+function loadCreditsDB() {
     try {
         if (fs.existsSync(creditsFilePath)) {
             const raw = fs.readFileSync(creditsFilePath, 'utf8') || '{}';
@@ -24,6 +26,24 @@ function loadCredits() {
     return {};
 }
 
+function loadGlobalCreditsDB() {
+    try {
+        if (fs.existsSync(globalCreditsFilePath)) {
+            const raw = fs.readFileSync(globalCreditsFilePath, 'utf8') || '{}';
+            const parsed = JSON.parse(raw);
+            for (const id in parsed) {
+                if (parsed[id].balance !== undefined) {
+                    parsed[id].balance = clampBalance(BigInt(parsed[id].balance));
+                }
+            }
+            return parsed;
+        }
+    } catch (e) {
+        console.error('Failed to load global_credits.json in leaderboard:', e);
+    }
+    return {};
+}
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('leaderboard')
@@ -36,41 +56,50 @@ module.exports = {
         )
         .addSubcommand(sub =>
             sub.setName('global')
-               .setDescription('View top 10 credit holders globally across all users')
+               .setDescription('View top 10 global credit holders across all users')
         ),
 
     async execute(interaction) {
-        // Fallback to 'server' if executed without an explicit subcommand
         const subcommand = interaction.options.getSubcommand(false) || 'server';
         const user = interaction.user;
-        const db = loadCredits();
+        const creditsDB = loadCreditsDB();
+        const globalCreditsDB = loadGlobalCreditsDB();
 
-        // Sort all registered users globally by balance descending
-        const allSorted = Object.entries(db)
-            .map(([id, data]) => ({ id, balance: data.balance ?? 0n }))
-            .sort((a, b) => (b.balance > a.balance ? 1 : b.balance < a.balance ? -1 : 0));
+        // Combined data view
+        const allUserIds = Array.from(new Set([...Object.keys(creditsDB), ...Object.keys(globalCreditsDB)]));
+        const combinedData = allUserIds.map(id => ({
+            id,
+            localBalance: creditsDB[id]?.balance ?? 0n,
+            globalBalance: globalCreditsDB[id]?.balance ?? 0n
+        }));
 
-        if (allSorted.length === 0) {
+        if (combinedData.length === 0) {
             return await interaction.reply({
                 content: '🏆 No credit entries registered in the database yet.',
                 flags: MessageFlags.Ephemeral
             });
         }
 
+        const userLocal = creditsDB[user.id]?.balance ?? 0n;
+        const userGlobal = globalCreditsDB[user.id]?.balance ?? 0n;
+
         // ==========================================
-        // 1. GLOBAL LEADERBOARD (Top 10 Across All Users)
+        // 1. GLOBAL LEADERBOARD (Ranked by Global Credits)
         // ==========================================
         if (subcommand === 'global') {
-            const top10 = allSorted.slice(0, 10);
+            const sortedGlobal = [...combinedData].sort((a, b) => 
+                (b.globalBalance > a.globalBalance ? 1 : b.globalBalance < a.globalBalance ? -1 : 0)
+            );
+
+            const top10 = sortedGlobal.slice(0, 10);
             const medalIcons = ['🥇', '🥈', '🥉'];
 
-            const globalUserRankIndex = allSorted.findIndex(e => e.id === user.id);
-            const globalRankText = globalUserRankIndex !== -1 ? `#${globalUserRankIndex + 1}` : 'Unranked';
-            const userBalance = db[user.id]?.balance ?? 0n;
+            const userRankIndex = sortedGlobal.findIndex(e => e.id === user.id);
+            const userRankText = userRankIndex !== -1 ? `#${userRankIndex + 1}` : 'Unranked';
 
             const lines = top10.map((entry, index) => {
                 const rankDisplay = medalIcons[index] || `**#${index + 1}**`;
-                return `${rankDisplay} <@${entry.id}> — **${formatNumber(entry.balance)}** ${CREDIT}`;
+                return `${rankDisplay} <@${entry.id}> — **${formatNumber(entry.globalBalance)}** ${GLOBAL_CREDIT} *(${formatNumber(entry.localBalance)} ${CREDIT})*`;
             });
 
             const globalEmbed = new EmbedBuilder()
@@ -78,26 +107,28 @@ module.exports = {
                 .setColor('#00FFC8')
                 .setDescription(lines.join('\n') || 'No global rankings available.')
                 .setFooter({
-                    text: `Your Global Rank: ${globalRankText} | Balance: ${formatNumber(userBalance)}`
+                    text: `Your Global Rank: ${userRankText} | Global: ${formatNumber(userGlobal)} ${GLOBAL_CREDIT} | Local: ${formatNumber(userLocal)}`
                 });
 
             return await interaction.reply({ embeds: [globalEmbed] });
         }
 
         // ==========================================
-        // 2. SERVER LEADERBOARD (Default / Guild Members)
+        // 2. SERVER LEADERBOARD (Ranked by Local Credits)
         // ==========================================
         if (subcommand === 'server') {
-            let serverSorted = allSorted;
+            const sortedLocal = [...combinedData].sort((a, b) => 
+                (b.localBalance > a.localBalance ? 1 : b.localBalance < a.localBalance ? -1 : 0)
+            );
 
-            // Filter entries to guild members if executed inside a server
+            let serverSorted = sortedLocal;
+
             if (interaction.guild) {
                 try {
                     await interaction.guild.members.fetch();
-                    serverSorted = allSorted.filter(entry => interaction.guild.members.cache.has(entry.id));
+                    serverSorted = sortedLocal.filter(entry => interaction.guild.members.cache.has(entry.id));
                 } catch (e) {
-                    // Fallback to cache if member fetch fails
-                    serverSorted = allSorted.filter(entry => interaction.guild.members.cache.has(entry.id));
+                    serverSorted = sortedLocal.filter(entry => interaction.guild.members.cache.has(entry.id));
                 }
             }
 
@@ -114,7 +145,6 @@ module.exports = {
 
             const userRankIndex = serverSorted.findIndex(e => e.id === user.id);
             const userRankText = userRankIndex !== -1 ? `#${userRankIndex + 1}` : 'Unranked';
-            const userBalance = db[user.id]?.balance ?? 0n;
 
             const generateEmbed = (page) => {
                 const start = page * pageSize;
@@ -124,7 +154,7 @@ module.exports = {
                 const lines = pageEntries.map((entry, index) => {
                     const rank = start + index;
                     const rankDisplay = medalIcons[rank] || `**#${rank + 1}**`;
-                    return `${rankDisplay} <@${entry.id}> — **${formatNumber(entry.balance)}** ${CREDIT}`;
+                    return `${rankDisplay} <@${entry.id}> — **${formatNumber(entry.localBalance)}** ${CREDIT} | **${formatNumber(entry.globalBalance)}** ${GLOBAL_CREDIT}`;
                 });
 
                 return new EmbedBuilder()
@@ -132,7 +162,7 @@ module.exports = {
                     .setDescription(lines.join('\n'))
                     .setColor('#FFD700')
                     .setFooter({
-                        text: `Page ${page + 1}/${totalPages} | Your Rank: ${userRankText} | Balance: ${formatNumber(userBalance)}`
+                        text: `Page ${page + 1}/${totalPages} | Your Rank: ${userRankText} | Local: ${formatNumber(userLocal)} | Global: ${formatNumber(userGlobal)} ${GLOBAL_CREDIT}`
                     });
             };
 
