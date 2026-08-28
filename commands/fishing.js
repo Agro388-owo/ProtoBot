@@ -15,6 +15,7 @@ const COOLDOWN_DURATION = 30 * 1000;
 const lootFilePath = path.resolve(process.cwd(), 'fishing_loot.json');
 const creditsFilePath = path.resolve(process.cwd(), 'credits.json');
 const inventoryFilePath = path.resolve(process.cwd(), 'inventory.json');
+const rolesFilePath = path.resolve(process.cwd(), 'command_roles.json');
 
 const DEFAULT_LOOT_CONFIG = {
     mode: "relative",
@@ -41,6 +42,18 @@ const DEFAULT_LOOT_CONFIG = {
         { id: "spytheproot", name: "SpyTheProot", emoji: "<:SpyTheProot:1542483331734573148>", catchCredits: 5000n, sellValue: 0n, chance: 0.5, sellable: false }
     ]
 };
+
+function loadRolesDB() {
+    try {
+        if (fs.existsSync(rolesFilePath)) {
+            const raw = fs.readFileSync(rolesFilePath, 'utf8').trim();
+            return raw ? JSON.parse(raw) : {};
+        }
+    } catch (e) {
+        console.error('Failed to load command_roles.json:', e);
+    }
+    return {};
+}
 
 function addItemToInventory(userId, itemId) {
     try {
@@ -235,6 +248,11 @@ module.exports = {
         const isAdmin = interaction.memberPermissions?.has(8n);
         const isPublic = botConfig.CAST_MESSAGE_PUBLIC ?? true;
 
+        // Load permissions DB
+        const rolesDB = loadRolesDB();
+        const userPerms = rolesDB[userId] || [];
+        const hasGrantedPerm = userPerms.includes('fishing') || userPerms.includes('catch');
+
         // === 1. CAST SUBCOMMAND ===
         if (subcommand === 'cast' && !group) {
             const mode = interaction.options.getString('mode') || 'coastal';
@@ -389,9 +407,9 @@ module.exports = {
             return true;
         }
 
-        // === 2. CATCH SUBCOMMAND (ADMIN ONLY) ===
+        // === 2. CATCH SUBCOMMAND ===
         if (subcommand === 'catch' && !group) {
-            if (!isOwner && !isAdmin) {
+            if (!isOwner && !isAdmin && !hasGrantedPerm) {
                 await interaction.reply({
                     content: '❌ You do not have permission to force a catch!',
                     flags: MessageFlags.Ephemeral
@@ -459,7 +477,7 @@ module.exports = {
                 return true;
             }
 
-            if (!isOwner && !isAdmin) {
+            if (!isOwner && !isAdmin && !hasGrantedPerm) {
                 await interaction.reply({
                     content: '❌ You do not have permission to modify the fishing loot table!',
                     flags: MessageFlags.Ephemeral
