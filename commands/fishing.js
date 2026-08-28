@@ -399,16 +399,30 @@ module.exports = {
 
             addItemToInventory(targetUser.id, itemCaught.id);
             const newBalance = addFishingReward(targetUser.id, itemCaught.catchCredits);
-            const targetDisplay = botConfig.PING_ON_PUBLIC_MESSAGES ? `<@${targetUser.id}>` : `**${targetUser.username}**`;
 
-            let catchMsg = `<:Sus:1541509245499875439> **[Admin Force Catch]** ${targetDisplay} was given **${itemCaught.name}** ${itemCaught.emoji}!\n` +
-                           `**+${formatNumber(itemCaught.catchCredits)}**${CREDIT} *(Current Balance: **${formatNumber(newBalance)}**${CREDIT})*`;
+            const isSelf = interaction.user.id === targetUser.id;
+            const targetDisplay = botConfig.PING_ON_PUBLIC_MESSAGES ? `<@${targetUser.id}>` : `**${targetUser.username}**`;
+            const executorDisplay = `<@${interaction.user.id}>`;
+
+            let actionText = isSelf
+                ? `${executorDisplay} reached into the dev database and took **${itemCaught.name}** ${itemCaught.emoji}!`
+                : `${executorDisplay} reached into the dev database and dumped **${itemCaught.name}** ${itemCaught.emoji} directly into ${targetDisplay}'s pockets!`;
 
             if (itemCaught.flavor) {
-                catchMsg += `\n${itemCaught.flavor}`;
+                actionText += `\n${itemCaught.flavor}`;
             }
 
-            await interaction.reply({ content: catchMsg });
+            const catchEmbed = new EmbedBuilder()
+                .setColor(0xFF5555)
+                .setTitle('<:Sus:1541509245499875439> [NOT A REAL CATCH]')
+                .setDescription(actionText)
+                .addFields(
+                    { name: 'Credits Granted', value: `**+${formatNumber(itemCaught.catchCredits)}**${CREDIT}`, inline: true },
+                    { name: 'Current Balance', value: `**${formatNumber(newBalance)}**${CREDIT}`, inline: true }
+                )
+                .setFooter({ text: 'ProtoBot Dev Command Audit' });
+
+            await interaction.reply({ embeds: [catchEmbed] });
             return true;
         }
 
