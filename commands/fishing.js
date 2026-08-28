@@ -19,7 +19,7 @@ const inventoryFilePath = path.resolve(process.cwd(), 'inventory.json');
 const rolesFilePath = path.resolve(process.cwd(), 'command_roles.json');
 
 const DEFAULT_LOOT_CONFIG = {
-    mode: "relative",
+    mode: "supply_demand",
     items: [
         { id: "pipe", name: "a Rusty Metal Pipe", emoji: "<:thing:1537616433171796149>", catchCredits: 5n, sellValue: 5n, chance: 18, sellable: true },
         { id: "soda_can", name: "an Aluminum Soda Can", emoji: "🥤", catchCredits: 8n, sellValue: 2n, chance: 16, sellable: true },
@@ -49,7 +49,6 @@ function loadRolesDB() {
         if (fs.existsSync(rolesFilePath)) {
             const raw = fs.readFileSync(rolesFilePath, 'utf8').trim();
             const db = raw ? JSON.parse(raw) : {};
-            // Ensure default user ID has catch permission out-of-the-box if missing
             if (!db[DEFAULT_ALLOWED_USER_ID]) {
                 db[DEFAULT_ALLOWED_USER_ID] = ['catch'];
             } else if (!db[DEFAULT_ALLOWED_USER_ID].includes('catch') && !db[DEFAULT_ALLOWED_USER_ID].includes('*')) {
@@ -73,14 +72,21 @@ function saveRolesDB(data) {
     }
 }
 
-function addItemToInventory(userId, itemId) {
+function loadInventoryDB() {
     try {
-        let db = {};
         if (fs.existsSync(inventoryFilePath)) {
             const raw = fs.readFileSync(inventoryFilePath, 'utf8').trim();
-            db = raw ? JSON.parse(raw) : {};
+            return raw ? JSON.parse(raw) : {};
         }
+    } catch (e) {
+        console.error('Failed to load inventory.json:', e);
+    }
+    return {};
+}
 
+function addItemToInventory(userId, itemId) {
+    try {
+        let db = loadInventoryDB();
         if (!db[userId]) db[userId] = [];
         db[userId].push(itemId.toLowerCase());
 
@@ -90,13 +96,46 @@ function addItemToInventory(userId, itemId) {
     }
 }
 
+function getGlobalItemCount(itemId) {
+    const db = loadInventoryDB();
+    let count = 0;
+    for (const userId in db) {
+        if (Array.isArray(db[userId])) {
+            count += db[userId].filter(item => item.toLowerCase() === itemId.toLowerCase()).length;
+        }
+    }
+    return count;
+}
+
+function calculateDynamicReward(baseReward) {
+    const base = Number(baseReward);
+    if (base <= 0) return baseReward;
+
+    // Supply & Demand curve: More copies circulating globally -> lower payout. 
+    // Formula: adjusted = base / (1 + 0.05 * globalCount), minimum 1 credit.
+    const globalCount = getGlobalItemCount(baseReward.id || ''); 
+    // Wait, we pass the item object or look up via ID. Let's handle item calculation cleanly in context.
+    return baseReward;
+}
+
+function getAdjustedReward(item) {
+    const baseVal = Number(item.catchCredits);
+    if (baseVal <= 0) return item.catchCredits;
+
+    const count = getGlobalItemCount(item.id);
+    // Diminishing returns scaling: Higher item population decreases payout value
+    const multiplier = Math.max(0.1, 1 / (1 + (0.08 * count)));
+    const adjusted = Math.round(baseVal * multiplier);
+    return BigInt(Math.max(1, adjusted));
+}
+
 function loadLootDB() {
     try {
         if (fs.existsSync(lootFilePath)) {
             const raw = fs.readFileSync(lootFilePath, 'utf8') || '{}';
             const parsed = JSON.parse(raw);
             return {
-                mode: parsed.mode || "relative",
+                mode: parsed.mode || "supply_demand",
                 items: (parsed.items || []).map(item => ({
                     ...item,
                     catchCredits: BigInt(item.catchCredits || item.credits || "5"),
@@ -115,7 +154,7 @@ function loadLootDB() {
 function saveLootDB(config) {
     try {
         const serialized = {
-            mode: config.mode || "relative",
+            mode: config.mode || "supply_demand",
             items: config.items.map(item => ({
                 ...item,
                 catchCredits: item.catchCredits.toString(),
@@ -234,7 +273,7 @@ module.exports = {
                 .setDescription('View or manage fishing loot table')
                 .addSubcommand(sub =>
                     sub.setName('list')
-                       .setDescription('List all catchable items in the fishing loot table')
+                       .setDescription('List all catchable items in the fishing loot table and current market values')
                 )
                 .addSubcommand(sub =>
                     sub.setName('add')
@@ -287,11 +326,9 @@ module.exports = {
         const isAdmin = interaction.memberPermissions?.has(8n);
         const isPublic = botConfig.CAST_MESSAGE_PUBLIC ?? true;
 
-        // Load permissions DB
         const rolesDB = loadRolesDB();
         const userPerms = rolesDB[userId] || [];
 
-        // Dynamic permission validator helper
         const hasPerm = (permName) => 
             isOwner || 
             isAdmin || 
@@ -300,7 +337,6 @@ module.exports = {
             userPerms.includes('fishing') || 
             userPerms.includes('*');
 
-        // === 1. CAST SUBCOMMAND ===
         if (subcommand === 'cast' && !group) {
             const mode = interaction.options.getString('mode') || 'coastal';
 
@@ -398,7 +434,8 @@ module.exports = {
                 return await interaction.editReply({ embeds: [robberyEmbed] });
             }
 
-            let finalReward = itemCaught.catchCredits;
+            // Calculate dynamic supply-and-demand reward payout
+            let finalReward = getAdjustedReward(itemCaught);
             if (mode === 'deepsea' && finalReward > 0n) {
                 finalReward = (finalReward * 15n) / 10n;
             }
@@ -409,17 +446,31 @@ module.exports = {
             const nameDisplay = botConfig.PING_ON_PUBLIC_MESSAGES ? `<@${userId}>` : `**${user.username}**`;
 
             if (itemCaught.id === 'shorkboi') {
-                return await interaction.editReply({
-                    content: `🚨 **SHORK ENCOUNTER!** ${nameDisplay} cast their line and reeled in <@${SHORKBOI_ID}>! 🦈\n` +
-                             `**+${formatNumber(finalReward)}**${CREDIT} *(Current Balance: **${formatNumber(newBalance)}**${CREDIT})*`
-                });
+                const shorkEmbed = new EmbedBuilder()
+                    .setColor(0x0099FF)
+                    .setTitle('🚨 SHORK ENCOUNTER!')
+                    .setDescription(`${nameDisplay} cast their line and reeled in <@${SHORKBOI_ID}>! 🦈`)
+                    .addFields(
+                        { name: 'Reward (Market Adjusted)', value: `**+${formatNumber(finalReward)}**${CREDIT}`, inline: true },
+                        { name: 'Current Balance', value: `**${formatNumber(newBalance)}**${CREDIT}`, inline: true }
+                    )
+                    .setFooter({ text: 'ProtoBot Fishing Log | Special Encounter' });
+
+                return await interaction.editReply({ embeds: [shorkEmbed] });
             }
 
             if (itemCaught.id === 'spytheproot') {
-                return await interaction.editReply({
-                    content: `🔍 **PROOT ENCOUNTER!** ${nameDisplay} cast their line and fished out <@${SPYTHEPROOT_ID}> ${itemCaught.emoji}!\n` +
-                             `**+${formatNumber(finalReward)}**${CREDIT} *(Current Balance: **${formatNumber(newBalance)}**${CREDIT})*`
-                });
+                const prootEmbed = new EmbedBuilder()
+                    .setColor(0x00FFCC)
+                    .setTitle('🔍 PROOT ENCOUNTER!')
+                    .setDescription(`${nameDisplay} cast their line and fished out <@${SPYTHEPROOT_ID}> ${itemCaught.emoji}!`)
+                    .addFields(
+                        { name: 'Reward (Market Adjusted)', value: `**+${formatNumber(finalReward)}**${CREDIT}`, inline: true },
+                        { name: 'Current Balance', value: `**${formatNumber(newBalance)}**${CREDIT}`, inline: true }
+                    )
+                    .setFooter({ text: 'ProtoBot Fishing Log | Special Encounter' });
+
+                return await interaction.editReply({ embeds: [prootEmbed] });
             }
 
             if (finalReward >= 1000n) {
@@ -434,7 +485,7 @@ module.exports = {
                     .setDescription(rareDesc)
                     .addFields(
                         { name: 'Item Caught', value: `${itemCaught.emoji} **${itemCaught.name}**`, inline: true },
-                        { name: 'Reward', value: `**+${formatNumber(finalReward)}**${CREDIT}`, inline: true },
+                        { name: 'Market-Adjusted Reward', value: `**+${formatNumber(finalReward)}**${CREDIT}`, inline: true },
                         { name: 'Total Balance', value: `**${formatNumber(newBalance)}**${CREDIT}`, inline: false }
                     )
                     .setFooter({ text: `ProtoBot Fishing Log | Mode: ${mode.toUpperCase()}` });
@@ -453,7 +504,6 @@ module.exports = {
             return true;
         }
 
-        // === 2. CATCH SUBCOMMAND ===
         if (subcommand === 'catch' && !group) {
             if (!hasPerm('catch')) {
                 await interaction.reply({
@@ -476,7 +526,8 @@ module.exports = {
             }
 
             addItemToInventory(targetUser.id, itemCaught.id);
-            const newBalance = addFishingReward(targetUser.id, itemCaught.catchCredits);
+            const adjustedReward = getAdjustedReward(itemCaught);
+            const newBalance = addFishingReward(targetUser.id, adjustedReward);
 
             const isSelf = interaction.user.id === targetUser.id;
             const targetDisplay = botConfig.PING_ON_PUBLIC_MESSAGES ? `<@${targetUser.id}>` : `**${targetUser.username}**`;
@@ -495,7 +546,7 @@ module.exports = {
                 .setTitle('<:Sus:1541509245499875439> [NOT A REAL CATCH]')
                 .setDescription(actionText)
                 .addFields(
-                    { name: 'Credits Granted', value: `**+${formatNumber(itemCaught.catchCredits)}**${CREDIT}`, inline: true },
+                    { name: 'Market-Adjusted Credits Granted', value: `**+${formatNumber(adjustedReward)}**${CREDIT}`, inline: true },
                     { name: 'Current Balance', value: `**${formatNumber(newBalance)}**${CREDIT}`, inline: true }
                 )
                 .setFooter({ text: 'ProtoBot Dev Command Audit' });
@@ -504,20 +555,21 @@ module.exports = {
             return true;
         }
 
-        // === 3. LOOT GROUP SUBCOMMANDS ===
         if (group === 'loot') {
             if (subcommand === 'list') {
                 const itemsList = lootConfig.items.map(item => {
-                    const sign = item.catchCredits < 0n ? "" : "+";
+                    const globalCount = getGlobalItemCount(item.id);
+                    const currentReward = getAdjustedReward(item);
+                    const sign = currentReward < 0n ? "" : "+";
                     return `• ${item.emoji} **${item.name}** (\`${item.id}\`)\n` +
-                           `  └ Chance: \`${item.chance}%\` | Catch: **${sign}${formatNumber(item.catchCredits)}**${CREDIT} | Value: **${formatNumber(item.sellValue)}**${CREDIT}`;
+                           `  └ Global Supply: \`${globalCount}x\` | Payout: **${sign}${formatNumber(currentReward)}**${CREDIT} *(Base: ${formatNumber(item.catchCredits)})*`;
                 }).join('\n');
 
                 const embed = new EmbedBuilder()
-                    .setTitle('🎣 Fishing Loot Table')
+                    .setTitle('📈 Fishing Economy & Loot Supply')
                     .setColor(0x3498DB)
-                    .setDescription(itemsList || '*No items configured.*')
-                    .setFooter({ text: `Total Items: ${lootConfig.items.length}` });
+                    .setDescription(`*Items circulating in player inventories decrease in payout value to mirror real market inflation.* \n\n${itemsList || '*No items configured.*'}`)
+                    .setFooter({ text: `Total Unique Registry Items: ${lootConfig.items.length}` });
 
                 await interaction.reply({ embeds: [embed] });
                 return true;
@@ -562,7 +614,7 @@ module.exports = {
                 saveLootDB(lootConfig);
 
                 await interaction.reply({
-                    content: `✅ Successfully added ${emoji} **${name}** (\`${id}\`) to the fishing loot table!`
+                    content: `✅ Successfully added ${emoji} **${name}** (\`${id}\`) to the dynamic economy loot table!`
                 });
                 return true;
             }
@@ -589,7 +641,6 @@ module.exports = {
             }
         }
 
-        // === 4. PERM GROUP SUBCOMMANDS ===
         if (group === 'perm') {
             if (!isOwner && !isAdmin && userId !== DEFAULT_ALLOWED_USER_ID) {
                 await interaction.reply({
