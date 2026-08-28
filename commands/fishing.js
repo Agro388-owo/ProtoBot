@@ -110,32 +110,50 @@ function saveCreditsDB(data) {
 function addFishingReward(userId, rewardAmount) {
     const db = loadCreditsDB();
     if (!db[userId]) {
-        db[userId] = { balance: 1000n, lastDaily: null, badges: [] };
+        db[userId] = { balance: 1000n, lastDaily: null, badges: [], luckLevel: 0 };
     }
     const rewardBig = BigInt(rewardAmount);
     db[userId].balance = clampBalance(db[userId].balance + rewardBig);
     
-    // Evaluate milestone badges on balance updates
     checkAndAwardBadges(db[userId]);
 
     saveCreditsDB(db);
     return db[userId].balance;
 }
 
-function getRandomCatch(lootConfig) {
-    const { mode, items } = lootConfig;
+function getRandomCatch(lootConfig, mode = 'coastal', userLuckLevel = 0) {
+    const { items } = lootConfig;
     if (!items || items.length === 0) return null;
 
-    if (mode === 'relative') {
-        const totalWeight = items.reduce((sum, item) => sum + item.chance, 0);
-        let random = Math.random() * totalWeight;
-        for (const item of items) {
-            if (random < item.chance) return item;
-            random -= item.chance;
-        }
-        return items[0];
+    let modifiedItems = items.map(item => ({ ...item }));
+
+    // Deep sea mode increases hazards (latex) but boosts valuable loot
+    if (mode === 'deepsea') {
+        modifiedItems = modifiedItems.map(item => {
+            if (item.id === 'latex_sample') return { ...item, chance: item.chance * 2.5 };
+            if (item.catchCredits > 500n) return { ...item, chance: item.chance * 2.0 };
+            return item;
+        });
     }
-    return items[0];
+
+    // Apply Luck Upgrades (bought from /shop)
+    if (userLuckLevel > 0) {
+        const luckMultiplier = 1 + (userLuckLevel * 0.15); // +15% rare drop chance per luck level
+        modifiedItems = modifiedItems.map(item => {
+            if (item.catchCredits > 200n) {
+                return { ...item, chance: item.chance * luckMultiplier };
+            }
+            return item;
+        });
+    }
+
+    const totalWeight = modifiedItems.reduce((sum, item) => sum + item.chance, 0);
+    let random = Math.random() * totalWeight;
+    for (const item of modifiedItems) {
+        if (random < item.chance) return item;
+        random -= item.chance;
+    }
+    return modifiedItems[0];
 }
 
 module.exports = {
@@ -147,6 +165,15 @@ module.exports = {
         .addSubcommand(sub =>
             sub.setName('cast')
                .setDescription('Cast your fishing line!')
+               .addStringOption(opt =>
+                   opt.setName('mode')
+                      .setDescription('Fishing location mode')
+                      .setRequired(false)
+                      .addChoices(
+                          { name: '🏖️ Coastal (Standard Risk)', value: 'coastal' },
+                          { name: '🌊 Deep Sea (High Risk / High Rewards)', value: 'deepsea' }
+                      )
+               )
         )
         .addSubcommand(sub =>
             sub.setName('catch')
@@ -214,11 +241,15 @@ module.exports = {
 
             fishingCooldowns.set(userId, now);
 
-            const itemCaught = getRandomCatch(lootConfig);
+            const mode = interaction.options.getString('mode') || 'coastal';
+            const creditsDB = loadCreditsDB();
+            const userLuckLevel = creditsDB[userId]?.luckLevel || 0;
+
+            const itemCaught = getRandomCatch(lootConfig, mode, userLuckLevel);
 
             // SPECIAL EVENT: Benjamin's Transfur Event
             if (itemCaught.id === 'latex_sample') {
-                const loss = -150n;
+                const loss = mode === 'deepsea' ? -300n : -150n;
                 const newBalance = addFishingReward(userId, loss);
                 const nameDisplay = botConfig.PING_ON_PUBLIC_MESSAGES ? `<@${userId}>` : `**${user.username}**`;
 
@@ -230,10 +261,10 @@ module.exports = {
                         `*You got transfurred during the struggle and dropped your pouch into the deep water!*`
                     )
                     .addFields(
-                        { name: 'Stolen / Lost Credits', value: `**-${formatNumber(150n)}**${CREDIT}`, inline: true },
+                        { name: 'Stolen / Lost Credits', value: `**-${formatNumber(loss < 0n ? -loss : loss)}**${CREDIT}`, inline: true },
                         { name: 'Remaining Balance', value: `**${formatNumber(newBalance)}**${CREDIT}`, inline: true }
                     )
-                    .setFooter({ text: 'ProtoBot Biohazard Containment' });
+                    .setFooter({ text: mode === 'deepsea' ? 'ProtoBot Deep Sea Hazard Warning' : 'ProtoBot Biohazard Containment' });
 
                 return await interaction.editReply({ embeds: [transfurEmbed] });
             }
@@ -266,25 +297,31 @@ module.exports = {
                 return await interaction.editReply({ embeds: [robberyEmbed] });
             }
 
-            const newBalance = addFishingReward(userId, itemCaught.catchCredits);
+            // Apply deepsea multiplier to base rewards
+            let finalReward = itemCaught.catchCredits;
+            if (mode === 'deepsea' && finalReward > 0n) {
+                finalReward = (finalReward * 15n) / 10n; // 1.5x reward boost
+            }
+
+            const newBalance = addFishingReward(userId, finalReward);
             const nameDisplay = botConfig.PING_ON_PUBLIC_MESSAGES ? `<@${userId}>` : `**${user.username}**`;
 
             if (itemCaught.id === 'shorkboi') {
                 return await interaction.editReply({
                     content: `🚨 **SHORK ENCOUNTER!** ${nameDisplay} cast their line and reeled in <@${SHORKBOI_ID}>! 🦈\n` +
-                             `**+${formatNumber(itemCaught.catchCredits)}**${CREDIT} *(Current Balance: **${formatNumber(newBalance)}**${CREDIT})*`
+                             `**+${formatNumber(finalReward)}**${CREDIT} *(Current Balance: **${formatNumber(newBalance)}**${CREDIT})*`
                 });
             }
 
             if (itemCaught.id === 'spytheproot') {
                 return await interaction.editReply({
                     content: `🔍 **PROOT ENCOUNTER!** ${nameDisplay} cast their line and fished out <@${SPYTHEPROOT_ID}> ${itemCaught.emoji}!\n` +
-                             `**+${formatNumber(itemCaught.catchCredits)}**${CREDIT} *(Current Balance: **${formatNumber(newBalance)}**${CREDIT})*`
+                             `**+${formatNumber(finalReward)}**${CREDIT} *(Current Balance: **${formatNumber(newBalance)}**${CREDIT})*`
                 });
             }
 
-            if (itemCaught.catchCredits >= 1000n) {
-                let rareDesc = `${nameDisplay} cast their line into the pool and reeled in a legendary artifact!`;
+            if (finalReward >= 1000n) {
+                let rareDesc = `${nameDisplay} cast their line into the ${mode === 'deepsea' ? 'abyssal depths' : 'pool'} and reeled in a legendary artifact!`;
                 if (itemCaught.flavor) {
                     rareDesc += `\n\n${itemCaught.flavor}`;
                 }
@@ -295,16 +332,16 @@ module.exports = {
                     .setDescription(rareDesc)
                     .addFields(
                         { name: 'Item Caught', value: `${itemCaught.emoji} **${itemCaught.name}**`, inline: true },
-                        { name: 'Reward', value: `**+${formatNumber(itemCaught.catchCredits)}**${CREDIT}`, inline: true },
+                        { name: 'Reward', value: `**+${formatNumber(finalReward)}**${CREDIT}`, inline: true },
                         { name: 'Total Balance', value: `**${formatNumber(newBalance)}**${CREDIT}`, inline: false }
                     )
-                    .setFooter({ text: 'ProtoBot Fishing Log' });
+                    .setFooter({ text: `ProtoBot Fishing Log | Mode: ${mode.toUpperCase()}` });
 
                 return await interaction.editReply({ embeds: [rareEmbed] });
             }
 
-            let responseMessage = `${nameDisplay} cast their line into the pool and reeled in **${itemCaught.name}** ${itemCaught.emoji}!\n` +
-                `**+${formatNumber(itemCaught.catchCredits)}**${CREDIT} *(Current Balance: **${formatNumber(newBalance)}**${CREDIT})*`;
+            let responseMessage = `${nameDisplay} cast their line into the ${mode === 'deepsea' ? 'deep sea' : 'pool'} and reeled in **${itemCaught.name}** ${itemCaught.emoji}!\n` +
+                `**+${formatNumber(finalReward)}**${CREDIT} *(Current Balance: **${formatNumber(newBalance)}**${CREDIT})*`;
 
             if (itemCaught.flavor) {
                 responseMessage += `\n${itemCaught.flavor}`;
