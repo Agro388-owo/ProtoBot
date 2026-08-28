@@ -1,5 +1,43 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
+const fs = require('fs');
+const path = require('path');
 const botConfig = require('../config.js');
+
+const inventoryFilePath = path.join(__dirname, '../inventory.json');
+const lootFilePath = path.join(__dirname, '../fishing_loot.json');
+
+function loadInventoryDB() {
+    try {
+        if (fs.existsSync(inventoryFilePath)) {
+            const raw = fs.readFileSync(inventoryFilePath, 'utf8') || '{}';
+            return JSON.parse(raw);
+        }
+    } catch (e) {
+        console.error('Failed to load inventory.json:', e);
+    }
+    return {};
+}
+
+function saveInventoryDB(data) {
+    try {
+        fs.writeFileSync(inventoryFilePath, JSON.stringify(data, null, 2), 'utf8');
+    } catch (e) {
+        console.error('Failed to save inventory.json:', e);
+    }
+}
+
+function loadLootDB() {
+    try {
+        if (fs.existsSync(lootFilePath)) {
+            const raw = fs.readFileSync(lootFilePath, 'utf8') || '{}';
+            const parsed = JSON.parse(raw);
+            return parsed.items || [];
+        }
+    } catch (e) {
+        console.error('Failed to load fishing_loot.json in inventory:', e);
+    }
+    return [];
+}
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -21,7 +59,7 @@ module.exports = {
         .addSubcommand(sub =>
             sub
                 .setName('add')
-                .setDescription('Add an item to a user\'s inventory (Owner only)')
+                .setDescription('Add an item to a user\'s inventory (Owner/Admin only)')
                 .addUserOption(opt =>
                     opt
                         .setName('user')
@@ -31,14 +69,14 @@ module.exports = {
                 .addStringOption(opt =>
                     opt
                         .setName('item')
-                        .setDescription('The name of the item to add')
+                        .setDescription('Item ID (e.g., pipe, ram, salmon) or custom name')
                         .setRequired(true)
                 )
         )
         .addSubcommand(sub =>
             sub
                 .setName('remove')
-                .setDescription('Remove a single item from a user\'s inventory (Owner only)')
+                .setDescription('Remove a single item from a user\'s inventory (Owner/Admin only)')
                 .addUserOption(opt =>
                     opt
                         .setName('user')
@@ -48,41 +86,52 @@ module.exports = {
                 .addStringOption(opt =>
                     opt
                         .setName('item')
-                        .setDescription('The name of the item to remove')
+                        .setDescription('Item ID or name to remove')
                         .setRequired(true)
                 )
         )
         .addSubcommand(sub =>
             sub
                 .setName('clear')
-                .setDescription('Clear an inventory or remove a specific item from a user (Owner only)')
+                .setDescription('Clear an inventory completely (Owner/Admin only)')
                 .addUserOption(opt =>
                     opt
                         .setName('user')
                         .setDescription('The user whose inventory to clear')
                         .setRequired(true)
                 )
-                .addStringOption(opt =>
-                    opt
-                        .setName('item')
-                        .setDescription('Specific item to remove (leave blank to clear full inventory)')
-                        .setRequired(false)
-                )
         ),
 
     async execute(interaction) {
         const subcommand = interaction.options.getSubcommand();
+        const userId = interaction.user.id;
+        const ownerId = botConfig.OWNER_ID || botConfig.ownerId;
+        const isOwner = userId === ownerId;
+        const isAdmin = interaction.memberPermissions?.has(8n);
 
-        // Safe setup for target inventories object in config
-        if (!botConfig.inventories) botConfig.inventories = {};
+        const inventoryDB = loadInventoryDB();
+        const lootItems = loadLootDB();
 
-        // === 1. VIEW SUBCOMMAND (Public / Any user) ===
+        // Helper to format item display with emoji if found in loot config
+        const formatItemDisplay = (itemId) => {
+            const matched = lootItems.find(i => i.id.toLowerCase() === itemId.toLowerCase());
+            return matched ? `${matched.emoji} **${matched.name}** (\`${matched.id}\`)` : `📦 **${itemId}**`;
+        };
+
+        // === 1. VIEW SUBCOMMAND ===
         if (subcommand === 'view') {
             const targetUser = interaction.options.getUser('user') || interaction.user;
-            const items = botConfig.inventories[targetUser.id] || [];
+            const userItems = inventoryDB[targetUser.id] || [];
 
-            const itemList = items.length > 0 
-                ? items.map((item, idx) => `**${idx + 1}.** ${item}`).join('\n')
+            // Aggregate duplicate item counts
+            const itemCounts = {};
+            for (const item of userItems) {
+                itemCounts[item] = (itemCounts[item] || 0) + 1;
+            }
+
+            const itemKeys = Object.keys(itemCounts);
+            const itemList = itemKeys.length > 0
+                ? itemKeys.map(id => `${formatItemDisplay(id)} × **${itemCounts[id]}**`).join('\n')
                 : '*Inventory is currently empty.*';
 
             const embed = new EmbedBuilder()
@@ -90,17 +139,17 @@ module.exports = {
                 .setColor(0x5865F2)
                 .setDescription(itemList)
                 .setThumbnail(targetUser.displayAvatarURL({ size: 128 }))
-                .setFooter({ text: `Total Items: ${items.length}` });
+                .setFooter({ text: `Total Items: ${userItems.length}` });
 
-            await interaction.reply({ embeds: [embed], ephemeral: true });
+            await interaction.reply({ embeds: [embed] });
             return null;
         }
 
-        // === OWNER GUARD FOR ADMINISTRATIVE SUBCOMMANDS ===
-        if (interaction.user.id !== botConfig.OWNER_ID) {
+        // === ADMIN / OWNER GUARD ===
+        if (!isOwner && !isAdmin) {
             await interaction.reply({
-                content: '❌ Only the designated bot owner can manage user inventories!',
-                ephemeral: true
+                content: '❌ You do not have permission to modify user inventories!',
+                flags: MessageFlags.Ephemeral
             });
             return null;
         }
@@ -108,17 +157,17 @@ module.exports = {
         // === 2. ADD SUBCOMMAND ===
         if (subcommand === 'add') {
             const targetUser = interaction.options.getUser('user');
-            const item = interaction.options.getString('item').trim();
+            const itemId = interaction.options.getString('item').trim().toLowerCase();
 
-            if (!botConfig.inventories[targetUser.id]) {
-                botConfig.inventories[targetUser.id] = [];
+            if (!inventoryDB[targetUser.id]) {
+                inventoryDB[targetUser.id] = [];
             }
 
-            botConfig.inventories[targetUser.id].push(item);
+            inventoryDB[targetUser.id].push(itemId);
+            saveInventoryDB(inventoryDB);
 
             await interaction.reply({
-                content: `✅ Added **"${item}"** to <@${targetUser.id}>'s inventory.`,
-                ephemeral: true
+                content: `✅ Added ${formatItemDisplay(itemId)} to <@${targetUser.id}>'s inventory.`
             });
             return null;
         }
@@ -126,26 +175,26 @@ module.exports = {
         // === 3. REMOVE SUBCOMMAND ===
         if (subcommand === 'remove') {
             const targetUser = interaction.options.getUser('user');
-            const targetItem = interaction.options.getString('item').trim();
-            const userInventory = botConfig.inventories[targetUser.id] || [];
+            const targetItem = interaction.options.getString('item').trim().toLowerCase();
+            const userInventory = inventoryDB[targetUser.id] || [];
 
             const itemIndex = userInventory.findIndex(
-                item => item.toLowerCase() === targetItem.toLowerCase()
+                item => item.toLowerCase() === targetItem
             );
 
             if (itemIndex === -1) {
                 await interaction.reply({
-                    content: `⚠️ Item **"${targetItem}"** was not found in <@${targetUser.id}>'s inventory.`,
-                    ephemeral: true
+                    content: `⚠️ Item \`${targetItem}\` was not found in <@${targetUser.id}>'s inventory.`,
+                    flags: MessageFlags.Ephemeral
                 });
                 return null;
             }
 
             const removed = userInventory.splice(itemIndex, 1)[0];
+            saveInventoryDB(inventoryDB);
 
             await interaction.reply({
-                content: `🗑️ Removed **"${removed}"** from <@${targetUser.id}>'s inventory.`,
-                ephemeral: true
+                content: `🗑️ Removed ${formatItemDisplay(removed)} from <@${targetUser.id}>'s inventory.`
             });
             return null;
         }
@@ -153,41 +202,12 @@ module.exports = {
         // === 4. CLEAR SUBCOMMAND ===
         if (subcommand === 'clear') {
             const targetUser = interaction.options.getUser('user');
-            const targetItem = interaction.options.getString('item');
+            inventoryDB[targetUser.id] = [];
+            saveInventoryDB(inventoryDB);
 
-            if (!botConfig.inventories[targetUser.id]) {
-                botConfig.inventories[targetUser.id] = [];
-            }
-
-            const userInventory = botConfig.inventories[targetUser.id];
-
-            if (targetItem) {
-                const itemIndex = userInventory.findIndex(
-                    item => item.toLowerCase() === targetItem.trim().toLowerCase()
-                );
-
-                if (itemIndex === -1) {
-                    await interaction.reply({
-                        content: `⚠️ Item **"${targetItem}"** was not found in <@${targetUser.id}>'s inventory.`,
-                        ephemeral: true
-                    });
-                    return null;
-                }
-
-                const removedItem = userInventory.splice(itemIndex, 1)[0];
-
-                await interaction.reply({
-                    content: `🗑️ Removed **"${removedItem}"** from <@${targetUser.id}>'s inventory.`,
-                    ephemeral: true
-                });
-            } else {
-                botConfig.inventories[targetUser.id] = [];
-
-                await interaction.reply({
-                    content: `🧹 Cleared all items from <@${targetUser.id}>'s inventory.`,
-                    ephemeral: true
-                });
-            }
+            await interaction.reply({
+                content: `🧹 Cleared all items from <@${targetUser.id}>'s inventory.`
+            });
             return null;
         }
     }
