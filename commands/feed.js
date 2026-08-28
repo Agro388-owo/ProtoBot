@@ -40,35 +40,35 @@ async function loadTagsData() {
     return {};
 }
 
-// Check if user entry or tags match any of the valid species
+// Check if user entry matches any of the valid species using userTags and transfurTags
 function isCyberneticSpecies(userEntry) {
     if (!userEntry) return false;
 
     let extractedTags = [];
 
-    // 1. Direct species property check if stored on the entry
+    // Check direct species property if it exists
     if (userEntry.species && typeof userEntry.species === 'string') {
         extractedTags.push(userEntry.species.toLowerCase());
     }
 
-    // 2. Handle tags array (handles array of strings OR array of objects with .name or .tag)
-    if (Array.isArray(userEntry.tags)) {
-        userEntry.tags.forEach(t => {
-            if (typeof t === 'string') {
-                extractedTags.push(t.toLowerCase());
-            } else if (typeof t === 'object' && t !== null) {
-                if (t.name) extractedTags.push(String(t.name).toLowerCase());
-                if (t.tag) extractedTags.push(String(t.tag).toLowerCase());
-                if (t.species) extractedTags.push(String(t.species).toLowerCase());
-            }
+    // Check userTags array
+    if (Array.isArray(userEntry.userTags)) {
+        userEntry.userTags.forEach(t => {
+            if (typeof t === 'string') extractedTags.push(t.toLowerCase());
         });
     }
 
-    // 3. Handle object-style tags structure if applicable
-    if (typeof userEntry.tags === 'object' && !Array.isArray(userEntry.tags) && userEntry.tags !== null) {
-        Object.values(userEntry.tags).forEach(t => {
+    // Check transfurTags array
+    if (Array.isArray(userEntry.transfurTags)) {
+        userEntry.transfurTags.forEach(t => {
             if (typeof t === 'string') extractedTags.push(t.toLowerCase());
-            else if (t && t.name) extractedTags.push(String(t.name).toLowerCase());
+        });
+    }
+
+    // Fallback in case old `.tags` format exists
+    if (Array.isArray(userEntry.tags)) {
+        userEntry.tags.forEach(t => {
+            if (typeof t === 'string') extractedTags.push(t.toLowerCase());
         });
     }
 
