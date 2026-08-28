@@ -135,39 +135,9 @@ function normalizeUserData(entry) {
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('tag')
-        .setDescription('Manage custom user tags and Pale Virus immunity keywords!')
+        .setDescription('Manage Pale Virus immunity keywords!')
         .setIntegrationTypes([0, 1])
         .setContexts([0, 1, 2])
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName('add')
-                .setDescription('Add a new custom tag to your collection (up to 50 total slots across all users).')
-                .addStringOption(option =>
-                    option.setName('tag')
-                          .setDescription('The custom tag text to add (e.g. Protogen, Dark Latex Wolf, Synth)')
-                          .setRequired(true)
-                )
-                .addUserOption(option =>
-                    option.setName('target')
-                          .setDescription('[Owner Only] Optional: The user to add the tag for')
-                          .setRequired(false)
-                )
-        )
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName('remove')
-                .setDescription('Remove a specific custom tag from your collection.')
-                .addStringOption(option =>
-                    option.setName('tag')
-                          .setDescription('The exact custom tag text you want to remove')
-                          .setRequired(true)
-                )
-                .addUserOption(option =>
-                    option.setName('target')
-                          .setDescription('[Owner Only] Optional: The user to remove the tag from')
-                          .setRequired(false)
-                )
-        )
         .addSubcommand(subcommand =>
             subcommand
                 .setName('list')
@@ -264,7 +234,7 @@ module.exports = {
 
                 if (userTags.length === 0 && transfurTags.length === 0) {
                     const message = targetUser.id === userId 
-                        ? `📂 **Your Custom Tags:**\n• You don't have any custom tags set right now! Use \`/tag add\` to create one.`
+                        ? `📂 **Your Custom Tags:**\n• You don't have any custom tags set right now!`
                         : `📂 **Custom Tags:**\n• <@${targetUser.id}> does not have any custom tags set right now!`;
 
                     return await interaction.editReply({ content: message });
@@ -279,95 +249,6 @@ module.exports = {
                 }
 
                 return await interaction.editReply({ content: response });
-            }
-
-            if (subcommand === 'add') {
-                const customTag = interaction.options.getString('tag');
-                const targetUser = interaction.options.getUser('target') || interaction.user;
-
-                if (targetUser.id !== userId && !isOwner) {
-                    return await interaction.editReply({ content: `❌ Only the bot owner can assign tags to other users!` });
-                }
-
-                const recipientId = targetUser.id;
-                const recipientUsername = targetUser.username;
-
-                if (!allUserTags[recipientId]) {
-                    allUserTags[recipientId] = {
-                        username: recipientUsername,
-                        userTags: [],
-                        transfurTags: []
-                    };
-                } else {
-                    // Normalize existing entry
-                    const normalized = normalizeUserData(allUserTags[recipientId]);
-                    allUserTags[recipientId] = {
-                        username: recipientUsername,
-                        userTags: normalized.userTags,
-                        transfurTags: normalized.transfurTags
-                    };
-                }
-
-                if (allUserTags[recipientId].userTags.includes(customTag)) {
-                    return await interaction.editReply({ content: `⚠️ <@${recipientId}> already has the tag **\`${customTag}\`** in their user tag list!` });
-                }
-
-                // Global limit check across userTags
-                let totalSlotsUsed = Object.entries(allUserTags)
-                    .filter(([key]) => key !== '_meta')
-                    .reduce((acc, [, entry]) => {
-                        const normalized = normalizeUserData(entry);
-                        return acc + normalized.userTags.length;
-                    }, 0);
-
-                if (totalSlotsUsed >= 50) {
-                    return await interaction.editReply({ content: `❌ Maximum global tag capacity reached (50/50 slots across all users)!` });
-                }
-
-                allUserTags[recipientId].userTags.push(customTag);
-                await saveTagsToGitHub(allUserTags);
-
-                return await interaction.editReply({ content: `🏷️ Successfully added the custom tag **\`${customTag}\`** for <@${recipientId}>! (Saved as: ${recipientUsername})` });
-            }
-
-            if (subcommand === 'remove') {
-                const customTag = interaction.options.getString('tag');
-                const targetUser = interaction.options.getUser('target') || interaction.user;
-
-                if (targetUser.id !== userId && !isOwner) {
-                    return await interaction.editReply({ content: `❌ Only the bot owner can remove other users' custom tags!` });
-                }
-
-                const recipientId = targetUser.id;
-                const entry = allUserTags[recipientId];
-                
-                if (!entry) {
-                    return await interaction.editReply({ content: `⚠️ Could not find any tags for <@${recipientId}>!` });
-                }
-
-                const normalized = normalizeUserData(entry);
-                const tagIndex = normalized.userTags.indexOf(customTag);
-
-                if (tagIndex === -1) {
-                    return await interaction.editReply({ content: `⚠️ Could not find the custom user tag **\`${customTag}\`** for <@${recipientId}>!` });
-                }
-
-                normalized.userTags.splice(tagIndex, 1);
-
-                // If both arrays are empty, delete user key completely
-                if (normalized.userTags.length === 0 && normalized.transfurTags.length === 0) {
-                    delete allUserTags[recipientId];
-                } else {
-                    allUserTags[recipientId] = {
-                        username: targetUser.username,
-                        userTags: normalized.userTags,
-                        transfurTags: normalized.transfurTags
-                    };
-                }
-
-                await saveTagsToGitHub(allUserTags);
-
-                return await interaction.editReply({ content: `🗑️ Successfully removed **\`${customTag}\`** from <@${recipientId}>!` });
             }
         } catch (error) {
             console.error("TAG_COMMAND_ERROR:", error);
