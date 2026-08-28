@@ -28,10 +28,7 @@
     "userTags": [
       "THE BLOXYMAN"
     ],
-    "transfurTags": [
-      "",
-      ""
-    ]
+    "transfurTags": []
   },
   "1464072486651170931": {
     "username": "spytheproot",
@@ -59,8 +56,11 @@
     "username": "ostwindmalfoybloodylady",
     "userTags": [
       "DemonGirl",
-      "ostwindmalfoybloodylady"
+      "ostwindmalfoybloodylady", 
+      "demon"
     ],
-    "transfurTags": []
+    "transfurTags": [
+      "demon"
+    ]
   }
 }
