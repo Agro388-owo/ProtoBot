@@ -25,7 +25,7 @@ const DEFAULT_LOOT_CONFIG = {
         { id: "latex_sample", name: "a Strange Latex Puddle", emoji: "<:puroshock:1536366927230799972>", catchCredits: -150n, sellValue: 0n, chance: 8, sellable: false },
         { id: "salmon", name: "a Fresh Salmon", emoji: "<:Puro_doing_a_swim:1538666516680282233>", catchCredits: 25n, sellValue: 10n, chance: 12, sellable: true },
         { id: "ram", name: "a High-Speed DDR5 RAM Stick", emoji: "<:Ram:1541508957216964668>", catchCredits: 50n, sellValue: 15n, chance: 9, sellable: true },
-        { id: "copper_wire", name: "a Bundle of Copper Wire", emoji: "🧵", catchCredits: 120n, sellValue: 80n, chance: 7, sellable: true },
+        { id: "copper_wire", name: "a Bundle of Copper Wire", emoji: "<:BalkanBitcoin:1542843185041117224>", catchCredits: 120n, sellValue: 80n, chance: 7, sellable: true },
         { id: "battery", name: "a Heavy Lithium Battery", emoji: "<:puroshock:1536366927230799972>", catchCredits: 100n, sellValue: 25n, chance: 5, sellable: true },
         { id: "core", name: "a Glowing Latex Core", emoji: "<:CuteBlackCub:1538665557325254737>", catchCredits: 250n, sellValue: 50n, chance: 4, sellable: true },
         { id: "cult_tracker", name: "a Cult Tracker", emoji: "👁️", catchCredits: -250n, sellValue: 0n, chance: 0.1, sellable: false },
