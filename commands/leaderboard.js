@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
 const fs = require('fs');
-const path = path = require('path');
+const path = require('path');
 
 const { CREDIT, formatNumber, clampBalance } = require('./credits.js');
 
