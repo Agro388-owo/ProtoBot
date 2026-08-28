@@ -17,6 +17,27 @@ const lootFilePath = path.resolve(process.cwd(), 'fishing_loot.json');
 const creditsFilePath = path.resolve(process.cwd(), 'credits.json');
 const inventoryFilePath = path.resolve(process.cwd(), 'inventory.json');
 const rolesFilePath = path.resolve(process.cwd(), 'command_roles.json');
+const configFilePath = path.resolve(process.cwd(), 'fishing_config.json');
+
+function loadFishingConfig() {
+    try {
+        if (fs.existsSync(configFilePath)) {
+            const raw = fs.readFileSync(configFilePath, 'utf8').trim();
+            return raw ? JSON.parse(raw) : { abyssalLocked: false };
+        }
+    } catch (e) {
+        console.error('Failed to load fishing_config.json:', e);
+    }
+    return { abyssalLocked: false };
+}
+
+function saveFishingConfig(config) {
+    try {
+        fs.writeFileSync(configFilePath, JSON.stringify(config, null, 2), 'utf8');
+    } catch (e) {
+        console.error('Failed to save fishing_config.json:', e);
+    }
+}
 
 const DEFAULT_LOOT_CONFIG = {
     mode: "supply_demand",
@@ -43,6 +64,12 @@ const DEFAULT_LOOT_CONFIG = {
         { id: "spytheproot", name: "SpyTheProot", emoji: "<:SpyTheProot:1542483331734573148>", catchCredits: 5000n, sellValue: 0n, chance: 0.5, sellable: false }
     ]
 };
+
+const ABYSSAL_EXCLUSIVE_ITEMS = [
+    { id: "abyssal_pearl", name: "an Iridescent Abyssal Pearl", emoji: "🔮", catchCredits: 1000n, sellValue: 400n, chance: 12, sellable: true, flavor: "*It pulses with a cold, otherworldly luminescence from the crushing depths.*", abyssalOnly: true },
+    { id: "void_shard", name: "a Shard of Pure Void Matter", emoji: "🌌", catchCredits: 1200n, sellValue: 650n, chance: 7, sellable: true, flavor: "*Light seems to bend around its jagged edges, whispering secrets of the deep trench.*", abyssalOnly: true },
+    { id: "leviathan_scale", name: "an Ancient Leviathan Scale", emoji: "🛡️", catchCredits: 1800n, sellValue: 950n, chance: 3, sellable: true, flavor: "*Heavy as solid steel and impossibly resilient to extreme pressure.*", abyssalOnly: true }
+];
 
 function loadRolesDB() {
     try {
@@ -107,23 +134,11 @@ function getGlobalItemCount(itemId) {
     return count;
 }
 
-function calculateDynamicReward(baseReward) {
-    const base = Number(baseReward);
-    if (base <= 0) return baseReward;
-
-    // Supply & Demand curve: More copies circulating globally -> lower payout. 
-    // Formula: adjusted = base / (1 + 0.05 * globalCount), minimum 1 credit.
-    const globalCount = getGlobalItemCount(baseReward.id || ''); 
-    // Wait, we pass the item object or look up via ID. Let's handle item calculation cleanly in context.
-    return baseReward;
-}
-
 function getAdjustedReward(item) {
     const baseVal = Number(item.catchCredits);
     if (baseVal <= 0) return item.catchCredits;
 
     const count = getGlobalItemCount(item.id);
-    // Diminishing returns scaling: Higher item population decreases payout value
     const multiplier = Math.max(0.1, 1 / (1 + (0.08 * count)));
     const adjusted = Math.round(baseVal * multiplier);
     return BigInt(Math.max(1, adjusted));
@@ -134,21 +149,33 @@ function loadLootDB() {
         if (fs.existsSync(lootFilePath)) {
             const raw = fs.readFileSync(lootFilePath, 'utf8') || '{}';
             const parsed = JSON.parse(raw);
+            let items = (parsed.items || []).map(item => ({
+                ...item,
+                catchCredits: BigInt(item.catchCredits || item.credits || "5"),
+                sellValue: BigInt(item.sellValue || "5"),
+                chance: parseFloat(item.chance),
+                sellable: item.sellable ?? true,
+                abyssalOnly: item.abyssalOnly ?? false
+            }));
+
+            for (const abyssalItem of ABYSSAL_EXCLUSIVE_ITEMS) {
+                if (!items.some(i => i.id === abyssalItem.id)) {
+                    items.push(abyssalItem);
+                }
+            }
+
             return {
                 mode: parsed.mode || "supply_demand",
-                items: (parsed.items || []).map(item => ({
-                    ...item,
-                    catchCredits: BigInt(item.catchCredits || item.credits || "5"),
-                    sellValue: BigInt(item.sellValue || "5"),
-                    chance: parseFloat(item.chance),
-                    sellable: item.sellable ?? true
-                }))
+                items
             };
         }
     } catch (e) {
         console.error('Failed to load fishing_loot.json:', e);
     }
-    return DEFAULT_LOOT_CONFIG;
+    return {
+        ...DEFAULT_LOOT_CONFIG,
+        items: [...DEFAULT_LOOT_CONFIG.items, ...ABYSSAL_EXCLUSIVE_ITEMS]
+    };
 }
 
 function saveLootDB(config) {
@@ -213,7 +240,17 @@ function getRandomCatch(lootConfig, mode = 'coastal', userLuckLevel = 0) {
     const { items } = lootConfig;
     if (!items || items.length === 0) return null;
 
-    let modifiedItems = items.map(item => ({ ...item }));
+    let modifiedItems = items
+        .filter(item => {
+            if (item.abyssalOnly) return mode === 'abyssal';
+            if (mode === 'abyssal') return item.catchCredits >= 100n || item.id === 'latex_sample' || item.id === 'cult_tracker';
+            return true;
+        })
+        .map(item => ({ ...item }));
+
+    if (modifiedItems.length === 0) {
+        modifiedItems = items.map(item => ({ ...item }));
+    }
 
     if (mode === 'deepsea') {
         modifiedItems = modifiedItems.map(item => {
@@ -221,12 +258,18 @@ function getRandomCatch(lootConfig, mode = 'coastal', userLuckLevel = 0) {
             if (item.catchCredits > 500n) return { ...item, chance: item.chance * 2.0 };
             return item;
         });
+    } else if (mode === 'abyssal') {
+        modifiedItems = modifiedItems.map(item => {
+            if (item.abyssalOnly) return { ...item, chance: item.chance * 3.0 };
+            if (item.catchCredits > 500n) return { ...item, chance: item.chance * 2.5 };
+            return item;
+        });
     }
 
     if (userLuckLevel > 0) {
         const luckMultiplier = 1 + (userLuckLevel * 0.15);
         modifiedItems = modifiedItems.map(item => {
-            if (item.catchCredits > 200n) {
+            if (item.catchCredits > 200n || item.abyssalOnly) {
                 return { ...item, chance: item.chance * luckMultiplier };
             }
             return item;
@@ -258,7 +301,7 @@ module.exports = {
                       .addChoices(
                           { name: '🏖️ Coastal (Standard Risk)', value: 'coastal' },
                           { name: '🌊 Deep Sea (High Risk / High Rewards)', value: 'deepsea' },
-                          { name: '🌌 Abyssal (Work in Progress)', value: 'abyssal' }
+                          { name: '🌌 Abyssal (Exclusive Trench Loot)', value: 'abyssal' }
                       )
                )
         )
@@ -285,11 +328,20 @@ module.exports = {
                        .addStringOption(opt => opt.setName('catch_credits').setDescription('Credits rewarded upon catch').setRequired(true))
                        .addStringOption(opt => opt.setName('sell_value').setDescription('Resale value').setRequired(true))
                        .addBooleanOption(opt => opt.setName('sellable').setDescription('Can this item be sold?').setRequired(false))
+                       .addBooleanOption(opt => opt.setName('abyssal_only').setDescription('Exclusive to Abyssal mode?').setRequired(false))
                 )
                 .addSubcommand(sub =>
                     sub.setName('remove')
                        .setDescription('[Admin] Remove an item from the fishing loot table by ID')
                        .addStringOption(opt => opt.setName('id').setDescription('The ID of the item to remove').setRequired(true))
+                )
+        )
+        .addSubcommandGroup(group =>
+            group.setName('toggle')
+                .setDescription('[Owner/Admin] Toggle specific fishing features or zones')
+                .addSubcommand(sub =>
+                    sub.setName('abyssal')
+                       .setDescription('Toggle whether the Abyssal zone is locked to the owner only')
                 )
         )
         .addSubcommandGroup(group =>
@@ -337,8 +389,47 @@ module.exports = {
             userPerms.includes('fishing') || 
             userPerms.includes('*');
 
+        if (group === 'toggle') {
+            if (!isOwner && !isAdmin) {
+                return await interaction.reply({
+                    content: '❌ Only the bot owner or administrators can toggle fishing configurations!',
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            if (subcommand === 'abyssal') {
+                const config = loadFishingConfig();
+                config.abyssalLocked = !config.abyssalLocked;
+                saveFishingConfig(config);
+
+                const statusText = config.abyssalLocked ? '🔒 **Locked** (Owner Only)' : '🔓 **Unlocked** (Public Access)';
+                return await interaction.reply({
+                    embeds: [
+                        new EmbedBuilder()
+                            .setColor(config.abyssalLocked ? 0xFF5555 : 0x00FF99)
+                            .setTitle('🌌 Abyssal Zone Status Updated')
+                            .setDescription(`The Abyssal fishing zone is now: ${statusText}`)
+                    ],
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+        }
+
         if (subcommand === 'cast' && !group) {
             const mode = interaction.options.getString('mode') || 'coastal';
+            const fishingConfig = loadFishingConfig();
+
+            if (mode === 'abyssal' && fishingConfig.abyssalLocked && !isOwner) {
+                return await interaction.reply({
+                    embeds: [
+                        new EmbedBuilder()
+                            .setColor(0xFF0000)
+                            .setTitle('🌌 ABYSSAL ZONE RESTRICTED')
+                            .setDescription('The Abyssal trench is currently locked away and restricted strictly to the **Bot Owner**!')
+                    ],
+                    flags: MessageFlags.Ephemeral
+                });
+            }
 
             await interaction.deferReply({ flags: isPublic ? 0 : MessageFlags.Ephemeral });
             const now = Date.now();
@@ -361,33 +452,13 @@ module.exports = {
 
             fishingCooldowns.set(userId, now);
 
-            if (mode === 'abyssal') {
-                const abyssalItem = {
-                    id: 'wip_note',
-                    name: 'a Crumpled Piece of Paper',
-                    emoji: '📄',
-                    catchCredits: 1n,
-                    flavor: '*It says: "This location is still under construction! Check back later."*'
-                };
-
-                addItemToInventory(userId, abyssalItem.id);
-                const newBalance = addFishingReward(userId, abyssalItem.catchCredits);
-                const nameDisplay = botConfig.PING_ON_PUBLIC_MESSAGES ? `<@${userId}>` : `**${user.username}**`;
-
-                const abyssalMsg = `<:Sus:1541509245499875439> **[ABYSSAL CATCH]** ${nameDisplay} cast their line into the abyssal void and reeled in **${abyssalItem.name}** ${abyssalItem.emoji}!\n` +
-                                   `${abyssalItem.flavor}\n` +
-                                   `**+${formatNumber(abyssalItem.catchCredits)}**${CREDIT} *(Current Balance: **${formatNumber(newBalance)}**${CREDIT})*`;
-
-                return await interaction.editReply({ content: abyssalMsg });
-            }
-
             const creditsDB = loadCreditsDB();
             const userLuckLevel = creditsDB[userId]?.luckLevel || 0;
 
             const itemCaught = getRandomCatch(lootConfig, mode, userLuckLevel);
 
             if (itemCaught.id === 'latex_sample') {
-                const loss = mode === 'deepsea' ? -300n : -150n;
+                const loss = mode === 'abyssal' ? -500n : mode === 'deepsea' ? -300n : -150n;
                 const newBalance = addFishingReward(userId, loss);
                 const nameDisplay = botConfig.PING_ON_PUBLIC_MESSAGES ? `<@${userId}>` : `**${user.username}**`;
 
@@ -395,14 +466,14 @@ module.exports = {
                     .setColor(0x1F1F1F)
                     .setTitle('<:CuteBlackCub:1538665557325254737> AMBUSHED BY LATEX!')
                     .setDescription(
-                        `${nameDisplay} reeled in a suspicious dark puddle... but it suddenly leaped out of the water!\n\n` +
-                        `*You got transfurred during the struggle and dropped your pouch into the deep water!*`
+                        `${nameDisplay} reeled in a suspicious dark puddle in the ${mode.toUpperCase()} zone... but it violently surged out of the dark water!\n\n` +
+                        `*You got heavily transfurred during the struggle and dropped your pouch into the abyss!*`
                     )
                     .addFields(
                         { name: 'Stolen / Lost Credits', value: `**-${formatNumber(loss < 0n ? -loss : loss)}**${CREDIT}`, inline: true },
                         { name: 'Remaining Balance', value: `**${formatNumber(newBalance)}**${CREDIT}`, inline: true }
                     )
-                    .setFooter({ text: mode === 'deepsea' ? 'ProtoBot Deep Sea Hazard Warning' : 'ProtoBot Biohazard Containment' });
+                    .setFooter({ text: `ProtoBot ${mode.toUpperCase()} Biohazard Containment` });
 
                 return await interaction.editReply({ embeds: [transfurEmbed] });
             }
@@ -411,7 +482,7 @@ module.exports = {
                 const coreItem = lootConfig.items.find(i => i.id === 'core');
                 const coreValue = coreItem ? coreItem.catchCredits : 250n;
                 
-                const extraStolen = BigInt(Math.floor(Math.random() * 150) + 50);
+                const extraStolen = BigInt(Math.floor(Math.random() * 250) + 100);
                 const totalDeducted = coreValue + extraStolen;
 
                 const newBalance = addFishingReward(userId, -totalDeducted);
@@ -421,23 +492,24 @@ module.exports = {
                     .setColor(0x8B0000)
                     .setTitle('👁️ CULT TRACKER AMBUSH!')
                     .setDescription(
-                        `${nameDisplay} reeled in a glowing Cult Tracker!\n\n` +
-                        `*"They demand their Latex Core back!"* A gang of cultists jumps out from the bushes, beats the absolute piss out of you, and snatches your wallet!`
+                        `${nameDisplay} reeled in a glowing Abyssal Cult Tracker!\n\n` +
+                        `*"They demand absolute fealty!"* Shadowy cultists emerge from the ocean trench, rough you up, and empty your pockets!`
                     )
                     .addFields(
                         { name: 'Crystal Reclamation', value: `**-${formatNumber(coreValue)}**${CREDIT}`, inline: true },
                         { name: 'Stolen Wallet Cash', value: `**-${formatNumber(extraStolen)}**${CREDIT}`, inline: true },
                         { name: 'Remaining Balance', value: `**${formatNumber(newBalance)}**${CREDIT}`, inline: false }
                     )
-                    .setFooter({ text: 'ProtoBot Security Alert' });
+                    .setFooter({ text: 'ProtoBot Abyssal Security Alert' });
 
                 return await interaction.editReply({ embeds: [robberyEmbed] });
             }
 
-            // Calculate dynamic supply-and-demand reward payout
             let finalReward = getAdjustedReward(itemCaught);
             if (mode === 'deepsea' && finalReward > 0n) {
                 finalReward = (finalReward * 15n) / 10n;
+            } else if (mode === 'abyssal' && finalReward > 0n) {
+                finalReward = (finalReward * 25n) / 10n;
             }
 
             addItemToInventory(userId, itemCaught.id);
@@ -449,7 +521,7 @@ module.exports = {
                 const shorkEmbed = new EmbedBuilder()
                     .setColor(0x0099FF)
                     .setTitle('🚨 SHORK ENCOUNTER!')
-                    .setDescription(`${nameDisplay} cast their line and reeled in <@${SHORKBOI_ID}>! 🦈`)
+                    .setDescription(`${nameDisplay} cast their line into the ${mode} and reeled in <@${SHORKBOI_ID}>! 🦈`)
                     .addFields(
                         { name: 'Reward (Market Adjusted)', value: `**+${formatNumber(finalReward)}**${CREDIT}`, inline: true },
                         { name: 'Current Balance', value: `**${formatNumber(newBalance)}**${CREDIT}`, inline: true }
@@ -463,7 +535,7 @@ module.exports = {
                 const prootEmbed = new EmbedBuilder()
                     .setColor(0x00FFCC)
                     .setTitle('🔍 PROOT ENCOUNTER!')
-                    .setDescription(`${nameDisplay} cast their line and fished out <@${SPYTHEPROOT_ID}> ${itemCaught.emoji}!`)
+                    .setDescription(`${nameDisplay} cast their line into the ${mode} and fished out <@${SPYTHEPROOT_ID}> ${itemCaught.emoji}!`)
                     .addFields(
                         { name: 'Reward (Market Adjusted)', value: `**+${formatNumber(finalReward)}**${CREDIT}`, inline: true },
                         { name: 'Current Balance', value: `**${formatNumber(newBalance)}**${CREDIT}`, inline: true }
@@ -473,15 +545,15 @@ module.exports = {
                 return await interaction.editReply({ embeds: [prootEmbed] });
             }
 
-            if (finalReward >= 1000n) {
-                let rareDesc = `${nameDisplay} cast their line into the ${mode === 'deepsea' ? 'abyssal depths' : 'pool'} and reeled in a legendary artifact!`;
+            if (finalReward >= 1000n || itemCaught.abyssalOnly) {
+                let rareDesc = `${nameDisplay} cast their line into the ${mode.toUpperCase()} void and reeled in a legendary abyss artifact!`;
                 if (itemCaught.flavor) {
                     rareDesc += `\n\n${itemCaught.flavor}`;
                 }
 
                 const rareEmbed = new EmbedBuilder()
-                    .setColor(0xFFD700)
-                    .setTitle('🌟 ULTRA RARE CATCH! 🌟')
+                    .setColor(itemCaught.abyssalOnly ? 0x9B59B6 : 0xFFD700)
+                    .setTitle(itemCaught.abyssalOnly ? '🌌 ABYSSAL EXCLUSIVE CATCH! 🌌' : '🌟 ULTRA RARE CATCH! 🌟')
                     .setDescription(rareDesc)
                     .addFields(
                         { name: 'Item Caught', value: `${itemCaught.emoji} **${itemCaught.name}**`, inline: true },
@@ -493,7 +565,7 @@ module.exports = {
                 return await interaction.editReply({ embeds: [rareEmbed] });
             }
 
-            let responseMessage = `${nameDisplay} cast their line into the ${mode === 'deepsea' ? 'deep sea' : 'pool'} and reeled in **${itemCaught.name}** ${itemCaught.emoji}!\n` +
+            let responseMessage = `${nameDisplay} cast their line into the ${mode} and reeled in **${itemCaught.name}** ${itemCaught.emoji}!\n` +
                 `**+${formatNumber(finalReward)}**${CREDIT} *(Current Balance: **${formatNumber(newBalance)}**${CREDIT})*`;
 
             if (itemCaught.flavor) {
@@ -561,7 +633,8 @@ module.exports = {
                     const globalCount = getGlobalItemCount(item.id);
                     const currentReward = getAdjustedReward(item);
                     const sign = currentReward < 0n ? "" : "+";
-                    return `• ${item.emoji} **${item.name}** (\`${item.id}\`)\n` +
+                    const tag = item.abyssalOnly ? " `[Abyssal Only]`" : "";
+                    return `• ${item.emoji} **${item.name}** (\`${item.id}\`)${tag}\n` +
                            `  └ Global Supply: \`${globalCount}x\` | Payout: **${sign}${formatNumber(currentReward)}**${CREDIT} *(Base: ${formatNumber(item.catchCredits)})*`;
                 }).join('\n');
 
@@ -591,6 +664,7 @@ module.exports = {
                 const catchCreditsStr = interaction.options.getString('catch_credits').trim();
                 const sellValueStr = interaction.options.getString('sell_value').trim();
                 const sellable = interaction.options.getBoolean('sellable') ?? true;
+                const abyssalOnly = interaction.options.getBoolean('abyssal_only') ?? false;
 
                 if (lootConfig.items.some(i => i.id === id)) {
                     await interaction.reply({
@@ -607,7 +681,8 @@ module.exports = {
                     chance,
                     catchCredits: BigInt(catchCreditsStr),
                     sellValue: BigInt(sellValueStr),
-                    sellable
+                    sellable,
+                    abyssalOnly
                 };
 
                 lootConfig.items.push(newItem);
