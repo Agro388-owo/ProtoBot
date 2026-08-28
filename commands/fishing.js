@@ -188,7 +188,7 @@ module.exports = {
                       .addChoices(
                           { name: '🏖️ Coastal (Standard Risk)', value: 'coastal' },
                           { name: '🌊 Deep Sea (High Risk / High Rewards)', value: 'deepsea' },
-                          { name: '🌌 Abyssal (WIP)', value: 'abyssal' }
+                          { name: '🌌 Abyssal (Work in Progress)', value: 'abyssal' }
                       )
                )
         )
@@ -239,13 +239,6 @@ module.exports = {
         if (subcommand === 'cast' && !group) {
             const mode = interaction.options.getString('mode') || 'coastal';
 
-            if (mode === 'abyssal') {
-                return await interaction.reply({
-                    content: '🌌 **Abyssal Mode** is currently under construction! You cannot fish here yet. *(WIP)*',
-                    flags: MessageFlags.Ephemeral
-                });
-            }
-
             await interaction.deferReply({ flags: isPublic ? 0 : MessageFlags.Ephemeral });
             const now = Date.now();
 
@@ -266,6 +259,27 @@ module.exports = {
             }
 
             fishingCooldowns.set(userId, now);
+
+            // SPECIAL ABYSSAL MODE LOGIC (WIP Catch)
+            if (mode === 'abyssal') {
+                const abyssalItem = {
+                    id: 'wip_note',
+                    name: 'a Crumpled Piece of Paper',
+                    emoji: '📄',
+                    catchCredits: 1n,
+                    flavor: '*It says: "This location is still under construction! Check back later."*'
+                };
+
+                addItemToInventory(userId, abyssalItem.id);
+                const newBalance = addFishingReward(userId, abyssalItem.catchCredits);
+                const nameDisplay = botConfig.PING_ON_PUBLIC_MESSAGES ? `<@${userId}>` : `**${user.username}**`;
+
+                const abyssalMsg = `<:Sus:1541509245499875439> **[ABYSSAL CATCH]** ${nameDisplay} cast their line into the abyssal void and reeled in **${abyssalItem.name}** ${abyssalItem.emoji}!\n` +
+                                   `${abyssalItem.flavor}\n` +
+                                   `**+${formatNumber(abyssalItem.catchCredits)}**${CREDIT} *(Current Balance: **${formatNumber(newBalance)}**${CREDIT})*`;
+
+                return await interaction.editReply({ content: abyssalMsg });
+            }
 
             const creditsDB = loadCreditsDB();
             const userLuckLevel = creditsDB[userId]?.luckLevel || 0;
