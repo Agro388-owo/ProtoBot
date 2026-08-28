@@ -23,12 +23,12 @@ function loadFishingConfig() {
     try {
         if (fs.existsSync(configFilePath)) {
             const raw = fs.readFileSync(configFilePath, 'utf8').trim();
-            return raw ? JSON.parse(raw) : { abyssalLocked: false };
+            return raw ? JSON.parse(raw) : { abyssalLocked: false, prizeMode: "economy" };
         }
     } catch (e) {
         console.error('Failed to load fishing_config.json:', e);
     }
-    return { abyssalLocked: false };
+    return { abyssalLocked: false, prizeMode: "economy" };
 }
 
 function saveFishingConfig(config) {
@@ -66,7 +66,7 @@ const DEFAULT_LOOT_CONFIG = {
 };
 
 const ABYSSAL_EXCLUSIVE_ITEMS = [
-    { id: "abyssal_pearl", name: "an Iridescent Abyssal Pearl", emoji: "🔮", catchCredits: 1000n, sellValue: 400n, chance: 12, sellable: true, flavor: "*It pulses with a cold, otherworldly luminescence from the crushing depths.*", abyssalOnly: true },
+    { id: "abyssal_pearl", name: "an Iridescent Abyssal Pearl", emoji: "🔮", catchCredits: 750n, sellValue: 400n, chance: 12, sellable: true, flavor: "*It pulses with a cold, otherworldly luminescence from the crushing depths.*", abyssalOnly: true },
     { id: "void_shard", name: "a Shard of Pure Void Matter", emoji: "🌌", catchCredits: 1200n, sellValue: 650n, chance: 7, sellable: true, flavor: "*Light seems to bend around its jagged edges, whispering secrets of the deep trench.*", abyssalOnly: true },
     { id: "leviathan_scale", name: "an Ancient Leviathan Scale", emoji: "🛡️", catchCredits: 1800n, sellValue: 950n, chance: 3, sellable: true, flavor: "*Heavy as solid steel and impossibly resilient to extreme pressure.*", abyssalOnly: true }
 ];
@@ -134,10 +134,25 @@ function getGlobalItemCount(itemId) {
     return count;
 }
 
-function getAdjustedReward(item) {
+function getCalculatedReward(item) {
+    const config = loadFishingConfig();
+    const mode = config.prizeMode || "economy";
     const baseVal = Number(item.catchCredits);
+
     if (baseVal <= 0) return item.catchCredits;
 
+    if (mode === "old") {
+        return item.catchCredits;
+    }
+
+    if (mode === "relative") {
+        const count = getGlobalItemCount(item.id);
+        const scalingFactor = Math.max(0.05, 1 - (count * 0.02));
+        const adjusted = Math.round(baseVal * scalingFactor);
+        return BigInt(Math.max(1, adjusted));
+    }
+
+    // Default "economy" (Supply & Demand inflation scaling)
     const count = getGlobalItemCount(item.id);
     const multiplier = Math.max(0.1, 1 / (1 + (0.08 * count)));
     const adjusted = Math.round(baseVal * multiplier);
@@ -345,6 +360,24 @@ module.exports = {
                 )
         )
         .addSubcommandGroup(group =>
+            group.setName('config')
+                .setDescription('[Owner/Admin] Configure global fishing mechanics')
+                .addSubcommand(sub =>
+                    sub.setName('prizemode')
+                       .setDescription('Set the active prize/economy calculation mode')
+                       .addStringOption(opt =>
+                           opt.setName('mode')
+                              .setDescription('Prize calculation algorithm')
+                              .setRequired(true)
+                              .addChoices(
+                                  { name: '🪙 Old (Fixed static reward values)', value: 'old' },
+                                  { name: '📊 Relative (Linear inventory scaling drop-off)', value: 'relative' },
+                                  { name: '📉 Economy (Dynamic market supply & demand scaling)', value: 'economy' }
+                              )
+                       )
+                )
+        )
+        .addSubcommandGroup(group =>
             group.setName('perm')
                 .setDescription('[Admin] Manage fishing command permissions')
                 .addSubcommand(sub =>
@@ -409,6 +442,38 @@ module.exports = {
                             .setColor(config.abyssalLocked ? 0xFF5555 : 0x00FF99)
                             .setTitle('🌌 Abyssal Zone Status Updated')
                             .setDescription(`The Abyssal fishing zone is now: ${statusText}`)
+                    ],
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+        }
+
+        if (group === 'config') {
+            if (!isOwner && !isAdmin) {
+                return await interaction.reply({
+                    content: '❌ Only the bot owner or administrators can change fishing settings!',
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            if (subcommand === 'prizemode') {
+                const newMode = interaction.options.getString('mode');
+                const config = loadFishingConfig();
+                config.prizeMode = newMode;
+                saveFishingConfig(config);
+
+                const modeLabels = {
+                    old: '🪙 Old (Fixed Static Values)',
+                    relative: '📊 Relative (Linear Scaling)',
+                    economy: '📉 Economy (Supply & Demand Inflation)'
+                };
+
+                return await interaction.reply({
+                    embeds: [
+                        new EmbedBuilder()
+                            .setColor(0x3498DB)
+                            .setTitle('⚙️ Fishing Prize Mode Updated')
+                            .setDescription(`Successfully updated active prize calculation algorithm to:\n**${modeLabels[newMode] || newMode}**`)
                     ],
                     flags: MessageFlags.Ephemeral
                 });
@@ -505,7 +570,7 @@ module.exports = {
                 return await interaction.editReply({ embeds: [robberyEmbed] });
             }
 
-            let finalReward = getAdjustedReward(itemCaught);
+            let finalReward = getCalculatedReward(itemCaught);
             if (mode === 'deepsea' && finalReward > 0n) {
                 finalReward = (finalReward * 15n) / 10n;
             } else if (mode === 'abyssal' && finalReward > 0n) {
@@ -523,7 +588,7 @@ module.exports = {
                     .setTitle('🚨 SHORK ENCOUNTER!')
                     .setDescription(`${nameDisplay} cast their line into the ${mode} and reeled in <@${SHORKBOI_ID}>! 🦈`)
                     .addFields(
-                        { name: 'Reward (Market Adjusted)', value: `**+${formatNumber(finalReward)}**${CREDIT}`, inline: true },
+                        { name: 'Reward (Calculated)', value: `**+${formatNumber(finalReward)}**${CREDIT}`, inline: true },
                         { name: 'Current Balance', value: `**${formatNumber(newBalance)}**${CREDIT}`, inline: true }
                     )
                     .setFooter({ text: 'ProtoBot Fishing Log | Special Encounter' });
@@ -537,7 +602,7 @@ module.exports = {
                     .setTitle('🔍 PROOT ENCOUNTER!')
                     .setDescription(`${nameDisplay} cast their line into the ${mode} and fished out <@${SPYTHEPROOT_ID}> ${itemCaught.emoji}!`)
                     .addFields(
-                        { name: 'Reward (Market Adjusted)', value: `**+${formatNumber(finalReward)}**${CREDIT}`, inline: true },
+                        { name: 'Reward (Calculated)', value: `**+${formatNumber(finalReward)}**${CREDIT}`, inline: true },
                         { name: 'Current Balance', value: `**${formatNumber(newBalance)}**${CREDIT}`, inline: true }
                     )
                     .setFooter({ text: 'ProtoBot Fishing Log | Special Encounter' });
@@ -557,7 +622,7 @@ module.exports = {
                     .setDescription(rareDesc)
                     .addFields(
                         { name: 'Item Caught', value: `${itemCaught.emoji} **${itemCaught.name}**`, inline: true },
-                        { name: 'Market-Adjusted Reward', value: `**+${formatNumber(finalReward)}**${CREDIT}`, inline: true },
+                        { name: 'Calculated Reward', value: `**+${formatNumber(finalReward)}**${CREDIT}`, inline: true },
                         { name: 'Total Balance', value: `**${formatNumber(newBalance)}**${CREDIT}`, inline: false }
                     )
                     .setFooter({ text: `ProtoBot Fishing Log | Mode: ${mode.toUpperCase()}` });
@@ -598,8 +663,8 @@ module.exports = {
             }
 
             addItemToInventory(targetUser.id, itemCaught.id);
-            const adjustedReward = getAdjustedReward(itemCaught);
-            const newBalance = addFishingReward(targetUser.id, adjustedReward);
+            const calculatedReward = getCalculatedReward(itemCaught);
+            const newBalance = addFishingReward(targetUser.id, calculatedReward);
 
             const isSelf = interaction.user.id === targetUser.id;
             const targetDisplay = botConfig.PING_ON_PUBLIC_MESSAGES ? `<@${targetUser.id}>` : `**${targetUser.username}**`;
@@ -618,7 +683,7 @@ module.exports = {
                 .setTitle('<:Sus:1541509245499875439> [NOT A REAL CATCH]')
                 .setDescription(actionText)
                 .addFields(
-                    { name: 'Market-Adjusted Credits Granted', value: `**+${formatNumber(adjustedReward)}**${CREDIT}`, inline: true },
+                    { name: 'Calculated Credits Granted', value: `**+${formatNumber(calculatedReward)}**${CREDIT}`, inline: true },
                     { name: 'Current Balance', value: `**${formatNumber(newBalance)}**${CREDIT}`, inline: true }
                 )
                 .setFooter({ text: 'ProtoBot Dev Command Audit' });
@@ -629,9 +694,11 @@ module.exports = {
 
         if (group === 'loot') {
             if (subcommand === 'list') {
+                const config = loadFishingConfig();
+                const activeMode = config.prizeMode || "economy";
                 const itemsList = lootConfig.items.map(item => {
                     const globalCount = getGlobalItemCount(item.id);
-                    const currentReward = getAdjustedReward(item);
+                    const currentReward = getCalculatedReward(item);
                     const sign = currentReward < 0n ? "" : "+";
                     const tag = item.abyssalOnly ? " `[Abyssal Only]`" : "";
                     return `• ${item.emoji} **${item.name}** (\`${item.id}\`)${tag}\n` +
@@ -641,7 +708,7 @@ module.exports = {
                 const embed = new EmbedBuilder()
                     .setTitle('📈 Fishing Economy & Loot Supply')
                     .setColor(0x3498DB)
-                    .setDescription(`*Items circulating in player inventories decrease in payout value to mirror real market inflation.* \n\n${itemsList || '*No items configured.*'}`)
+                    .setDescription(`*Active Prize Mode: \`${activeMode.toUpperCase()}\`*\n\n${itemsList || '*No items configured.*'}`)
                     .setFooter({ text: `Total Unique Registry Items: ${lootConfig.items.length}` });
 
                 await interaction.reply({ embeds: [embed] });
