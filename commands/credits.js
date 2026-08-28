@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const botConfig = require('../config.js');
@@ -97,6 +97,10 @@ module.exports = {
                .setDescription('Claim your daily credit reward (12h cooldown)')
         )
         .addSubcommand(sub =>
+            sub.setName('leaderboard')
+               .setDescription('View top credit holders across the system')
+        )
+        .addSubcommand(sub =>
             sub.setName('pay')
                .setDescription('Transfer credits to another user')
                .addUserOption(opt => opt.setName('target').setDescription('User to pay').setRequired(true))
@@ -165,7 +169,96 @@ module.exports = {
             });
         }
 
-        // 3. Pay
+        // 3. Leaderboard
+        if (subcommand === 'leaderboard') {
+            const sorted = Object.entries(db)
+                .map(([id, data]) => ({ id, balance: data.balance ?? 0n }))
+                .sort((a, b) => (b.balance > a.balance ? 1 : b.balance < a.balance ? -1 : 0));
+
+            if (sorted.length === 0) {
+                return await interaction.reply({
+                    content: '🏆 No credit entries registered yet.',
+                    ephemeral: true
+                });
+            }
+
+            const pageSize = 10;
+            const totalPages = Math.ceil(sorted.length / pageSize);
+            let currentPage = 0;
+
+            const userRankIndex = sorted.findIndex(e => e.id === user.id);
+            const userRankText = userRankIndex !== -1 ? `#${userRankIndex + 1}` : 'Unranked';
+
+            const generateEmbed = (page) => {
+                const start = page * pageSize;
+                const pageEntries = sorted.slice(start, start + pageSize);
+
+                const medalIcons = ['🥇', '🥈', '🥉'];
+                const lines = pageEntries.map((entry, index) => {
+                    const globalRank = start + index;
+                    const rankDisplay = medalIcons[globalRank] || `**#${globalRank + 1}**`;
+                    return `${rankDisplay} <@${entry.id}> — **${formatNumber(entry.balance)}** ${CREDIT}`;
+                });
+
+                return new EmbedBuilder()
+                    .setTitle('🏆 Credit Leaderboard')
+                    .setDescription(lines.join('\n'))
+                    .setColor('#FFD700')
+                    .setFooter({ 
+                        text: `Page ${page + 1}/${totalPages} | Your Rank: ${userRankText} | Balance: ${formatNumber(db[user.id].balance)}` 
+                    });
+            };
+
+            const getButtons = (page) => {
+                return new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('lb_prev')
+                        .setLabel('◀️ Previous')
+                        .setStyle(ButtonStyle.Primary)
+                        .setDisabled(page === 0),
+                    new ButtonBuilder()
+                        .setCustomId('lb_next')
+                        .setLabel('Next ▶️')
+                        .setStyle(ButtonStyle.Primary)
+                        .setDisabled(page >= totalPages - 1)
+                );
+            };
+
+            if (totalPages === 1) {
+                return await interaction.reply({ embeds: [generateEmbed(0)] });
+            }
+
+            const response = await interaction.reply({
+                embeds: [generateEmbed(currentPage)],
+                components: [getButtons(currentPage)],
+                fetchReply: true
+            });
+
+            const collector = response.createMessageComponentCollector({
+                filter: i => i.user.id === interaction.user.id,
+                time: 60000
+            });
+
+            collector.on('collect', async i => {
+                if (i.customId === 'lb_prev') currentPage = Math.max(0, currentPage - 1);
+                if (i.customId === 'lb_next') currentPage = Math.min(totalPages - 1, currentPage + 1);
+
+                await i.update({
+                    embeds: [generateEmbed(currentPage)],
+                    components: [getButtons(currentPage)]
+                });
+            });
+
+            collector.on('end', async () => {
+                const disabledButtons = getButtons(currentPage);
+                disabledButtons.components.forEach(btn => btn.setDisabled(true));
+                await interaction.editReply({ components: [disabledButtons] }).catch(() => {});
+            });
+
+            return;
+        }
+
+        // 4. Pay
         if (subcommand === 'pay') {
             const target = interaction.options.getUser('target');
             const amountInput = interaction.options.getString('amount');
@@ -211,7 +304,8 @@ module.exports = {
         // Admin Subcommands (Owner Only)
         const adminSubcommands = ['add', 'remove', 'set'];
         if (adminSubcommands.includes(subcommand)) {
-            if (user.id !== botConfig.OWNER_ID) {
+            const ownerId = botConfig.OWNER_ID || botConfig.ownerId;
+            if (user.id !== ownerId) {
                 return await interaction.reply({
                     content: `<:puronervous2:1538551211207430234> Access Denied! Only the bot owner can use admin commands.`,
                     ephemeral: true
