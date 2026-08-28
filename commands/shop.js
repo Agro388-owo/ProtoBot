@@ -6,11 +6,13 @@ const { CREDIT, formatNumber, clampBalance } = require('./credits.js');
 
 const lootFilePath = path.resolve(process.cwd(), 'fishing_loot.json');
 const creditsFilePath = path.resolve(process.cwd(), 'credits.json');
+const globalCreditsFilePath = path.resolve(process.cwd(), 'global_credits.json');
 const inventoryFilePath = path.resolve(process.cwd(), 'inventory.json');
 
 const LUCK_UPGRADE_BASE_COST = 2000n;
 const LUCK_UPGRADE_COST_MULTIPLIER = 1.8;
 const MAX_LUCK_LEVEL = 5;
+const EXCHANGE_RATE = 1000n; // Rate: 1,000 Local = 1 Global ۞
 
 // Default items fallback from fishing command
 const FALLBACK_ITEMS = [
@@ -64,6 +66,34 @@ function saveCreditsDB(data) {
     }
 }
 
+function loadGlobalCreditsDB() {
+    try {
+        if (fs.existsSync(globalCreditsFilePath)) {
+            const raw = fs.readFileSync(globalCreditsFilePath, 'utf8') || '{}';
+            const parsed = JSON.parse(raw);
+            for (const id in parsed) {
+                if (parsed[id].balance !== undefined) {
+                    parsed[id].balance = clampBalance(BigInt(parsed[id].balance));
+                }
+            }
+            return parsed;
+        }
+    } catch (e) {
+        console.error('Failed to load global_credits.json in shop:', e);
+    }
+    return {};
+}
+
+function saveGlobalCreditsDB(data) {
+    try {
+        const serialized = JSON.stringify(data, (key, value) =>
+            typeof value === 'bigint' ? value.toString() : value, 2);
+        fs.writeFileSync(globalCreditsFilePath, serialized, 'utf8');
+    } catch (e) {
+        console.error('Failed to save global_credits.json in shop:', e);
+    }
+}
+
 function loadInventoryDB() {
     try {
         if (fs.existsSync(inventoryFilePath)) {
@@ -101,7 +131,6 @@ function loadLootDB() {
         console.error('Failed to load fishing_loot.json in shop:', e);
     }
 
-    // Return fallback items if fishing_loot.json does not exist yet
     return FALLBACK_ITEMS.map(item => ({
         ...item,
         sellValue: BigInt(item.sellValue || "0"),
@@ -118,12 +147,12 @@ function getUpgradeCost(currentLevel) {
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('shop')
-        .setDescription('ProtoBot Marketplace - Buy upgrades or sell salvage!')
+        .setDescription('ProtoBot Marketplace - Buy upgrades, sell salvage, or convert credits!')
         .setIntegrationTypes([0, 1])
         .setContexts([0, 1, 2])
         .addSubcommand(sub =>
             sub.setName('view')
-               .setDescription('View items and upgrades available in the shop')
+               .setDescription('View items, upgrades, and currency exchange rates')
         )
         .addSubcommand(sub =>
             sub.setName('buy')
@@ -145,6 +174,25 @@ module.exports = {
                       .setDescription('The ID of the item in your inventory to sell')
                       .setRequired(true)
                )
+        )
+        .addSubcommand(sub =>
+            sub.setName('exchange')
+               .setDescription('Convert credits between Local and Global currencies')
+               .addStringOption(opt =>
+                   opt.setName('direction')
+                      .setDescription('Conversion direction')
+                      .setRequired(true)
+                      .addChoices(
+                          { name: 'Local ➔ Global (1,000 Local = 1 ۞)', value: 'local_to_global' },
+                          { name: 'Global ➔ Local (1 ۞ = 1,000 Local)', value: 'global_to_local' }
+                      )
+               )
+               .addIntegerOption(opt =>
+                   opt.setName('amount')
+                      .setDescription('Amount of target currency units you want to receive')
+                      .setRequired(true)
+                      .setMinValue(1)
+               )
         ),
 
     async execute(interaction) {
@@ -162,14 +210,18 @@ module.exports = {
         // === 1. VIEW SHOP ===
         if (subcommand === 'view') {
             const nextCost = getUpgradeCost(userLuckLevel);
-            const costDisplay = nextCost !== null ? `**${formatNumber(nextCost)}**${CREDIT}` : '`MAX LEVEL REACHED`';
+            const costDisplay = nextCost !== null ? `**${formatNumber(nextCost)}** ${CREDIT}` : '`MAX LEVEL REACHED`';
+
+            const globalCreditsDB = loadGlobalCreditsDB();
+            const userGlobalBalance = globalCreditsDB[userId]?.balance || 0n;
 
             const embed = new EmbedBuilder()
                 .setTitle('🛒 ProtoBot Marketplace')
                 .setColor(0x00FFC8)
                 .setDescription(
-                    `Welcome to the shop! Upgrades auto-apply immediately upon purchase.\n` +
-                    `Your Balance: **${formatNumber(currentBalance)}**${CREDIT}`
+                    `Welcome to the shop! Upgrades auto-apply immediately upon purchase.\n\n` +
+                    `Local Balance: **${formatNumber(currentBalance)}** ${CREDIT}\n` +
+                    `Global Balance: **${formatNumber(userGlobalBalance)}** ۞`
                 )
                 .addFields(
                     {
@@ -177,6 +229,14 @@ module.exports = {
                         value: `Current Level: **${userLuckLevel} / ${MAX_LUCK_LEVEL}** (+${userLuckLevel * 15}% rare drop chance)\n` +
                                `Next Level Cost: ${costDisplay}\n` +
                                `*Command:* \`/shop buy item:luck_upgrade\``,
+                        inline: false
+                    },
+                    {
+                        name: '💱 Bidirectional Currency Exchange',
+                        value: `Convert freely between Local Credits and Global Credits.\n` +
+                               `• Local ➔ Global: **1,000** ${CREDIT} ➔ **1** ۞\n` +
+                               `• Global ➔ Local: **1** ۞ ➔ **1,000** ${CREDIT}\n` +
+                               `*Command:* \`/shop exchange direction:<direction> amount:<amount>\``,
                         inline: false
                     },
                     {
@@ -207,7 +267,7 @@ module.exports = {
 
                 if (currentBalance < cost) {
                     return await interaction.reply({
-                        content: `❌ You need **${formatNumber(cost)}**${CREDIT} to purchase a luck upgrade, but you only have **${formatNumber(currentBalance)}**${CREDIT}!`,
+                        content: `❌ You need **${formatNumber(cost)}** ${CREDIT} to purchase a luck upgrade, but you only have **${formatNumber(currentBalance)}** ${CREDIT}!`,
                         flags: MessageFlags.Ephemeral
                     });
                 }
@@ -225,8 +285,8 @@ module.exports = {
                         `*Effect auto-applied: Your rare drop chance in \`/fishing cast\` is now increased by **+${newLuckLevel * 15}%**.*`
                     )
                     .addFields(
-                        { name: 'Cost Paid', value: `**-${formatNumber(cost)}**${CREDIT}`, inline: true },
-                        { name: 'Remaining Balance', value: `**${formatNumber(creditsDB[userId].balance)}**${CREDIT}`, inline: true }
+                        { name: 'Cost Paid', value: `**-${formatNumber(cost)}** ${CREDIT}`, inline: true },
+                        { name: 'Remaining Balance', value: `**${formatNumber(creditsDB[userId].balance)}** ${CREDIT}`, inline: true }
                     )
                     .setFooter({ text: 'ProtoBot Trade Subsystem' });
 
@@ -282,12 +342,89 @@ module.exports = {
                 .setColor(0xF1C40F)
                 .setDescription(`Sold ${targetItem.emoji} **${targetItem.name}** from your inventory!`)
                 .addFields(
-                    { name: 'Payout Received', value: `**+${formatNumber(earned)}**${CREDIT}`, inline: true },
-                    { name: 'New Balance', value: `**${formatNumber(creditsDB[userId].balance)}**${CREDIT}`, inline: true }
+                    { name: 'Payout Received', value: `**+${formatNumber(earned)}** ${CREDIT}`, inline: true },
+                    { name: 'New Balance', value: `**${formatNumber(creditsDB[userId].balance)}** ${CREDIT}`, inline: true }
                 )
                 .setFooter({ text: 'ProtoBot Scrapper Network' });
 
             return await interaction.reply({ embeds: [embed] });
+        }
+
+        // === 4. EXCHANGE SUBCOMMAND (BIDIRECTIONAL) ===
+        if (subcommand === 'exchange') {
+            const direction = interaction.options.getString('direction');
+            const targetAmount = BigInt(interaction.options.getInteger('amount'));
+
+            const globalCreditsDB = loadGlobalCreditsDB();
+            if (!globalCreditsDB[userId]) {
+                globalCreditsDB[userId] = { balance: 0n };
+            }
+            const currentGlobalBalance = globalCreditsDB[userId].balance || 0n;
+
+            // --- LOCAL TO GLOBAL (1,000 Local -> 1 Global) ---
+            if (direction === 'local_to_global') {
+                const totalLocalCost = targetAmount * EXCHANGE_RATE;
+
+                if (currentBalance < totalLocalCost) {
+                    return await interaction.reply({
+                        content: `❌ You need **${formatNumber(totalLocalCost)}** ${CREDIT} to receive **${formatNumber(targetAmount)}** ۞, but you only have **${formatNumber(currentBalance)}** ${CREDIT}!`,
+                        flags: MessageFlags.Ephemeral
+                    });
+                }
+
+                creditsDB[userId].balance = clampBalance(currentBalance - totalLocalCost);
+                globalCreditsDB[userId].balance = clampBalance(currentGlobalBalance + targetAmount);
+
+                saveCreditsDB(creditsDB);
+                saveGlobalCreditsDB(globalCreditsDB);
+
+                const embed = new EmbedBuilder()
+                    .setTitle('💱 CURRENCY EXCHANGE (LOCAL ➔ GLOBAL)')
+                    .setColor(0x00FFC8)
+                    .setDescription(`Converted Local Credits to Global Credits!`)
+                    .addFields(
+                        { name: 'Converted Cost', value: `**-${formatNumber(totalLocalCost)}** ${CREDIT}`, inline: true },
+                        { name: 'Global Received', value: `**+${formatNumber(targetAmount)}** ۞`, inline: true },
+                        { name: 'New Local Balance', value: `**${formatNumber(creditsDB[userId].balance)}** ${CREDIT}`, inline: false },
+                        { name: 'New Global Balance', value: `**${formatNumber(globalCreditsDB[userId].balance)}** ۞`, inline: false }
+                    )
+                    .setFooter({ text: 'ProtoBot Exchange Subsystem' });
+
+                return await interaction.reply({ embeds: [embed] });
+            }
+
+            // --- GLOBAL TO LOCAL (1 Global -> 1,000 Local) ---
+            if (direction === 'global_to_local') {
+                const globalCost = targetAmount;
+                const localReceived = targetAmount * EXCHANGE_RATE;
+
+                if (currentGlobalBalance < globalCost) {
+                    return await interaction.reply({
+                        content: `❌ You need **${formatNumber(globalCost)}** ۞ to receive **${formatNumber(localReceived)}** ${CREDIT}, but you only have **${formatNumber(currentGlobalBalance)}** ۞!`,
+                        flags: MessageFlags.Ephemeral
+                    });
+                }
+
+                globalCreditsDB[userId].balance = clampBalance(currentGlobalBalance - globalCost);
+                creditsDB[userId].balance = clampBalance(currentBalance + localReceived);
+
+                saveCreditsDB(creditsDB);
+                saveGlobalCreditsDB(globalCreditsDB);
+
+                const embed = new EmbedBuilder()
+                    .setTitle('💱 CURRENCY EXCHANGE (GLOBAL ➔ LOCAL)')
+                    .setColor(0x00FFC8)
+                    .setDescription(`Converted Global Credits to Local Credits!`)
+                    .addFields(
+                        { name: 'Global Spent', value: `**-${formatNumber(globalCost)}** ۞`, inline: true },
+                        { name: 'Local Received', value: `**+${formatNumber(localReceived)}** ${CREDIT}`, inline: true },
+                        { name: 'New Global Balance', value: `**${formatNumber(globalCreditsDB[userId].balance)}** ۞`, inline: false },
+                        { name: 'New Local Balance', value: `**${formatNumber(creditsDB[userId].balance)}** ${CREDIT}`, inline: false }
+                    )
+                    .setFooter({ text: 'ProtoBot Exchange Subsystem' });
+
+                return await interaction.reply({ embeds: [embed] });
+            }
         }
     }
 };
