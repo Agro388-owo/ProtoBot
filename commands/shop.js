@@ -4,9 +4,9 @@ const path = require('path');
 
 const { CREDIT, formatNumber, clampBalance } = require('./credits.js');
 
-const lootFilePath = path.join(__dirname, '../fishing_loot.json');
-const creditsFilePath = path.join(__dirname, '../credits.json');
-const inventoryFilePath = path.join(__dirname, '../inventory.json');
+const lootFilePath = path.resolve(process.cwd(), 'fishing_loot.json');
+const creditsFilePath = path.resolve(process.cwd(), 'credits.json');
+const inventoryFilePath = path.resolve(process.cwd(), 'inventory.json');
 
 const LUCK_UPGRADE_BASE_COST = 2000n;
 const LUCK_UPGRADE_COST_MULTIPLIER = 1.8;
@@ -43,8 +43,8 @@ function saveCreditsDB(data) {
 function loadInventoryDB() {
     try {
         if (fs.existsSync(inventoryFilePath)) {
-            const raw = fs.readFileSync(inventoryFilePath, 'utf8') || '{}';
-            return JSON.parse(raw);
+            const raw = fs.readFileSync(inventoryFilePath, 'utf8').trim();
+            return raw ? JSON.parse(raw) : {};
         }
     } catch (e) {
         console.error('Failed to load inventory.json in shop:', e);
@@ -233,12 +233,10 @@ module.exports = {
                 });
             }
 
-            // Remove 1 copy from user's inventory disk file
             userInventory.splice(itemIndex, 1);
             inventoryDB[userId] = userInventory;
             saveInventoryDB(inventoryDB);
 
-            // Credit payout
             const earned = targetItem.sellValue;
             creditsDB[userId].balance = clampBalance(currentBalance + earned);
             saveCreditsDB(creditsDB);
