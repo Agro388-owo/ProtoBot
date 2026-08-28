@@ -52,7 +52,14 @@ const emojiMap = {
     // --- PAGE 3 (Items 41 - 60) ---
     'BalkanBitcoin': '<:BalkanBitcoin:1542843185041117224>',
     'RobloxiNoliStatue': '<:RobloxiNoliStatue:1542834047494131712>',
-    'BloxyStatue': '<:BloxyStatue:1542833919651610695>'
+    'BloxyStatue': '<:BloxyStatue:1542833919651610695>',
+
+    // --- PAGE 4 (Items 61+) ---
+    'snapper': '<:snapper:1542959982012534784>',
+    'flippinguoff': '<:flippinguoff:1542959978682253413>',
+    'prettyimg': '<:prettyimg:1542959976622985226>',
+    'axehit': '<:axehit:1542959974617976974>',
+    'strangcreature': '<:strangcreature:1542959970658685040>'
 };
 
 const allKeys = Object.keys(emojiMap);
