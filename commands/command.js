@@ -6,11 +6,33 @@ const botConfig = require('../config'); // Imports OWNER_ID from config.js
 // 🛠️ CONFIGURATION
 const VALID_KEYWORDS = ['command', 'template'];
 const ALLOWED_EXTENSIONS = ['.js'];
+const rolesFilePath = path.resolve(process.cwd(), 'command_roles.json');
+
+// Helper functions for persistent permission storage
+function loadRolesDB() {
+    try {
+        if (fs.existsSync(rolesFilePath)) {
+            const raw = fs.readFileSync(rolesFilePath, 'utf8').trim();
+            return raw ? JSON.parse(raw) : {};
+        }
+    } catch (e) {
+        console.error('Failed to load command_roles.json:', e);
+    }
+    return {};
+}
+
+function saveRolesDB(data) {
+    try {
+        fs.writeFileSync(rolesFilePath, JSON.stringify(data, null, 2), 'utf8');
+    } catch (e) {
+        console.error('Failed to save command_roles.json:', e);
+    }
+}
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('command')
-        .setDescription('Download command templates or suggest new commands')
+        .setDescription('Download command templates, suggest features, or manage permissions')
         .setIntegrationTypes([0, 1])
         .setContexts([0, 1, 2])
         .addSubcommand(sub =>
@@ -30,12 +52,79 @@ module.exports = {
                         .setDescription('Upload your custom command file')
                         .setRequired(false)
                 )
+        )
+        .addSubcommandGroup(group =>
+            group.setName('permission')
+                .setDescription('Manage command access permissions')
+                .addSubcommand(sub =>
+                    sub.setName('grant')
+                        .setDescription('Grant specific command access to a target user [Owner Only]')
+                        .addUserOption(opt =>
+                            opt.setName('target')
+                                .setDescription('The user to grant access to')
+                                .setRequired(true)
+                        )
+                        .addStringOption(opt =>
+                            opt.setName('cmd')
+                                .setDescription('The command name to grant (e.g. config, arrest)')
+                                .setRequired(true)
+                        )
+                )
         ),
 
     async execute(interaction) {
         await interaction.deferReply({ flags: 64 });
-        const subcommand = interaction.options.getSubcommand();
 
+        const subcommandGroup = interaction.options.getSubcommandGroup(false);
+        const subcommand = interaction.options.getSubcommand();
+        const ownerId = botConfig.OWNER_ID || botConfig.ownerId;
+
+        // === 1. PERMISSION SUBCOMMAND GROUP ===
+        if (subcommandGroup === 'permission') {
+            if (subcommand === 'grant') {
+                // Owner Security Check
+                if (!ownerId || interaction.user.id !== ownerId) {
+                    await interaction.editReply({
+                        content: '⛔ **Access Denied**: Only the designated Bot Owner (`OWNER_ID`) can grant command permissions.'
+                    });
+                    return true;
+                }
+
+                const targetUser = interaction.options.getUser('target');
+                const commandName = interaction.options.getString('cmd').trim().toLowerCase().replace(/^\//, '');
+
+                const rolesDB = loadRolesDB();
+                if (!rolesDB[targetUser.id]) {
+                    rolesDB[targetUser.id] = [];
+                }
+
+                if (rolesDB[targetUser.id].includes(commandName)) {
+                    await interaction.editReply({
+                        content: `⚠️ <@${targetUser.id}> already has granted access to \`/${commandName}\`.`
+                    });
+                    return true;
+                }
+
+                rolesDB[targetUser.id].push(commandName);
+                saveRolesDB(rolesDB);
+
+                const grantEmbed = new EmbedBuilder()
+                    .setTitle('✅ COMMAND PERMISSION GRANTED')
+                    .setColor(0x2ECC71)
+                    .setDescription(`Successfully granted command access to <@${targetUser.id}>!`)
+                    .addFields(
+                        { name: 'Target User', value: `${targetUser.tag} (\`${targetUser.id}\`)`, inline: true },
+                        { name: 'Command Unlocked', value: `\`/${commandName}\``, inline: true }
+                    )
+                    .setFooter({ text: 'ProtoBot Security Core' })
+                    .setTimestamp();
+
+                await interaction.editReply({ embeds: [grantEmbed] });
+                return true;
+            }
+        }
+
+        // === 2. TEMPLATE SUBCOMMAND ===
         if (subcommand === 'template') {
             const assetsDir = path.join(process.cwd(), 'assets');
 
@@ -68,6 +157,7 @@ module.exports = {
             return true;
         }
 
+        // === 3. SUGGEST SUBCOMMAND ===
         if (subcommand === 'suggest') {
             const textSuggestion = interaction.options.getString('description');
             const fileAttachment = interaction.options.getAttachment('file');
@@ -91,7 +181,6 @@ module.exports = {
                 }
             }
 
-            // Build DM notification embed
             const suggestionEmbed = new EmbedBuilder()
                 .setTitle('💡 New Command Suggestion Received')
                 .setColor(0x5865F2)
@@ -114,9 +203,6 @@ module.exports = {
                     value: `📄 [${fileAttachment.name}](${fileAttachment.url}) (${fileAttachment.size} bytes)` 
                 });
             }
-
-            // Fetch owner ID from config and deliver DM
-            const ownerId = botConfig.OWNER_ID || botConfig.ownerId;
 
             if (!ownerId) {
                 await interaction.editReply({
