@@ -176,6 +176,10 @@ module.exports = {
                )
         )
         .addSubcommand(sub =>
+            sub.setName('sell_all')
+               .setDescription('Sell all sellable items in your inventory for credits')
+        )
+        .addSubcommand(sub =>
             sub.setName('exchange')
                .setDescription('Convert credits between Local and Global currencies')
                .addStringOption(opt =>
@@ -242,7 +246,8 @@ module.exports = {
                     {
                         name: '💰 Salvage & Resale',
                         value: `Sell caught items directly from your \`/inventory\` for credits.\n` +
-                               `*Command:* \`/shop sell item_id:<ID>\``,
+                               `• Single Item: \`/shop sell item_id:<ID>\`\n` +
+                               `• Bulk Resale: \`/shop sell_all\``,
                         inline: false
                     }
                 )
@@ -350,7 +355,69 @@ module.exports = {
             return await interaction.reply({ embeds: [embed] });
         }
 
-        // === 4. EXCHANGE SUBCOMMAND (BIDIRECTIONAL) ===
+        // === 4. SELL ALL SUBCOMMAND ===
+        if (subcommand === 'sell_all') {
+            const inventoryDB = loadInventoryDB();
+            const userInventory = inventoryDB[userId] || [];
+
+            if (userInventory.length === 0) {
+                return await interaction.reply({
+                    content: '❌ Your inventory is empty! There is nothing to sell.',
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            const lootItems = loadLootDB();
+            const lootMap = new Map(lootItems.map(item => [item.id.toLowerCase(), item]));
+
+            let totalEarned = 0n;
+            let soldCount = 0;
+            const remainingInventory = [];
+
+            for (const rawItem of userInventory) {
+                const itemId = (typeof rawItem === 'string' ? rawItem : rawItem?.id || '').toLowerCase();
+                const matchedItem = lootMap.get(itemId);
+
+                if (matchedItem && matchedItem.sellable && matchedItem.sellValue > 0n) {
+                    totalEarned += matchedItem.sellValue;
+                    soldCount++;
+                } else {
+                    remainingInventory.push(rawItem);
+                }
+            }
+
+            if (soldCount === 0) {
+                return await interaction.reply({
+                    content: '⚠️ You don\'t have any sellable items in your inventory!',
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            // Save updated inventory and balance
+            inventoryDB[userId] = remainingInventory;
+            saveInventoryDB(inventoryDB);
+
+            creditsDB[userId].balance = clampBalance(currentBalance + totalEarned);
+            saveCreditsDB(creditsDB);
+
+            const unsoldKeepers = remainingInventory.length;
+
+            const embed = new EmbedBuilder()
+                .setTitle('📦 BULK SALVAGE TRADE COMPLETED')
+                .setColor(0x2ECC71)
+                .setDescription(`Successfully liquidated all sellable inventory items!`)
+                .addFields(
+                    { name: 'Items Liquidated', value: `**${soldCount}** item(s)`, inline: true },
+                    { name: 'Total Payout', value: `**+${formatNumber(totalEarned)}** ${CREDIT}`, inline: true },
+                    { name: 'New Balance', value: `**${formatNumber(creditsDB[userId].balance)}** ${CREDIT}`, inline: true },
+                    { name: 'Kept Unsellable Items', value: `**${unsoldKeepers}** item(s) retained`, inline: false }
+                )
+                .setFooter({ text: 'ProtoBot Scrapper Network' });
+
+            return await interaction.reply({ embeds: [embed] });
+        }
+
+        // === 5. EXCHANGE SUBCOMMAND (BIDIRECTIONAL) ===
         if (subcommand === 'exchange') {
             const direction = interaction.options.getString('direction');
             const targetAmount = BigInt(interaction.options.getInteger('amount'));
