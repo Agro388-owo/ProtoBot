@@ -41,15 +41,18 @@ const emojiMap = {
     'UniTheCat': '<:UniTheCat:1539189751649935430>', 
     'Credit': '<:Credit:1541934198791737475>', 
     'Credit_old': '<:Credit_old:1541924089256607785>', 
-
-    // --- PEOPLE / USER EMOJIS ---
     'Shorkboi': '<:Shorkboi:1542381402526449704>',
     'SpyTheProot': '<:SpyTheProot:1542483331734573148>',
     'Agro388': '<:Agro388:1542396105738948689>', 
     'ProtoBot': '<:ProtoBot:1542397144315600996>', 
     'Bloxy': '<:Bloxy:1542398280699220040>', 
     'Steven130': '<:Steven130:1542399890783604787>', 
-    'Benjamin391': '<:Benjamin391:1542399892381507665>'
+    'Benjamin391': '<:Benjamin391:1542399892381507665>',
+
+    // --- PAGE 3 (Items 41 - 60) ---
+    'BalkanBitcoin': '<:BalkanBitcoin:1542843185041117224>',
+    'RobloxiNoliStatue': '<:RobloxiNoliStatue:1542834047494131712>',
+    'BloxyStatue': '<:BloxyStatue:1542833919651610695>'
 };
 
 const allKeys = Object.keys(emojiMap);
@@ -71,10 +74,11 @@ const slashCommand = new SlashCommandBuilder()
     .setName('emoji')
     .setDescription('Send a custom emoji or reply to a message!')
     .setIntegrationTypes([0, 1])
-    .setContexts([0, 1, 2])
+    .setContexts([0, 1, 2]);
 
-    // --- Subcommand Page 1 ---
-    .addSubcommand(sub =>
+// --- Subcommand Page 1 ---
+if (page1Keys.length > 0) {
+    slashCommand.addSubcommand(sub =>
         sub.setName('page1')
            .setDescription('Select an emoji from Page 1')
            .addStringOption(opt =>
@@ -83,10 +87,12 @@ const slashCommand = new SlashCommandBuilder()
                   .setRequired(true)
                   .addChoices(...page1Keys.map(k => ({ name: k, value: k })))
            )
-    )
+    );
+}
 
-    // --- Subcommand Page 2 ---
-    .addSubcommand(sub =>
+// --- Subcommand Page 2 ---
+if (page2Keys.length > 0) {
+    slashCommand.addSubcommand(sub =>
         sub.setName('page2')
            .setDescription('Select an emoji from Page 2')
            .addStringOption(opt =>
@@ -96,8 +102,9 @@ const slashCommand = new SlashCommandBuilder()
                   .addChoices(...page2Keys.map(k => ({ name: k, value: k })))
            )
     );
+}
 
-// Add Page 3 dynamically if emojis spill past 40 choices
+// --- Subcommand Page 3 ---
 if (page3Keys.length > 0) {
     slashCommand.addSubcommand(sub =>
         sub.setName('page3')
