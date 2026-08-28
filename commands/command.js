@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, AttachmentBuilder, EmbedBuilder } = require('discord.js');
 const path = require('path');
 const fs = require('fs');
-const botConfig = require('../config'); // Imports OWNER_ID from config.js
+const botConfig = require('../config');
 
 // 🛠️ CONFIGURATION
 const VALID_KEYWORDS = ['command', 'template'];
@@ -66,7 +66,7 @@ module.exports = {
                         )
                         .addStringOption(opt =>
                             opt.setName('cmd')
-                                .setDescription('The command name to grant (e.g. config, arrest)')
+                                .setDescription('The command name to grant (e.g. config, arrest, catch)')
                                 .setRequired(true)
                         )
                 )
