@@ -251,7 +251,14 @@ module.exports = {
         // Load permissions DB
         const rolesDB = loadRolesDB();
         const userPerms = rolesDB[userId] || [];
-        const hasGrantedPerm = userPerms.includes('fishing') || userPerms.includes('catch');
+
+        // Helper function for dynamic permission checks
+        const hasPerm = (permName) => 
+            isOwner || 
+            isAdmin || 
+            userPerms.includes(permName) || 
+            userPerms.includes('fishing') || 
+            userPerms.includes('*');
 
         // === 1. CAST SUBCOMMAND ===
         if (subcommand === 'cast' && !group) {
@@ -409,7 +416,7 @@ module.exports = {
 
         // === 2. CATCH SUBCOMMAND ===
         if (subcommand === 'catch' && !group) {
-            if (!isOwner && !isAdmin && !hasGrantedPerm) {
+            if (!hasPerm('catch')) {
                 await interaction.reply({
                     content: '❌ You do not have permission to force a catch!',
                     flags: MessageFlags.Ephemeral
@@ -477,7 +484,7 @@ module.exports = {
                 return true;
             }
 
-            if (!isOwner && !isAdmin && !hasGrantedPerm) {
+            if (!hasPerm('loot') && !hasPerm(subcommand)) {
                 await interaction.reply({
                     content: '❌ You do not have permission to modify the fishing loot table!',
                     flags: MessageFlags.Ephemeral
