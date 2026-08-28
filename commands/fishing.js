@@ -187,7 +187,8 @@ module.exports = {
                       .setRequired(false)
                       .addChoices(
                           { name: '🏖️ Coastal (Standard Risk)', value: 'coastal' },
-                          { name: '🌊 Deep Sea (High Risk / High Rewards)', value: 'deepsea' }
+                          { name: '🌊 Deep Sea (High Risk / High Rewards)', value: 'deepsea' },
+                          { name: '🌌 Abyssal (WIP)', value: 'abyssal' }
                       )
                )
         )
@@ -236,6 +237,15 @@ module.exports = {
 
         // === 1. CAST SUBCOMMAND ===
         if (subcommand === 'cast' && !group) {
+            const mode = interaction.options.getString('mode') || 'coastal';
+
+            if (mode === 'abyssal') {
+                return await interaction.reply({
+                    content: '🌌 **Abyssal Mode** is currently under construction! You cannot fish here yet. *(WIP)*',
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
             await interaction.deferReply({ flags: isPublic ? 0 : MessageFlags.Ephemeral });
             const now = Date.now();
 
@@ -257,7 +267,6 @@ module.exports = {
 
             fishingCooldowns.set(userId, now);
 
-            const mode = interaction.options.getString('mode') || 'coastal';
             const creditsDB = loadCreditsDB();
             const userLuckLevel = creditsDB[userId]?.luckLevel || 0;
 
@@ -316,7 +325,6 @@ module.exports = {
                 finalReward = (finalReward * 15n) / 10n;
             }
 
-            // Save standard catch directly to user inventory on disk
             addItemToInventory(userId, itemCaught.id);
 
             const newBalance = addFishingReward(userId, finalReward);
@@ -393,7 +401,7 @@ module.exports = {
             const newBalance = addFishingReward(targetUser.id, itemCaught.catchCredits);
             const targetDisplay = botConfig.PING_ON_PUBLIC_MESSAGES ? `<@${targetUser.id}>` : `**${targetUser.username}**`;
 
-            let catchMsg = `🛠️ **[Admin Force Catch]** ${targetDisplay} was given **${itemCaught.name}** ${itemCaught.emoji}!\n` +
+            let catchMsg = `<:Sus:1541509245499875439> **[Admin Force Catch]** ${targetDisplay} was given **${itemCaught.name}** ${itemCaught.emoji}!\n` +
                            `**+${formatNumber(itemCaught.catchCredits)}**${CREDIT} *(Current Balance: **${formatNumber(newBalance)}**${CREDIT})*`;
 
             if (itemCaught.flavor) {
