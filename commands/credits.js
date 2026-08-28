@@ -94,7 +94,7 @@ module.exports = {
         )
         .addSubcommand(sub =>
             sub.setName('daily')
-               .setDescription('Claim your daily credit reward (24h cooldown)')
+               .setDescription('Claim your daily credit reward (12h cooldown)')
         )
         .addSubcommand(sub =>
             sub.setName('pay')
@@ -141,7 +141,7 @@ module.exports = {
         // 2. Daily
         if (subcommand === 'daily') {
             const NOW = Date.now();
-            const COOLDOWN = 24 * 60 * 60 * 1000;
+            const COOLDOWN = 12 * 60 * 60 * 1000;
             const lastDaily = db[user.id].lastDaily || 0;
 
             if (NOW - lastDaily < COOLDOWN) {
