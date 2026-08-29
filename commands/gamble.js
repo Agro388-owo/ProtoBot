@@ -1,7 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
-const { CREDIT, formatNumber, clampBalance } = require('./credits.js');
+const { CREDIT, formatNumber, clampBalance, isInPrison } = require('./credits.js');
 
 const creditsFilePath = path.join(__dirname, '../credits.json');
 
@@ -60,7 +60,18 @@ module.exports = {
         const wager = parseBigIntInput(amountInput);
         const db = getDB();
 
-        if (!db[user.id]) db[user.id] = { balance: 1000n, lastDaily: null };
+        if (!db[user.id]) db[user.id] = { balance: 1000n, lastDaily: null, jailUntil: 0 };
+
+        // Prison Check
+        if (isInPrison(db[user.id])) {
+            const remainingMs = db[user.id].jailUntil - Date.now();
+            const minutes = Math.floor(remainingMs / (1000 * 60));
+            const seconds = Math.floor((remainingMs % (1000 * 60)) / 1000);
+            return await interaction.reply({
+                content: `🚨 **PRISON LOCKDOWN!** You are currently in prison! You cannot gamble for another **${minutes}m ${seconds}s**.`,
+                ephemeral: true
+            });
+        }
 
         // 1. Validation
         if (wager === null) {
@@ -82,7 +93,6 @@ module.exports = {
         const roll = Math.floor(Math.random() * ODDS) + 1;
 
         if (roll === 150) {
-            // Net gain: 149x wager added to balance (yielding 150x total wager returned)
             const netWin = wager * 149n;
             db[user.id].balance = clampBalance(db[user.id].balance + netWin);
             saveDB(db);
@@ -91,7 +101,6 @@ module.exports = {
                 content: `<:purocute:1536367584369180803> **<@${user.id}>** wagered **${formatNumber(wager)}** ${CREDIT} and HIT THE **1/150 JACKPOT**!\nWon **+${formatNumber(netWin)}** ${CREDIT}! New Balance: **${formatNumber(db[user.id].balance)}** ${CREDIT} <:Puroadorable:1536364133392457818>`
             });
         } else {
-            // Deduct wager
             db[user.id].balance = clampBalance(db[user.id].balance - wager);
             saveDB(db);
 
