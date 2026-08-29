@@ -125,7 +125,7 @@ module.exports = {
                .setDescription('View top credit holders across the system')
         )
         .addSubcommand(sub =>
-            sub.setName('info')
+            sub.setName('units')
                .setDescription('Display credit unit suffixes and notation scale')
         )
         .addSubcommand(sub =>
@@ -197,8 +197,8 @@ module.exports = {
             });
         }
 
-        // 3. System Info (Gold Embed with Units & Names)
-        if (subcommand === 'info') {
+        // 3. System Units (Public Gold Embed)
+        if (subcommand === 'units') {
             const half = Math.ceil(units.length / 2);
             
             const col1 = units.slice(0, half)
@@ -219,7 +219,7 @@ module.exports = {
                 )
                 .setFooter({ text: 'ProtoBot Economy System' });
 
-            return await interaction.reply({ embeds: [embed], ephemeral: true });
+            return await interaction.reply({ embeds: [embed] });
         }
 
         // 4. Leaderboard
@@ -407,3 +407,4 @@ module.exports = {
         }
     }
 };
+ 
