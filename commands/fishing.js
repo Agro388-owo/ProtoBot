@@ -662,24 +662,82 @@ module.exports = {
         }
 
         if (group === 'loot' && subcommand === 'list') {
-            const items = lootConfig.items;
+            const freshLoot = loadLootDB();
+            const items = freshLoot.items || [];
             
-            let description = `**Active Economy Mode:** \`${lootConfig.mode}\`\n\n`;
-            
-            items.forEach((item) => {
-                const currentCount = getGlobalItemCount(item.id);
-                const dynamicVal = getCalculatedReward(item);
-                description += `${item.emoji} **${item.name}** (\`${item.id}\`)\n` +
-                                `> Chance: \`${item.chance}%\` | Base: \`${item.catchCredits}\`${CREDIT} | Current Val: \`${dynamicVal}\`${CREDIT} | Caught Total: \`${currentCount}\`\n\n`;
+            if (items.length === 0) {
+                return await interaction.reply({ content: '⚠️ The fishing loot table is currently empty!', flags: MessageFlags.Ephemeral });
+            }
+
+            const ITEMS_PER_PAGE = 5;
+            const totalPages = Math.ceil(items.length / ITEMS_PER_PAGE);
+            let currentPage = 0;
+
+            const generateEmbed = (page) => {
+                const start = page * ITEMS_PER_PAGE;
+                const currentItems = items.slice(start, start + ITEMS_PER_PAGE);
+                
+                let description = `**Active Economy Mode:** \`${freshLoot.mode}\`\n\n`;
+                
+                currentItems.forEach((item) => {
+                    const currentCount = getGlobalItemCount(item.id);
+                    const dynamicVal = getCalculatedReward(item);
+                    description += `${item.emoji} **${item.name}** (\`${item.id}\`)\n` +
+                                   `> Chance: \`${item.chance}%\` | Base: \`${item.catchCredits}\`${CREDIT} | Val: \`${dynamicVal}\`${CREDIT} | Total: \`${currentCount}\`\n\n`;
+                });
+
+                return new EmbedBuilder()
+                    .setColor(0x0099FF)
+                    .setTitle('🎣 Fishing Loot Table & Market Values')
+                    .setDescription(description)
+                    .setFooter({ text: `Page ${page + 1} of ${totalPages} • Values dynamically shift based on supply & demand!` });
+            };
+
+            const getButtons = (page) => {
+                return new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('loot_prev')
+                        .setEmoji('◀️')
+                        .setStyle(ButtonStyle.Primary)
+                        .setDisabled(page === 0),
+                    new ButtonBuilder()
+                        .setCustomId('loot_next')
+                        .setEmoji('▶️')
+                        .setStyle(ButtonStyle.Primary)
+                        .setDisabled(page === totalPages - 1)
+                );
+            };
+
+            const response = await interaction.reply({
+                embeds: [generateEmbed(currentPage)],
+                components: totalPages > 1 ? [getButtons(currentPage)] : [],
+                fetchReply: true
             });
 
-            const embed = new EmbedBuilder()
-                .setColor(0x0099FF)
-                .setTitle('🎣 Fishing Loot Table & Market Values')
-                .setDescription(description.length > 4096 ? description.slice(0, 4093) + '...' : description)
-                .setFooter({ text: 'Values dynamically shift based on global supply & demand!' });
+            if (totalPages <= 1) return;
 
-            return await interaction.reply({ embeds: [embed] });
+            const collector = response.createMessageComponentCollector({ time: 60 * 1000 });
+
+            collector.on('collect', async (i) => {
+                if (i.user.id !== interaction.user.id) {
+                    return await i.reply({ content: '❌ These buttons are not for you!', flags: MessageFlags.Ephemeral });
+                }
+
+                if (i.customId === 'loot_prev') {
+                    currentPage = Math.max(0, currentPage - 1);
+                } else if (i.customId === 'loot_next') {
+                    currentPage = Math.min(totalPages - 1, currentPage + 1);
+                }
+
+                await i.update({
+                    embeds: [generateEmbed(currentPage)],
+                    components: [getButtons(currentPage)]
+                });
+            });
+
+            collector.on('end', () => {
+                interaction.editReply({ components: [] }).catch(() => {});
+            });
         }
     }
 };
