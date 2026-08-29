@@ -4,6 +4,7 @@ const path = require('path');
 const botConfig = require('../config.js');
 
 const CREDIT = '<:Credit:1541934198791737475>';
+const GLOBAL_CREDIT = '۞';
 const MAX_CREDIT_CAP = 10n ** 153n;
 const DEFAULT_BALANCE = 1000n;
 const DAILY_REWARD = 250n;
@@ -77,12 +78,17 @@ function loadCredits() {
             const raw = fs.readFileSync(creditsFilePath, 'utf8') || '{}';
             const parsed = JSON.parse(raw);
             if (!parsed._config) {
-                parsed._config = { prisonDurationMs: 5 * 60 * 1000 }; // Default: 5 minutes
+                parsed._config = { prisonDurationMs: 5 * 60 * 1000 };
             }
             for (const id in parsed) {
                 if (id === '_config') continue;
                 if (parsed[id].balance !== undefined) {
                     parsed[id].balance = clampBalance(BigInt(parsed[id].balance));
+                }
+                if (parsed[id].globalCredits !== undefined) {
+                    parsed[id].globalCredits = clampBalance(BigInt(parsed[id].globalCredits));
+                } else {
+                    parsed[id].globalCredits = 0n;
                 }
             }
             return parsed;
@@ -99,8 +105,11 @@ function saveCredits(data) {
 
 function ensureUser(db, userId) {
     if (!db[userId]) {
-        db[userId] = { balance: DEFAULT_BALANCE, lastDaily: null, jailUntil: 0, lastSteal: 0 };
+        db[userId] = { balance: DEFAULT_BALANCE, globalCredits: 0n, lastDaily: null, jailUntil: 0, lastSteal: 0, luckLevel: 0, rods: [] };
         saveCredits(db);
+    }
+    if (db[userId].globalCredits === undefined) {
+        db[userId].globalCredits = 0n;
     }
     return db[userId];
 }
@@ -112,10 +121,14 @@ function isInPrison(userEntry) {
 
 module.exports = {
     CREDIT,
+    GLOBAL_CREDIT,
     MAX_CREDIT_CAP,
     clampBalance,
     formatNumber,
     isInPrison,
+    loadCredits,
+    saveCredits,
+    ensureUser,
     data: new SlashCommandBuilder()
         .setName('credits')
         .setDescription('Manage your wallet, claim daily rewards, send credits, steal, bail, or admin tools!')
@@ -153,24 +166,48 @@ module.exports = {
                .setDescription('Transfer credits to another user')
                .addUserOption(opt => opt.setName('target').setDescription('User to pay').setRequired(true))
                .addStringOption(opt => opt.setName('amount').setDescription('Amount to send').setRequired(true))
+               .addStringOption(opt => opt.setName('type')
+                   .setDescription('Currency type (default: local)')
+                   .addChoices(
+                       { name: 'Local Credits', value: 'local' },
+                       { name: 'Global Credits (۞)', value: 'global' }
+                   ))
         )
         .addSubcommand(sub =>
             sub.setName('add')
                .setDescription('[ADMIN] Add credits to a user')
                .addUserOption(opt => opt.setName('target').setDescription('User to give credits to').setRequired(true))
                .addStringOption(opt => opt.setName('amount').setDescription('Amount to add').setRequired(true))
+               .addStringOption(opt => opt.setName('type')
+                   .setDescription('Currency type')
+                   .addChoices(
+                       { name: 'Local Credits', value: 'local' },
+                       { name: 'Global Credits (۞)', value: 'global' }
+                   ))
         )
         .addSubcommand(sub =>
             sub.setName('remove')
                .setDescription('[ADMIN] Remove credits from a user')
                .addUserOption(opt => opt.setName('target').setDescription('User to take credits from').setRequired(true))
                .addStringOption(opt => opt.setName('amount').setDescription('Amount to remove').setRequired(true))
+               .addStringOption(opt => opt.setName('type')
+                   .setDescription('Currency type')
+                   .addChoices(
+                       { name: 'Local Credits', value: 'local' },
+                       { name: 'Global Credits (۞)', value: 'global' }
+                   ))
         )
         .addSubcommand(sub =>
             sub.setName('set')
                .setDescription('[ADMIN] Set a user\'s credit balance')
                .addUserOption(opt => opt.setName('target').setDescription('User balance to modify').setRequired(true))
                .addStringOption(opt => opt.setName('amount').setDescription('Amount to set').setRequired(true))
+               .addStringOption(opt => opt.setName('type')
+                   .setDescription('Currency type')
+                   .addChoices(
+                       { name: 'Local Credits', value: 'local' },
+                       { name: 'Global Credits (۞)', value: 'global' }
+                   ))
         )
         .addSubcommand(sub =>
             sub.setName('prison_time')
@@ -192,7 +229,6 @@ module.exports = {
 
         const userData = ensureUser(db, user.id);
 
-        // Prison Lockdown Enforcement
         if (isInPrison(userData) && subcommand !== 'bail') {
             const remainingMs = userData.jailUntil - Date.now();
             const minutes = Math.floor(remainingMs / (1000 * 60));
@@ -207,9 +243,10 @@ module.exports = {
         if (subcommand === 'balance') {
             const target = interaction.options.getUser('target') || user;
             const targetData = ensureUser(db, target.id);
-            
+            const globalBalance = BigInt(targetData.globalCredits ?? 0n);
+
             return await interaction.reply({
-                content: `💳 **<@${target.id}>**'s Balance: **${formatNumber(targetData.balance)}**${CREDIT}`,
+                content: `💳 **<@${target.id}>**'s Balance:\n• Local: **${formatNumber(targetData.balance)}** ${CREDIT}\n• Global: **${formatNumber(globalBalance)}** ${GLOBAL_CREDIT}`,
                 ephemeral: true
             });
         }
@@ -235,7 +272,7 @@ module.exports = {
             saveCredits(db);
 
             return await interaction.reply({
-                content: `<:Puro_Blush6:1536430029104353380> You claimed your daily reward of **+${formatNumber(DAILY_REWARD)}**${CREDIT}!\nNew Balance: **${formatNumber(userData.balance)}** ${CREDIT}`,
+                content: `<:Puro_Blush6:1536430029104353380> You claimed your daily reward of **+${formatNumber(DAILY_REWARD)}** ${CREDIT}!\nNew Balance: **${formatNumber(userData.balance)}** ${CREDIT}`,
                 ephemeral: true
             });
         }
@@ -391,8 +428,18 @@ module.exports = {
         if (subcommand === 'leaderboard') {
             const sorted = Object.entries(db)
                 .filter(([id]) => id !== '_config')
-                .map(([id, data]) => ({ id, balance: data.balance ?? DEFAULT_BALANCE }))
-                .sort((a, b) => (b.balance > a.balance ? 1 : b.balance < a.balance ? -1 : 0));
+                .map(([id, data]) => {
+                    const baseBalance = BigInt(data.balance ?? DEFAULT_BALANCE);
+                    const globalCredits = BigInt(data.globalCredits ?? 0n);
+                    const netWorth = baseBalance + (globalCredits * 1000n);
+                    return {
+                        id,
+                        baseBalance,
+                        globalCredits,
+                        netWorth
+                    };
+                })
+                .sort((a, b) => (b.netWorth > a.netWorth ? 1 : b.netWorth < a.netWorth ? -1 : 0));
 
             if (sorted.length === 0) {
                 return await interaction.reply({
@@ -408,6 +455,9 @@ module.exports = {
             const userRankIndex = sorted.findIndex(e => e.id === user.id);
             const userRankText = userRankIndex !== -1 ? `#${userRankIndex + 1}` : 'Unranked';
 
+            const userEntry = sorted.find(e => e.id === user.id);
+            const userNetWorth = userEntry ? userEntry.netWorth : (userData.balance ?? DEFAULT_BALANCE);
+
             const generateEmbed = (page) => {
                 const start = page * pageSize;
                 const pageEntries = sorted.slice(start, start + pageSize);
@@ -416,7 +466,12 @@ module.exports = {
                 const lines = pageEntries.map((entry, index) => {
                     const globalRank = start + index;
                     const rankDisplay = medalIcons[globalRank] || `**#${globalRank + 1}**`;
-                    return `${rankDisplay} <@${entry.id}> — **${formatNumber(entry.balance)}** ${CREDIT}`;
+                    
+                    let details = `**${formatNumber(entry.netWorth)}** ${CREDIT}`;
+                    if (entry.globalCredits > 0n) {
+                        details += ` *(${formatNumber(entry.baseBalance)} ${CREDIT} + ${formatNumber(entry.globalCredits)} ${GLOBAL_CREDIT})*`;
+                    }
+                    return `${rankDisplay} <@${entry.id}> — ${details}`;
                 });
 
                 return new EmbedBuilder()
@@ -424,7 +479,7 @@ module.exports = {
                     .setDescription(lines.join('\n'))
                     .setColor('#FFD700')
                     .setFooter({ 
-                        text: `Page ${page + 1}/${totalPages} | Your Rank: ${userRankText} | Balance: ${formatNumber(userData.balance)}` 
+                        text: `Page ${page + 1}/${totalPages} | Your Rank: ${userRankText} | Net Worth: ${formatNumber(userNetWorth)}` 
                     });
             };
 
@@ -481,6 +536,7 @@ module.exports = {
         if (subcommand === 'pay') {
             const target = interaction.options.getUser('target');
             const amountInput = interaction.options.getString('amount');
+            const type = interaction.options.getString('type') || 'local';
             const amount = parseBigIntInput(amountInput);
 
             if (amount === null || amount <= 0n) {
@@ -502,21 +558,25 @@ module.exports = {
                     ephemeral: true 
                 });
             }
-            if (userData.balance < amount) {
+
+            const field = type === 'global' ? 'globalCredits' : 'balance';
+            const currencySymbol = type === 'global' ? GLOBAL_CREDIT : CREDIT;
+
+            if (userData[field] < amount) {
                 return await interaction.reply({
-                    content: `<:puronervous2:1538551211207430234> Insufficient funds! You only have **${formatNumber(userData.balance)}**${CREDIT}`,
+                    content: `<:puronervous2:1538551211207430234> Insufficient funds! You only have **${formatNumber(userData[field])}** ${currencySymbol}`,
                     ephemeral: true
                 });
             }
 
             const targetData = ensureUser(db, target.id);
 
-            userData.balance = clampBalance(userData.balance - amount);
-            targetData.balance = clampBalance(targetData.balance + amount);
+            userData[field] = clampBalance(userData[field] - amount);
+            targetData[field] = clampBalance(targetData[field] + amount);
             saveCredits(db);
 
             return await interaction.reply({
-                content: `<:Puro_Blush6:1536430029104353380> **<@${user.id}>** transferred **${formatNumber(amount)}**${CREDIT} to **<@${target.id}>**!`
+                content: `<:Puro_Blush6:1536430029104353380> **<@${user.id}>** transferred **${formatNumber(amount)}** ${currencySymbol} to **<@${target.id}>**!`
             });
         }
 
@@ -566,6 +626,7 @@ module.exports = {
 
             const target = interaction.options.getUser('target');
             const amountInput = interaction.options.getString('amount');
+            const type = interaction.options.getString('type') || 'local';
             const amount = parseBigIntInput(amountInput);
 
             if (amount === null) {
@@ -576,30 +637,32 @@ module.exports = {
             }
 
             const targetData = ensureUser(db, target.id);
+            const field = type === 'global' ? 'globalCredits' : 'balance';
+            const currencySymbol = type === 'global' ? GLOBAL_CREDIT : CREDIT;
 
             if (subcommand === 'add') {
-                targetData.balance = clampBalance(targetData.balance + amount);
+                targetData[field] = clampBalance(targetData[field] + amount);
                 saveCredits(db);
                 return await interaction.reply({
-                    content: `⚙️ **[ADMIN]** Added **+${formatNumber(amount)}** ${CREDIT} to **<@${target.id}>**!\nNew Balance: **${formatNumber(targetData.balance)}**${CREDIT}`,
+                    content: `⚙️ **[ADMIN]** Added **+${formatNumber(amount)}** ${currencySymbol} to **<@${target.id}>**!\nNew Balance: **${formatNumber(targetData[field])}** ${currencySymbol}`,
                     ephemeral: true
                 });
             }
 
             if (subcommand === 'remove') {
-                targetData.balance = clampBalance(targetData.balance - amount);
+                targetData[field] = clampBalance(targetData[field] - amount);
                 saveCredits(db);
                 return await interaction.reply({
-                    content: `⚙️ **[ADMIN]** Removed **-${formatNumber(amount)}** ${CREDIT} from **<@${target.id}>**!\nNew Balance: **${formatNumber(targetData.balance)}**${CREDIT}`,
+                    content: `⚙️ **[ADMIN]** Removed **-${formatNumber(amount)}** ${currencySymbol} from **<@${target.id}>**!\nNew Balance: **${formatNumber(targetData[field])}** ${currencySymbol}`,
                     ephemeral: true
                 });
             }
 
             if (subcommand === 'set') {
-                targetData.balance = clampBalance(amount);
+                targetData[field] = clampBalance(amount);
                 saveCredits(db);
                 return await interaction.reply({
-                    content: `⚙️ **[ADMIN]** Set **<@${target.id}>**'s balance to **${formatNumber(targetData.balance)}**${CREDIT}!`,
+                    content: `⚙️ **[ADMIN]** Set **<@${target.id}>**'s ${type} balance to **${formatNumber(targetData[field])}** ${currencySymbol}!`,
                     ephemeral: true
                 });
             }
