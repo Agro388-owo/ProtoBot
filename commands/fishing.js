@@ -276,7 +276,6 @@ function getRandomCatch(lootConfig, mode = 'coastal', userLuckLevel = 0, userRod
         });
     }
 
-    // Magnet Rod Upgrade (150% boost to metal items)
     if (userRods.includes('magnetic')) {
         modifiedItems = modifiedItems.map(item => {
             if (METAL_ITEMS.includes(item.id)) {
@@ -286,7 +285,6 @@ function getRandomCatch(lootConfig, mode = 'coastal', userLuckLevel = 0, userRod
         });
     }
 
-    // Stealth Rod Upgrade (Reduces ambush chance by 75%)
     if (userRods.includes('stealth')) {
         modifiedItems = modifiedItems.map(item => {
             if (item.id === 'latex_sample' || item.id === 'cult_tracker') {
@@ -423,7 +421,6 @@ module.exports = {
         const creditsDB = loadCreditsDB();
         const userData = creditsDB[userId] || {};
 
-        // --- PRISON LOCKDOWN CHECK ---
         const now = Date.now();
         const jailTime = Number(userData.jailUntil || 0);
 
@@ -433,7 +430,7 @@ module.exports = {
             const seconds = Math.floor((remainingMs % (1000 * 60)) / 1000);
 
             return await interaction.reply({
-                content: `🚨 **PRISON LOCKDOWN!** You are currently locked in prison! You cannot go fishing for **${minutes}m ${seconds}s**.`,
+                content: `🚨 **PRISON LOCKDOWN!** You are currently locked in prison! You cannot go fishing for **${minutes}m ${seconds}s**[span_0](start_span)[span_0](end_span).`,
                 flags: MessageFlags.Ephemeral
             });
         }
@@ -462,7 +459,6 @@ module.exports = {
 
             const userRods = userData?.rods || [];
 
-            // Check if Abyssal is locked OR missing Abyssal Rod
             if (mode === 'abyssal') {
                 if (fishingConfig.abyssalLocked && !isOwner) {
                     return await interaction.reply({
@@ -491,7 +487,6 @@ module.exports = {
 
             await interaction.deferReply({ flags: isPublic ? 0 : MessageFlags.Ephemeral });
 
-            // Quick Reel Rod halves the cooldown
             const currentCooldown = userRods.includes('quick_reel') ? BASE_COOLDOWN_DURATION / 2 : BASE_COOLDOWN_DURATION;
 
             if (fishingCooldowns.has(userId)) {
@@ -664,6 +659,27 @@ module.exports = {
                         )
                 ]
             });
+        }
+
+        if (group === 'loot' && subcommand === 'list') {
+            const items = lootConfig.items;
+            
+            let description = `**Active Economy Mode:** \`${lootConfig.mode}\`\n\n`;
+            
+            items.forEach((item) => {
+                const currentCount = getGlobalItemCount(item.id);
+                const dynamicVal = getCalculatedReward(item);
+                description += `${item.emoji} **${item.name}** (\`${item.id}\`)\n` +
+                                `> Chance: \`${item.chance}%\` | Base: \`${item.catchCredits}\`${CREDIT} | Current Val: \`${dynamicVal}\`${CREDIT} | Caught Total: \`${currentCount}\`\n\n`;
+            });
+
+            const embed = new EmbedBuilder()
+                .setColor(0x0099FF)
+                .setTitle('🎣 Fishing Loot Table & Market Values')
+                .setDescription(description.length > 4096 ? description.slice(0, 4093) + '...' : description)
+                .setFooter({ text: 'Values dynamically shift based on global supply & demand!' });
+
+            return await interaction.reply({ embeds: [embed] });
         }
     }
 };
