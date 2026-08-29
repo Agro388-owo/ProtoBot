@@ -419,17 +419,21 @@ module.exports = {
         const subcommand = interaction.options.getSubcommand();
         const user = interaction.user;
         const userId = user.id;
+
         const creditsDB = loadCreditsDB();
-        const userData = creditsDB[userId];
+        const userData = creditsDB[userId] || {};
 
         // --- PRISON LOCKDOWN CHECK ---
-        if (isInPrison(userData)) {
-            const remainingMs = userData.jailUntil - Date.now();
+        const now = Date.now();
+        const jailTime = Number(userData.jailUntil || 0);
+
+        if ((typeof isInPrison === 'function' && isInPrison(userData)) || jailTime > now) {
+            const remainingMs = Math.max(0, jailTime - now);
             const minutes = Math.floor(remainingMs / (1000 * 60));
             const seconds = Math.floor((remainingMs % (1000 * 60)) / 1000);
-            
+
             return await interaction.reply({
-                content: `🚨 **PRISON LOCKDOWN!** You were caught attempting theft! You cannot go fishing for **${minutes}m ${seconds}s**.`,
+                content: `🚨 **PRISON LOCKDOWN!** You are currently locked in prison! You cannot go fishing for **${minutes}m ${seconds}s**.`,
                 flags: MessageFlags.Ephemeral
             });
         }
@@ -486,7 +490,6 @@ module.exports = {
             }
 
             await interaction.deferReply({ flags: isPublic ? 0 : MessageFlags.Ephemeral });
-            const now = Date.now();
 
             // Quick Reel Rod halves the cooldown
             const currentCooldown = userRods.includes('quick_reel') ? BASE_COOLDOWN_DURATION / 2 : BASE_COOLDOWN_DURATION;
