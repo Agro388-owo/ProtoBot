@@ -111,6 +111,43 @@ for (const file of commandFiles) {
 }
 console.log(`--- Total Commands Loaded: ${client.commands.size} ---`);
 
+// 📄 Helper function to append command invocation logs to disk
+function logCommandExecution(interaction) {
+    try {
+        const { user, guild, commandName, options } = interaction;
+        const subcommand = options.getSubcommand(false);
+
+        // Check if subcommand or command is admin related
+        const isAdminCommand = subcommand 
+            ? ['add', 'remove', 'set', 'admin'].includes(subcommand) 
+            : ['admin', 'eval', 'ban', 'kick'].includes(commandName);
+
+        const ownerId = botConfig.OWNER_ID || botConfig.ownerId;
+        const isOwner = user.id === ownerId;
+
+        const targetLogFile = (isAdminCommand || isOwner) ? 'admin-user-cmd.log' : 'user-cmd.log';
+        const logPath = path.join(__dirname, targetLogFile);
+
+        const timestamp = new Date().toISOString();
+        const guildInfo = guild ? `${guild.name} (${guild.id})` : 'Direct Message';
+        
+        // Extract options formatted nicely
+        const optionList = options.data.map(opt => {
+            if (opt.type === 1) { // Subcommand
+                const subOpts = opt.options?.map(o => `${o.name}:${o.value}`).join(' ') || '';
+                return `${opt.name} ${subOpts}`.trim();
+            }
+            return `${opt.name}:${opt.value}`;
+        }).join(' ');
+
+        const logEntry = `[${timestamp}] User: ${user.tag} (${user.id}) | Guild: ${guildInfo} | Cmd: /${commandName}${optionList ? ' ' + optionList : ''}\n`;
+
+        fs.appendFileSync(logPath, logEntry, 'utf8');
+    } catch (err) {
+        console.error('[LOGGER ERROR] Failed writing to command log:', err);
+    }
+}
+
 // 🐙 GitHub Integration Helper to sync users.json
 async function saveUsersToGitHub(jsonContent) {
     const owner = "Agro388-owo";
@@ -260,6 +297,7 @@ client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
 
     syncAndLogUsers(interaction.user).catch(err => console.error(err));
+    logCommandExecution(interaction);
 
     const command = client.commands.get(interaction.commandName);
     if (!command) return;
