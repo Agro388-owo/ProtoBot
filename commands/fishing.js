@@ -718,11 +718,7 @@ module.exports = {
 
             const collector = response.createMessageComponentCollector({ time: 60 * 1000 });
 
-            collector.on('collect', async (i) => {
-                if (i.user.id !== interaction.user.id) {
-                    return await i.reply({ content: '❌ These buttons are not for you!', flags: MessageFlags.Ephemeral });
-                }
-
+                        collector.on('collect', async (i) => {
                 if (i.customId === 'loot_prev') {
                     currentPage = Math.max(0, currentPage - 1);
                 } else if (i.customId === 'loot_next') {
@@ -734,6 +730,7 @@ module.exports = {
                     components: [getButtons(currentPage)]
                 });
             });
+
 
             collector.on('end', () => {
                 interaction.editReply({ components: [] }).catch(() => {});
