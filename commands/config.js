@@ -1,6 +1,8 @@
-const { SlashCommandBuilder, ActivityType } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
+const fs = require('fs');
+const path = require('path');
 const botConfig = require('../config.js');
-const { broadcast } = require('../websocket.js'); // 🟢 Clean broadcast import
+const { CREDIT, formatNumber, clampBalance, loadCredits, saveCredits, ensureUser, isInPrison } = require('./credits.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -8,6 +10,19 @@ module.exports = {
         .setDescription('Admin configuration commands (Owner only)')
         .setIntegrationTypes([0, 1])
         .setContexts([0, 1, 2])
+        .addSubcommandGroup(group =>
+            group
+                .setName('server-luck')
+                .setDescription('Configure lucky drop multipliers for a specific Discord server')
+                .addSubcommand(sub =>
+                    sub.setName('set')
+                       .setDescription('Set the server ID link and luck multiplier')
+                       .addStringOption(opt => opt.setName('server_id').setDescription('The Discord Guild ID').setRequired(true))
+                       .addNumberOption(opt => opt.setName('multiplier').setDescription('Luck multiplier (e.g., 1.5, 2.0)').setRequired(true))
+                )
+                .addSubcommand(sub => sub.setName('status').setDescription('Check current server luck configuration'))
+                .addSubcommand(sub => sub.setName('clear').setDescription('Remove target server luck configuration'))
+        )
         .addSubcommandGroup(group =>
             group
                 .setName('kidnap-restriction')
@@ -25,7 +40,7 @@ module.exports = {
                     sub
                         .setName('set')
                         .setDescription('Set a new game or activity')
-                        .addStringOption(option => option.setName('activity').setDescription('The name of the game/activity (e.g. Changed)').setRequired(true))
+                        .addStringOption(option => option.setName('activity').setDescription('The name of the game/activity').setRequired(true))
                         .addStringOption(option =>
                             option.setName('status')
                                 .setDescription('The online presence indicator')
@@ -76,7 +91,37 @@ module.exports = {
         const group = interaction.options.getSubcommandGroup();
         const subcommand = interaction.options.getSubcommand();
 
-        if (group === 'kidnap-restriction') {
+        if (group === 'server-luck') {
+            if (subcommand === 'set') {
+                const serverId = interaction.options.getString('server_id');
+                const multiplier = interaction.options.getNumber('multiplier');
+                
+                botConfig.TARGET_SERVER_ID = serverId;
+                botConfig.TARGET_SERVER_LUCK = multiplier;
+
+                await interaction.reply({ 
+                    content: `✅ Updated target server configuration:\n- **Guild ID:** \`${serverId}\`\n- **Luck Multiplier:** \`${multiplier}x\``, 
+                    ephemeral: true 
+                });
+                return null;
+            }
+            else if (subcommand === 'status') {
+                const sId = botConfig.TARGET_SERVER_ID || 'None configured';
+                const sLuck = botConfig.TARGET_SERVER_LUCK || '1.0x';
+                await interaction.reply({ 
+                    content: `🌐 **Server Luck Configuration:**\n- **Linked Server ID:** \`${sId}\`\n- **Luck Multiplier:** \`${sLuck}\``, 
+                    ephemeral: true 
+                });
+                return null;
+            }
+            else if (subcommand === 'clear') {
+                botConfig.TARGET_SERVER_ID = null;
+                botConfig.TARGET_SERVER_LUCK = 1.0;
+                await interaction.reply({ content: `🗑️ Cleared target server luck configuration.`, ephemeral: true });
+                return null;
+            }
+        }
+        else if (group === 'kidnap-restriction') {
             if (subcommand === 'toggle') {
                 botConfig.kidnapRestricted = !botConfig.kidnapRestricted;
                 const stateText = botConfig.kidnapRestricted ? '🔒 **ENABLED**' : '🔓 **DISABLED**';
@@ -111,22 +156,8 @@ module.exports = {
                 botConfig.status = newStatus;
 
                 interaction.client.user.setPresence({
-                    activities: [
-                        { name: 'customstatus', type: ActivityType.Custom, state: botConfig.debugMode ? '🛠️ Debug Mode Active' : 'Living my best life 🤖' },
-                        { name: newActivity, type: ActivityType.Playing }
-                    ],
+                    activities: [{ name: newActivity, type: ActivityType.Playing }],
                     status: newStatus,
-                });
-
-                broadcast({
-                    online: interaction.client.isReady(),
-                    activityName: botConfig.activityName,
-                    activityTypeString: 'Playing',
-                    status: botConfig.status,
-                    uptime: 'Active',
-                    avatarUrl: interaction.client.user.displayAvatarURL({ size: 256 }),
-                    bannerUrl: interaction.client.user.bannerURL({ size: 512 }),
-                    debugMode: botConfig.debugMode
                 });
 
                 await interaction.reply({ content: `✅ Successfully updated bot presence!\n🎮 **Activity:** Playing ${newActivity}\n🟢 **Status:** ${newStatus}`, ephemeral: true });
