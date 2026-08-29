@@ -76,7 +76,11 @@ function loadCredits() {
         if (fs.existsSync(creditsFilePath)) {
             const raw = fs.readFileSync(creditsFilePath, 'utf8') || '{}';
             const parsed = JSON.parse(raw);
+            if (!parsed._config) {
+                parsed._config = { prisonDurationMs: 5 * 60 * 1000 }; // Default: 5 minutes
+            }
             for (const id in parsed) {
+                if (id === '_config') continue;
                 if (parsed[id].balance !== undefined) {
                     parsed[id].balance = clampBalance(BigInt(parsed[id].balance));
                 }
@@ -84,7 +88,7 @@ function loadCredits() {
             return parsed;
         }
     } catch (e) {}
-    return {};
+    return { _config: { prisonDurationMs: 5 * 60 * 1000 } };
 }
 
 function saveCredits(data) {
@@ -114,7 +118,7 @@ module.exports = {
     isInPrison,
     data: new SlashCommandBuilder()
         .setName('credits')
-        .setDescription('Manage your wallet, claim daily rewards, send credits, steal, or admin tools!')
+        .setDescription('Manage your wallet, claim daily rewards, send credits, steal, bail, or admin tools!')
         .setIntegrationTypes([0, 1])
         .setContexts([0, 1, 2])
         .addSubcommand(sub =>
@@ -130,6 +134,11 @@ module.exports = {
             sub.setName('steal')
                .setDescription('Attempt a risky heist to steal credits from a target (24h cooldown)')
                .addUserOption(opt => opt.setName('target').setDescription('User to steal from').setRequired(true))
+        )
+        .addSubcommand(sub =>
+            sub.setName('bail')
+               .setDescription('Bail a user out of prison for a random fine (1k - 5k credits)')
+               .addUserOption(opt => opt.setName('target').setDescription('User to bail out').setRequired(true))
         )
         .addSubcommand(sub =>
             sub.setName('leaderboard')
@@ -162,6 +171,18 @@ module.exports = {
                .setDescription('[ADMIN] Set a user\'s credit balance')
                .addUserOption(opt => opt.setName('target').setDescription('User balance to modify').setRequired(true))
                .addStringOption(opt => opt.setName('amount').setDescription('Amount to set').setRequired(true))
+        )
+        .addSubcommand(sub =>
+            sub.setName('prison_time')
+               .setDescription('[ADMIN] Set the prison duration on failed steal (0 = no prison)')
+               .addIntegerOption(opt => opt.setName('duration').setDescription('Amount of time (0 to disable)').setRequired(true))
+               .addStringOption(opt => opt.setName('unit')
+                   .setDescription('Time unit')
+                   .setRequired(true)
+                   .addChoices(
+                       { name: 'Minutes', value: 'm' },
+                       { name: 'Seconds', value: 's' }
+                   ))
         ),
 
     async execute(interaction) {
@@ -172,7 +193,7 @@ module.exports = {
         const userData = ensureUser(db, user.id);
 
         // Prison Lockdown Enforcement
-        if (isInPrison(userData)) {
+        if (isInPrison(userData) && subcommand !== 'bail') {
             const remainingMs = userData.jailUntil - Date.now();
             const minutes = Math.floor(remainingMs / (1000 * 60));
             const seconds = Math.floor((remainingMs % (1000 * 60)) / 1000);
@@ -219,13 +240,13 @@ module.exports = {
             });
         }
 
-        // 3. Steal Subcommand
+        // 3. Steal
         if (subcommand === 'steal') {
             const target = interaction.options.getUser('target');
             const NOW = Date.now();
             const STEAL_COOLDOWN = 24 * 60 * 60 * 1000;
-            const PRISON_DURATION = 5 * 60 * 1000;
-            const SUCCESS_CHANCE = 0.08; // 8% success chance
+            const PRISON_DURATION = db._config?.prisonDurationMs ?? (5 * 60 * 1000);
+            const SUCCESS_CHANCE = 0.08;
 
             if (target.id === user.id) {
                 return await interaction.reply({
@@ -274,16 +295,74 @@ module.exports = {
                     content: `🥷 **HEIST SUCCESSFUL!** <@${user.id}> sneaked past security and stole **${formatNumber(stolenAmount)}** ${CREDIT} from <@${target.id}>!`
                 });
             } else {
-                userData.jailUntil = NOW + PRISON_DURATION;
-                saveCredits(db);
+                if (PRISON_DURATION > 0) {
+                    userData.jailUntil = NOW + PRISON_DURATION;
+                    saveCredits(db);
 
-                return await interaction.reply({
-                    content: `🚨 **HEIST FAILED!** <@${user.id}> was caught trying to steal from <@${target.id}>! You have been sent to **PRISON** 🚔 for 5 minutes and cannot gamble, fish, or steal!`
-                });
+                    const prisonMin = Math.floor(PRISON_DURATION / (1000 * 60));
+                    const prisonSec = Math.floor((PRISON_DURATION % (1000 * 60)) / 1000);
+                    const timeStr = prisonMin > 0 ? `${prisonMin} minutes` : `${prisonSec} seconds`;
+
+                    return await interaction.reply({
+                        content: `🚨 **HEIST FAILED!** <@${user.id}> was caught trying to steal from <@${target.id}>! You have been sent to **PRISON** 🚔 for **${timeStr}** and cannot gamble, fish, or steal!`
+                    });
+                } else {
+                    saveCredits(db);
+                    return await interaction.reply({
+                        content: `🚨 **HEIST FAILED!** <@${user.id}> was caught trying to steal from <@${target.id}>! Luckily, the prison system is disabled right now so you escaped!`
+                    });
+                }
             }
         }
 
-        // 4. Units Scale
+        // 4. Bail
+        if (subcommand === 'bail') {
+            const target = interaction.options.getUser('target');
+
+            if (target.id === user.id) {
+                return await interaction.reply({
+                    content: `<:puronervous2:1538551211207430234> You can't bail yourself out! Someone else must pay your bail.`,
+                    ephemeral: true
+                });
+            }
+
+            if (target.bot) {
+                return await interaction.reply({
+                    content: `<:puronervous:1536367581995335750> Bots can't be put in prison!`,
+                    ephemeral: true
+                });
+            }
+
+            const targetData = ensureUser(db, target.id);
+
+            if (!isInPrison(targetData)) {
+                return await interaction.reply({
+                    content: `<:Puroadorable:1536364133392457818> **<@${target.id}>** is not currently in prison!`,
+                    ephemeral: true
+                });
+            }
+
+            const minBail = 1000n;
+            const randomMultiplier = BigInt(Math.floor(Math.random() * 4001));
+            const bailCost = minBail + randomMultiplier;
+
+            if (userData.balance < bailCost) {
+                return await interaction.reply({
+                    content: `<:puronervous2:1538551211207430234> The judge set the bail fee to **${formatNumber(bailCost)}** ${CREDIT}, but you only have **${formatNumber(userData.balance)}** ${CREDIT}!`,
+                    ephemeral: true
+                });
+            }
+
+            userData.balance = clampBalance(userData.balance - bailCost);
+            targetData.jailUntil = 0;
+            saveCredits(db);
+
+            return await interaction.reply({
+                content: `🔓 **BAIL POSTED!** <@${user.id}> paid **${formatNumber(bailCost)}** ${CREDIT} to bail <@${target.id}> out of prison! <@${target.id}> is now free to gamble, fish, and steal again.`
+            });
+        }
+
+        // 5. Units Scale
         if (subcommand === 'units') {
             const half = Math.ceil(units.length / 2);
             
@@ -308,9 +387,10 @@ module.exports = {
             return await interaction.reply({ embeds: [embed] });
         }
 
-        // 5. Leaderboard
+        // 6. Leaderboard
         if (subcommand === 'leaderboard') {
             const sorted = Object.entries(db)
+                .filter(([id]) => id !== '_config')
                 .map(([id, data]) => ({ id, balance: data.balance ?? DEFAULT_BALANCE }))
                 .sort((a, b) => (b.balance > a.balance ? 1 : b.balance < a.balance ? -1 : 0));
 
@@ -397,7 +477,7 @@ module.exports = {
             return;
         }
 
-        // 6. Pay
+        // 7. Pay
         if (subcommand === 'pay') {
             const target = interaction.options.getUser('target');
             const amountInput = interaction.options.getString('amount');
@@ -441,12 +521,45 @@ module.exports = {
         }
 
         // Admin Subcommands
-        const adminSubcommands = ['add', 'remove', 'set'];
+        const adminSubcommands = ['add', 'remove', 'set', 'prison_time'];
         if (adminSubcommands.includes(subcommand)) {
             const ownerId = botConfig.OWNER_ID || botConfig.ownerId;
             if (user.id !== ownerId) {
                 return await interaction.reply({
                     content: `<:puronervous2:1538551211207430234> Access Denied! Only the bot owner can use admin commands.`,
+                    ephemeral: true
+                });
+            }
+
+            if (subcommand === 'prison_time') {
+                const duration = interaction.options.getInteger('duration');
+                const unit = interaction.options.getString('unit');
+
+                if (duration < 0) {
+                    return await interaction.reply({
+                        content: `<:puronervous2:1538551211207430234> Duration cannot be negative!`,
+                        ephemeral: true
+                    });
+                }
+
+                if (duration === 0) {
+                    db._config.prisonDurationMs = 0;
+                    saveCredits(db);
+                    return await interaction.reply({
+                        content: `⚙️ **[ADMIN]** Prison lockdown has been **disabled** (0 duration set). Failed steals will no longer lock users out.`,
+                        ephemeral: true
+                    });
+                }
+
+                const multiplier = unit === 'm' ? 60 * 1000 : 1000;
+                const durationMs = duration * multiplier;
+
+                db._config.prisonDurationMs = durationMs;
+                saveCredits(db);
+
+                const label = unit === 'm' ? 'minutes' : 'seconds';
+                return await interaction.reply({
+                    content: `⚙️ **[ADMIN]** Prison duration for failed steals has been set to **${duration} ${label}**!`,
                     ephemeral: true
                 });
             }
