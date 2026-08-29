@@ -4,7 +4,9 @@ const path = require('path');
 const botConfig = require('../config.js');
 
 const CREDIT = '<:Credit:1541934198791737475>';
-const MAX_64BIT_INT = 9223372036854775807n; // 2^63 - 1 (64-bit Integer Cap)
+const MAX_CREDIT_CAP = 10n ** 153n; // 1 Quinquagintillion (beyond 64-bit)
+const DEFAULT_BALANCE = 1000n;
+const DAILY_REWARD = 250n;
 const creditsFilePath = path.join(__dirname, '../credits.json');
 
 function formatNumber(num) {
@@ -13,12 +15,26 @@ function formatNumber(num) {
     const sign = n < 0n ? '-' : '';
 
     const units = [
-        { value: 10n ** 18n, symbol: 'E' }, // Quintillion / Exa (64-bit max)
-        { value: 10n ** 15n, symbol: 'P' }, // Quadrillion / Peta
-        { value: 10n ** 12n, symbol: 'T' }, // Trillion / Tera
-        { value: 10n ** 9n,  symbol: 'B' }, // Billion / Giga
-        { value: 10n ** 6n,  symbol: 'M' }, // Million / Mega
-        { value: 10n ** 3n,  symbol: 'K' }  // Thousand / Kilo
+        { value: 10n ** 60n, symbol: 'Nd' },
+        { value: 10n ** 57n, symbol: 'Od' },
+        { value: 10n ** 54n, symbol: 'Sp' },
+        { value: 10n ** 51n, symbol: 'Sx' },
+        { value: 10n ** 48n, symbol: 'Qi' },
+        { value: 10n ** 45n, symbol: 'Qa' },
+        { value: 10n ** 42n, symbol: 'Td' },
+        { value: 10n ** 39n, symbol: 'Dd' },
+        { value: 10n ** 36n, symbol: 'Ud' },
+        { value: 10n ** 33n, symbol: 'Dc' },
+        { value: 10n ** 30n, symbol: 'No' },
+        { value: 10n ** 27n, symbol: 'Oc' },
+        { value: 10n ** 24n, symbol: 'Sp' },
+        { value: 10n ** 21n, symbol: 'Sx' },
+        { value: 10n ** 18n, symbol: 'E' },
+        { value: 10n ** 15n, symbol: 'P' },
+        { value: 10n ** 12n, symbol: 'T' },
+        { value: 10n ** 9n,  symbol: 'B' },
+        { value: 10n ** 6n,  symbol: 'M' },
+        { value: 10n ** 3n,  symbol: 'K' }
     ];
 
     for (const { value, symbol } of units) {
@@ -39,7 +55,7 @@ function formatNumber(num) {
 }
 
 function clampBalance(amount) {
-    if (amount > MAX_64BIT_INT) return MAX_64BIT_INT;
+    if (amount > MAX_CREDIT_CAP) return MAX_CREDIT_CAP;
     if (amount < 0n) return 0n;
     return amount;
 }
@@ -77,16 +93,24 @@ function saveCredits(data) {
     fs.writeFileSync(creditsFilePath, serialized, 'utf8');
 }
 
+function ensureUser(db, userId) {
+    if (!db[userId]) {
+        db[userId] = { balance: DEFAULT_BALANCE, lastDaily: null };
+        saveCredits(db);
+    }
+    return db[userId];
+}
+
 module.exports = {
     CREDIT,
-    MAX_64BIT_INT,
+    MAX_CREDIT_CAP,
     clampBalance,
     formatNumber,
     data: new SlashCommandBuilder()
         .setName('credits')
         .setDescription('Manage your wallet, claim daily rewards, send credits, or admin tools!')
-        .setIntegrationTypes([0, 1]) // Guild install (0) and User app install (1)
-        .setContexts([0, 1, 2])         // Guild channels (0), Bot DM (1), and Private Channels/Group DMs (2)
+        .setIntegrationTypes([0, 1])
+        .setContexts([0, 1, 2])
         .addSubcommand(sub =>
             sub.setName('balance')
                .setDescription('Check your current credit balance')
@@ -99,6 +123,10 @@ module.exports = {
         .addSubcommand(sub =>
             sub.setName('leaderboard')
                .setDescription('View top credit holders across the system')
+        )
+        .addSubcommand(sub =>
+            sub.setName('info')
+               .setDescription('Display economy parameters and bot memory status')
         )
         .addSubcommand(sub =>
             sub.setName('pay')
@@ -130,14 +158,15 @@ module.exports = {
         const user = interaction.user;
         const db = loadCredits();
 
-        if (!db[user.id]) db[user.id] = { balance: 1000n, lastDaily: null };
+        ensureUser(db, user.id);
 
         // 1. Balance
         if (subcommand === 'balance') {
             const target = interaction.options.getUser('target') || user;
-            const bal = db[target.id]?.balance ?? 0n;
+            const targetData = ensureUser(db, target.id);
+            
             return await interaction.reply({
-                content: `💳 **<@${target.id}>**'s Balance: **${formatNumber(bal)}**${CREDIT}`,
+                content: `💳 **<@${target.id}>**'s Balance: **${formatNumber(targetData.balance)}**${CREDIT}`,
                 ephemeral: true
             });
         }
@@ -158,21 +187,43 @@ module.exports = {
                 });
             }
 
-            const REWARD = 250n;
-            db[user.id].balance = clampBalance(db[user.id].balance + REWARD);
+            db[user.id].balance = clampBalance(db[user.id].balance + DAILY_REWARD);
             db[user.id].lastDaily = NOW;
             saveCredits(db);
 
             return await interaction.reply({
-                content: `<:Puro_Blush6:1536430029104353380> You claimed your daily reward of **+${formatNumber(REWARD)}**${CREDIT}!\nNew Balance: **${formatNumber(db[user.id].balance)}** ${CREDIT}`,
+                content: `<:Puro_Blush6:1536430029104353380> You claimed your daily reward of **+${formatNumber(DAILY_REWARD)}**${CREDIT}!\nNew Balance: **${formatNumber(db[user.id].balance)}** ${CREDIT}`,
                 ephemeral: true
             });
         }
 
-        // 3. Leaderboard
+        // 3. System Info
+        if (subcommand === 'info') {
+            const memUsage = process.memoryUsage();
+            const usedMB = (memUsage.rss / 1024 / 1024).toFixed(2);
+            const heapMB = (memUsage.heapUsed / 1024 / 1024).toFixed(2);
+            const totalAllocatedMB = (memUsage.heapTotal / 1024 / 1024).toFixed(2);
+
+            const embed = new EmbedBuilder()
+                .setTitle('⚙️ System & Economy Information')
+                .setColor('#2B2D31')
+                .addFields(
+                    { name: '💰 Default Balance', value: `**${formatNumber(DEFAULT_BALANCE)}** ${CREDIT}`, inline: true },
+                    { name: '🎁 Daily Reward', value: `**${formatNumber(DAILY_REWARD)}** ${CREDIT}`, inline: true },
+                    { name: '🔝 Max Credit Cap', value: `**${formatNumber(MAX_CREDIT_CAP)}** ${CREDIT}`, inline: true },
+                    { name: '📊 Registered Users', value: `\`${Object.keys(db).length}\` accounts`, inline: true },
+                    { name: '💾 RAM Usage (RSS)', value: `\`${usedMB} MB\` / \`256 MB\``, inline: true },
+                    { name: '🧠 Heap Usage', value: `\`${heapMB} MB\` / \`${totalAllocatedMB} MB\``, inline: true }
+                )
+                .setFooter({ text: 'ProtoBot Economy System' });
+
+            return await interaction.reply({ embeds: [embed], ephemeral: true });
+        }
+
+        // 4. Leaderboard
         if (subcommand === 'leaderboard') {
             const sorted = Object.entries(db)
-                .map(([id, data]) => ({ id, balance: data.balance ?? 0n }))
+                .map(([id, data]) => ({ id, balance: data.balance ?? DEFAULT_BALANCE }))
                 .sort((a, b) => (b.balance > a.balance ? 1 : b.balance < a.balance ? -1 : 0));
 
             if (sorted.length === 0) {
@@ -258,7 +309,7 @@ module.exports = {
             return;
         }
 
-        // 4. Pay
+        // 5. Pay
         if (subcommand === 'pay') {
             const target = interaction.options.getUser('target');
             const amountInput = interaction.options.getString('amount');
@@ -290,7 +341,7 @@ module.exports = {
                 });
             }
 
-            if (!db[target.id]) db[target.id] = { balance: 1000n, lastDaily: null };
+            ensureUser(db, target.id);
 
             db[user.id].balance = clampBalance(db[user.id].balance - amount);
             db[target.id].balance = clampBalance(db[target.id].balance + amount);
@@ -318,12 +369,12 @@ module.exports = {
 
             if (amount === null) {
                 return await interaction.reply({
-                    content: `<:puronervous2:1538551211207430234> Invalid amount! Enter a valid non-negative number up to \`9223372036854775807\`.`,
+                    content: `<:puronervous2:1538551211207430234> Invalid amount! Enter a valid non-negative number.`,
                     ephemeral: true
                 });
             }
 
-            if (!db[target.id]) db[target.id] = { balance: 1000n, lastDaily: null };
+            ensureUser(db, target.id);
 
             if (subcommand === 'add') {
                 db[target.id].balance = clampBalance(db[target.id].balance + amount);
