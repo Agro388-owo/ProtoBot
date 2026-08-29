@@ -8,7 +8,7 @@ const DEFAULT_BADGES = {
     FIRST_STEPS: { id: "FIRST_STEPS", emoji: "<:Goober:1538666294948270190>", name: "Novice", desc: "Earned 5,000 credits", req: 5000n, type: "balance" },
     HIGH_ROLLER: { id: "HIGH_ROLLER", emoji: "<:protogenirl:1536430038751121499>", name: "High Roller", desc: "Earned 1,000,000 credits", req: 1000000n, type: "balance" },
     BILLIONAIRE: { id: "BILLIONAIRE", emoji: "<:puropolice:1538665393986605188>", name: "Billionaire", desc: "Earned 1,000,000,000 credits", req: 1000000000n, type: "balance" },
-    MAX_CAP:     { id: "MAX_CAP",     emoji: "<:Sus:1541509245499875439>", name: "Integer Overlord", desc: "Hit 64-bit BigInt max cap", req: 9223372036854775807n, type: "balance" }
+    MAX_CAP:     { id: "MAX_CAP",     emoji: "<:Sus:1541509245499875439>", name: "Integer Overlord", desc: "Hit absolute credit max cap (10^153)", req: 10n ** 153n, type: "balance" }
 };
 
 // Load custom badges from file and parse numerical thresholds into BigInt
