@@ -10,26 +10,26 @@ const DAILY_REWARD = 250n;
 const creditsFilePath = path.join(__dirname, '../credits.json');
 
 const units = [
-    { value: 10n ** 60n, symbol: 'Nd' },
-    { value: 10n ** 57n, symbol: 'Od' },
-    { value: 10n ** 54n, symbol: 'Sp' },
-    { value: 10n ** 51n, symbol: 'Sx' },
-    { value: 10n ** 48n, symbol: 'Qi' },
-    { value: 10n ** 45n, symbol: 'Qa' },
-    { value: 10n ** 42n, symbol: 'Td' },
-    { value: 10n ** 39n, symbol: 'Dd' },
-    { value: 10n ** 36n, symbol: 'Ud' },
-    { value: 10n ** 33n, symbol: 'Dc' },
-    { value: 10n ** 30n, symbol: 'No' },
-    { value: 10n ** 27n, symbol: 'Oc' },
-    { value: 10n ** 24n, symbol: 'Sp' },
-    { value: 10n ** 21n, symbol: 'Sx' },
-    { value: 10n ** 18n, symbol: 'E' },
-    { value: 10n ** 15n, symbol: 'P' },
-    { value: 10n ** 12n, symbol: 'T' },
-    { value: 10n ** 9n,  symbol: 'B' },
-    { value: 10n ** 6n,  symbol: 'M' },
-    { value: 10n ** 3n,  symbol: 'K' }
+    { value: 10n ** 60n, symbol: 'Nd', name: 'Novemdicillion', exp: '1e60' },
+    { value: 10n ** 57n, symbol: 'Od', name: 'Octodecillion',  exp: '1e57' },
+    { value: 10n ** 54n, symbol: 'Sp', name: 'Septendecillion',exp: '1e54' },
+    { value: 10n ** 51n, symbol: 'Sx', name: 'Sexdecillion',   exp: '1e51' },
+    { value: 10n ** 48n, symbol: 'Qi', name: 'Quindecillion',  exp: '1e48' },
+    { value: 10n ** 45n, symbol: 'Qa', name: 'Quattuordecillion', exp: '1e45' },
+    { value: 10n ** 42n, symbol: 'Td', name: 'Tredecillion',   exp: '1e42' },
+    { value: 10n ** 39n, symbol: 'Dd', name: 'Duodecillion',   exp: '1e39' },
+    { value: 10n ** 36n, symbol: 'Ud', name: 'Undecillion',    exp: '1e36' },
+    { value: 10n ** 33n, symbol: 'Dc', name: 'Decillion',      exp: '1e33' },
+    { value: 10n ** 30n, symbol: 'No', name: 'Nonillion',      exp: '1e30' },
+    { value: 10n ** 27n, symbol: 'Oc', name: 'Octillion',      exp: '1e27' },
+    { value: 10n ** 24n, symbol: 'Sp', name: 'Septillion',     exp: '1e24' },
+    { value: 10n ** 21n, symbol: 'Sx', name: 'Sextillion',     exp: '1e21' },
+    { value: 10n ** 18n, symbol: 'E',  name: 'Quintillion',    exp: '1e18' },
+    { value: 10n ** 15n, symbol: 'P',  name: 'Quadrillion',    exp: '1e15' },
+    { value: 10n ** 12n, symbol: 'T',  name: 'Trillion',       exp: '1e12' },
+    { value: 10n ** 9n,  symbol: 'B',  name: 'Billion',        exp: '1e9'  },
+    { value: 10n ** 6n,  symbol: 'M',  name: 'Million',        exp: '1e6'  },
+    { value: 10n ** 3n,  symbol: 'K',  name: 'Thousand',       exp: '1e3'  }
 ];
 
 function formatNumber(num) {
@@ -126,7 +126,7 @@ module.exports = {
         )
         .addSubcommand(sub =>
             sub.setName('info')
-               .setDescription('Display credit unit definitions')
+               .setDescription('Display credit unit suffixes and notation scale')
         )
         .addSubcommand(sub =>
             sub.setName('pay')
@@ -197,18 +197,25 @@ module.exports = {
             });
         }
 
-        // 3. System Info (Only displays the units array structure)
+        // 3. System Info (Gold Embed with Units & Names)
         if (subcommand === 'info') {
             const half = Math.ceil(units.length / 2);
-            const unitsPart1 = units.slice(0, half).map(u => `  { value: 10n ** ${u.value.toString().length - 1}n, symbol: '${u.symbol}' }`).join(',\n');
-            const unitsPart2 = units.slice(half).map(u => `  { value: 10n ** ${u.value.toString().length - 1}n, symbol: '${u.symbol}' }`).join(',\n');
+            
+            const col1 = units.slice(0, half)
+                .map(u => `\`${u.symbol.padEnd(2)}\` ➔ **${u.name}** (\`${u.exp}\`)`)
+                .join('\n');
+                
+            const col2 = units.slice(half)
+                .map(u => `\`${u.symbol.padEnd(2)}\` ➔ **${u.name}** (\`${u.exp}\`)`)
+                .join('\n');
 
             const embed = new EmbedBuilder()
                 .setTitle('⚙️ Economy Units Scale')
-                .setColor('#2B2D31')
+                .setColor('#FFD700')
+                .setDescription('Reference key for currency suffix symbols and exponential scales:')
                 .addFields(
-                    { name: '📜 Units Mapping (Part 1)', value: `\`\`\`javascript\nconst units = [\n${unitsPart1},\n\`\`\`` },
-                    { name: '📜 Units Mapping (Part 2)', value: `\`\`\`javascript\n${unitsPart2}\n];\`\`\`` }
+                    { name: 'Higher Scale', value: col1, inline: true },
+                    { name: 'Lower Scale', value: col2, inline: true }
                 )
                 .setFooter({ text: 'ProtoBot Economy System' });
 
