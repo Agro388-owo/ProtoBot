@@ -1,7 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
-const botConfig = require('../config.js');
 const { CREDIT, formatNumber, clampBalance, isInPrison } = require('./credits.js');
 
 const creditsFilePath = path.join(__dirname, '../credits.json');
@@ -48,7 +47,7 @@ function parseBigIntInput(str) {
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('gamble')
-        .setDescription('Risk your credits for a chance to win big (influenced by server luck)!')
+        .setDescription('Risk your credits for a chance to win 150x payout!')
         .addStringOption(option =>
             option.setName('amount')
                   .setDescription('Amount of credits to wager')
@@ -57,7 +56,6 @@ module.exports = {
 
     async execute(interaction) {
         const user = interaction.user;
-        const guildId = interaction.guildId;
         const amountInput = interaction.options.getString('amount');
         const wager = parseBigIntInput(amountInput);
         const db = getDB();
@@ -90,27 +88,17 @@ module.exports = {
             });
         }
 
-        // 2. Dynamic Odds / Luck Calculation for Target Server
-        const isTargetServer = guildId && botConfig.TARGET_SERVER_ID && guildId === botConfig.TARGET_SERVER_ID;
-        let baseOdds = 150; // default 1/150 chance
+        // 2. Roll 1/150 Chance
+        const ODDS = 150;
+        const roll = Math.floor(Math.random() * ODDS) + 1;
 
-        if (isTargetServer && botConfig.TARGET_SERVER_LUCK) {
-            // If luck multiplier is > 1.0 (e.g., 2.0x luck), reduce the target odds denominator
-            // e.g., 150 / 2.0 = 75 (making it twice as easy to hit)
-            baseOdds = Math.max(10, Math.round(150 / botConfig.TARGET_SERVER_LUCK));
-        }
-
-        const roll = Math.floor(Math.random() * baseOdds) + 1;
-        const winningRoll = baseOdds; // hit condition is top of odds range
-
-        if (roll === winningRoll) {
+        if (roll === 150) {
             const netWin = wager * 149n;
             db[user.id].balance = clampBalance(db[user.id].balance + netWin);
             saveDB(db);
 
-            let bonusText = isTargetServer ? `\n🌟 *Bonus: Server Luck Multiplier Active (${botConfig.TARGET_SERVER_LUCK}x)!*` : '';
             return await interaction.reply({
-                content: `<:purocute:1536367584369180803> **<@${user.id}>** wagered **${formatNumber(wager)}** ${CREDIT} and HIT THE **JACKPOT**!\nWon **+${formatNumber(netWin)}** ${CREDIT}! New Balance: **${formatNumber(db[user.id].balance)}** ${CREDIT} <:Puroadorable:1536364133392457818>${bonusText}`
+                content: `<:purocute:1536367584369180803> **<@${user.id}>** wagered **${formatNumber(wager)}** ${CREDIT} and HIT THE **1/150 JACKPOT**!\nWon **+${formatNumber(netWin)}** ${CREDIT}! New Balance: **${formatNumber(db[user.id].balance)}** ${CREDIT} <:Puroadorable:1536364133392457818>`
             });
         } else {
             db[user.id].balance = clampBalance(db[user.id].balance - wager);
