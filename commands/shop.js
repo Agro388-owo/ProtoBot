@@ -2,11 +2,9 @@ const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js'
 const fs = require('fs');
 const path = require('path');
 
-const { CREDIT, formatNumber, clampBalance } = require('./credits.js');
+const { CREDIT, GLOBAL_CREDIT, formatNumber, clampBalance, loadCredits, saveCredits, ensureUser } = require('./credits.js');
 
 const lootFilePath = path.resolve(process.cwd(), 'fishing_loot.json');
-const creditsFilePath = path.resolve(process.cwd(), 'credits.json');
-const globalCreditsFilePath = path.resolve(process.cwd(), 'global_credits.json');
 const inventoryFilePath = path.resolve(process.cwd(), 'inventory.json');
 
 const LUCK_UPGRADE_BASE_COST = 2000n;
@@ -18,7 +16,7 @@ const ROD_CATALOG = {
     quick_reel: { name: '⚡ Quick Reel Rod', cost: 10000n, desc: 'Cuts fishing cooldown in half (15s instead of 30s).' },
     magnetic: { name: '🧲 Magnetic Fishing Rod', cost: 15000n, desc: 'Increases metal salvage catch chance by +150%.' },
     stealth: { name: '🛡️ Reinforced Stealth Rod', cost: 20000n, desc: 'Lowers ambush risk (Transfur / Cult Trackers) by 75%.' },
-    abyss_rod: { name: '🌌 Abyssal Trench Rod', cost: 1000000000n, desc: 'Unlocks access to fish in the Abyssal Zone.' }
+    abyss_rod: { name: '🌌 Abyssal Trench Rod', cost: 1000000000n, desc: 'Does absolutely nothing at the moment, juts a waste of money if your crazy enough to buy it.' }
 };
 
 const FALLBACK_ITEMS = [
@@ -43,63 +41,6 @@ const FALLBACK_ITEMS = [
     { id: "shorkboi", name: "Shorkboi", emoji: "<:Shorkboi:1542381402526449704>", catchCredits: 5000n, sellValue: 0n, chance: 0.5, sellable: false },
     { id: "spytheproot", name: "SpyTheProot", emoji: "<:SpyTheProot:1542483331734573148>", catchCredits: 5000n, sellValue: 0n, chance: 0.5, sellable: false }
 ];
-
-function loadCreditsDB() {
-    try {
-        if (fs.existsSync(creditsFilePath)) {
-            const raw = fs.readFileSync(creditsFilePath, 'utf8') || '{}';
-            const parsed = JSON.parse(raw);
-            for (const id in parsed) {
-                if (parsed[id].balance !== undefined) {
-                    parsed[id].balance = clampBalance(BigInt(parsed[id].balance));
-                }
-                if (!parsed[id].rods) parsed[id].rods = [];
-            }
-            return parsed;
-        }
-    } catch (e) {
-        console.error('Failed to load credits.json in shop:', e);
-    }
-    return {};
-}
-
-function saveCreditsDB(data) {
-    try {
-        const serialized = JSON.stringify(data, (key, value) =>
-            typeof value === 'bigint' ? value.toString() : value, 2);
-        fs.writeFileSync(creditsFilePath, serialized, 'utf8');
-    } catch (e) {
-        console.error('Failed to save credits.json in shop:', e);
-    }
-}
-
-function loadGlobalCreditsDB() {
-    try {
-        if (fs.existsSync(globalCreditsFilePath)) {
-            const raw = fs.readFileSync(globalCreditsFilePath, 'utf8') || '{}';
-            const parsed = JSON.parse(raw);
-            for (const id in parsed) {
-                if (parsed[id].balance !== undefined) {
-                    parsed[id].balance = clampBalance(BigInt(parsed[id].balance));
-                }
-            }
-            return parsed;
-        }
-    } catch (e) {
-        console.error('Failed to load global_credits.json in shop:', e);
-    }
-    return {};
-}
-
-function saveGlobalCreditsDB(data) {
-    try {
-        const serialized = JSON.stringify(data, (key, value) =>
-            typeof value === 'bigint' ? value.toString() : value, 2);
-        fs.writeFileSync(globalCreditsFilePath, serialized, 'utf8');
-    } catch (e) {
-        console.error('Failed to save global_credits.json in shop:', e);
-    }
-}
 
 function loadInventoryDB() {
     try {
@@ -213,23 +154,18 @@ module.exports = {
     async execute(interaction) {
         const subcommand = interaction.options.getSubcommand();
         const userId = interaction.user.id;
-        const creditsDB = loadCreditsDB();
+        const creditsDB = loadCredits();
 
-        if (!creditsDB[userId]) {
-            creditsDB[userId] = { balance: 1000n, lastDaily: null, badges: [], luckLevel: 0, rods: [] };
-        }
-        if (!creditsDB[userId].rods) creditsDB[userId].rods = [];
+        const userData = ensureUser(creditsDB, userId);
 
-        const userLuckLevel = creditsDB[userId].luckLevel || 0;
-        const userRods = creditsDB[userId].rods;
-        const currentBalance = creditsDB[userId].balance;
+        const userLuckLevel = userData.luckLevel || 0;
+        const userRods = userData.rods || [];
+        const currentBalance = userData.balance;
+        const userGlobalBalance = userData.globalCredits || 0n;
 
         if (subcommand === 'view') {
             const nextCost = getUpgradeCost(userLuckLevel);
             const costDisplay = nextCost !== null ? `**${formatNumber(nextCost)}** ${CREDIT}` : '`MAX LEVEL REACHED`';
-
-            const globalCreditsDB = loadGlobalCreditsDB();
-            const userGlobalBalance = globalCreditsDB[userId]?.balance || 0n;
 
             const rodDisplayList = Object.entries(ROD_CATALOG).map(([key, item]) => {
                 const owned = userRods.includes(key) ? '✅ `OWNED`' : `**${formatNumber(item.cost)}** ${CREDIT}`;
@@ -242,7 +178,7 @@ module.exports = {
                 .setDescription(
                     `Welcome to the shop! Upgrades auto-apply immediately upon purchase.\n\n` +
                     `Local Balance: **${formatNumber(currentBalance)}** ${CREDIT}\n` +
-                    `Global Balance: **${formatNumber(userGlobalBalance)}** ۞`
+                    `Global Balance: **${formatNumber(userGlobalBalance)}** ${GLOBAL_CREDIT}`
                 )
                 .addFields(
                     {
@@ -259,8 +195,8 @@ module.exports = {
                     },
                     {
                         name: '💱 Bidirectional Currency Exchange',
-                        value: `• Local ➔ Global: **1,000** ${CREDIT} ➔ **1** ۞\n` +
-                               `• Global ➔ Local: **1** ۞ ➔ **1,000** ${CREDIT}\n` +
+                        value: `• Local ➔ Global: **1,000** ${CREDIT} ➔ **1** ${GLOBAL_CREDIT}\n` +
+                               `• Global ➔ Local: **1** ${GLOBAL_CREDIT} ➔ **1,000** ${CREDIT}\n` +
                                `*Command:* \`/shop exchange direction:<direction> amount:<amount>\``,
                         inline: false
                     },
@@ -296,19 +232,19 @@ module.exports = {
                     });
                 }
 
-                creditsDB[userId].balance = clampBalance(currentBalance - cost);
-                creditsDB[userId].luckLevel = userLuckLevel + 1;
-                saveCreditsDB(creditsDB);
+                userData.balance = clampBalance(currentBalance - cost);
+                userData.luckLevel = userLuckLevel + 1;
+                saveCredits(creditsDB);
 
                 return await interaction.reply({
                     embeds: [
                         new EmbedBuilder()
                             .setTitle('🍀 LUCK UPGRADE PURCHASED')
                             .setColor(0x2ECC71)
-                            .setDescription(`Upgraded Fishing Luck to **Level ${creditsDB[userId].luckLevel} / ${MAX_LUCK_LEVEL}**!\n*Rare drop chances increased by +15%.*`)
+                            .setDescription(`Upgraded Fishing Luck to **Level ${userData.luckLevel} / ${MAX_LUCK_LEVEL}**!\n*Rare drop chances increased by +15%.*`)
                             .addFields(
                                 { name: 'Cost Paid', value: `**-${formatNumber(cost)}** ${CREDIT}`, inline: true },
-                                { name: 'Remaining Balance', value: `**${formatNumber(creditsDB[userId].balance)}** ${CREDIT}`, inline: true }
+                                { name: 'Remaining Balance', value: `**${formatNumber(userData.balance)}** ${CREDIT}`, inline: true }
                             )
                     ]
                 });
@@ -331,9 +267,9 @@ module.exports = {
                     });
                 }
 
-                creditsDB[userId].balance = clampBalance(currentBalance - rod.cost);
-                creditsDB[userId].rods.push(itemKey);
-                saveCreditsDB(creditsDB);
+                userData.balance = clampBalance(currentBalance - rod.cost);
+                userData.rods.push(itemKey);
+                saveCredits(creditsDB);
 
                 return await interaction.reply({
                     embeds: [
@@ -343,7 +279,7 @@ module.exports = {
                             .setDescription(`Successfully purchased **${rod.name}**!\n*${rod.desc}*`)
                             .addFields(
                                 { name: 'Cost Paid', value: `**-${formatNumber(rod.cost)}** ${CREDIT}`, inline: true },
-                                { name: 'Remaining Balance', value: `**${formatNumber(creditsDB[userId].balance)}** ${CREDIT}`, inline: true }
+                                { name: 'Remaining Balance', value: `**${formatNumber(userData.balance)}** ${CREDIT}`, inline: true }
                             )
                     ]
                 });
@@ -389,8 +325,8 @@ module.exports = {
             saveInventoryDB(inventoryDB);
 
             const earned = targetItem.sellValue;
-            creditsDB[userId].balance = clampBalance(currentBalance + earned);
-            saveCreditsDB(creditsDB);
+            userData.balance = clampBalance(currentBalance + earned);
+            saveCredits(creditsDB);
 
             return await interaction.reply({
                 embeds: [
@@ -400,7 +336,7 @@ module.exports = {
                         .setDescription(`Sold ${targetItem.emoji} **${targetItem.name}** from your inventory!`)
                         .addFields(
                             { name: 'Payout Received', value: `**+${formatNumber(earned)}** ${CREDIT}`, inline: true },
-                            { name: 'New Balance', value: `**${formatNumber(creditsDB[userId].balance)}** ${CREDIT}`, inline: true }
+                            { name: 'New Balance', value: `**${formatNumber(userData.balance)}** ${CREDIT}`, inline: true }
                         )
                 ]
             });
@@ -446,8 +382,8 @@ module.exports = {
             inventoryDB[userId] = remainingInventory;
             saveInventoryDB(inventoryDB);
 
-            creditsDB[userId].balance = clampBalance(currentBalance + totalEarned);
-            saveCreditsDB(creditsDB);
+            userData.balance = clampBalance(currentBalance + totalEarned);
+            saveCredits(creditsDB);
 
             return await interaction.reply({
                 embeds: [
@@ -458,7 +394,7 @@ module.exports = {
                         .addFields(
                             { name: 'Items Liquidated', value: `**${soldCount}** item(s)`, inline: true },
                             { name: 'Total Payout', value: `**+${formatNumber(totalEarned)}** ${CREDIT}`, inline: true },
-                            { name: 'New Balance', value: `**${formatNumber(creditsDB[userId].balance)}** ${CREDIT}`, inline: true }
+                            { name: 'New Balance', value: `**${formatNumber(userData.balance)}** ${CREDIT}`, inline: true }
                         )
                 ]
             });
@@ -468,25 +404,20 @@ module.exports = {
             const direction = interaction.options.getString('direction');
             const targetAmount = BigInt(interaction.options.getInteger('amount'));
 
-            const globalCreditsDB = loadGlobalCreditsDB();
-            if (!globalCreditsDB[userId]) globalCreditsDB[userId] = { balance: 0n };
-            const currentGlobalBalance = globalCreditsDB[userId].balance || 0n;
-
             if (direction === 'local_to_global') {
                 const totalLocalCost = targetAmount * EXCHANGE_RATE;
 
                 if (currentBalance < totalLocalCost) {
                     return await interaction.reply({
-                        content: `❌ You need **${formatNumber(totalLocalCost)}** ${CREDIT} to receive **${formatNumber(targetAmount)}** ۞, but you only have **${formatNumber(currentBalance)}** ${CREDIT}!`,
+                        content: `❌ You need **${formatNumber(totalLocalCost)}** ${CREDIT} to receive **${formatNumber(targetAmount)}** ${GLOBAL_CREDIT}, but you only have **${formatNumber(currentBalance)}** ${CREDIT}!`,
                         flags: MessageFlags.Ephemeral
                     });
                 }
 
-                creditsDB[userId].balance = clampBalance(currentBalance - totalLocalCost);
-                globalCreditsDB[userId].balance = clampBalance(currentGlobalBalance + targetAmount);
+                userData.balance = clampBalance(currentBalance - totalLocalCost);
+                userData.globalCredits = clampBalance(userGlobalBalance + targetAmount);
 
-                saveCreditsDB(creditsDB);
-                saveGlobalCreditsDB(globalCreditsDB);
+                saveCredits(creditsDB);
 
                 return await interaction.reply({
                     embeds: [
@@ -496,9 +427,9 @@ module.exports = {
                             .setDescription(`Converted Local Credits to Global Credits!`)
                             .addFields(
                                 { name: 'Converted Cost', value: `**-${formatNumber(totalLocalCost)}** ${CREDIT}`, inline: true },
-                                { name: 'Global Received', value: `**+${formatNumber(targetAmount)}** ۞`, inline: true },
-                                { name: 'New Local Balance', value: `**${formatNumber(creditsDB[userId].balance)}** ${CREDIT}`, inline: false },
-                                { name: 'New Global Balance', value: `**${formatNumber(globalCreditsDB[userId].balance)}** ۞`, inline: false }
+                                { name: 'Global Received', value: `**+${formatNumber(targetAmount)}** ${GLOBAL_CREDIT}`, inline: true },
+                                { name: 'New Local Balance', value: `**${formatNumber(userData.balance)}** ${CREDIT}`, inline: false },
+                                { name: 'New Global Balance', value: `**${formatNumber(userData.globalCredits)}** ${GLOBAL_CREDIT}`, inline: false }
                             )
                     ]
                 });
@@ -508,18 +439,17 @@ module.exports = {
                 const globalCost = targetAmount;
                 const localReceived = targetAmount * EXCHANGE_RATE;
 
-                if (currentGlobalBalance < globalCost) {
+                if (userGlobalBalance < globalCost) {
                     return await interaction.reply({
-                        content: `❌ You need **${formatNumber(globalCost)}** ۞ to receive **${formatNumber(localReceived)}** ${CREDIT}, but you only have **${formatNumber(currentGlobalBalance)}** ۞!`,
+                        content: `❌ You need **${formatNumber(globalCost)}** ${GLOBAL_CREDIT} to receive **${formatNumber(localReceived)}** ${CREDIT}, but you only have **${formatNumber(userGlobalBalance)}** ${GLOBAL_CREDIT}!`,
                         flags: MessageFlags.Ephemeral
                     });
                 }
 
-                globalCreditsDB[userId].balance = clampBalance(currentGlobalBalance - globalCost);
-                creditsDB[userId].balance = clampBalance(currentBalance + localReceived);
+                userData.globalCredits = clampBalance(userGlobalBalance - globalCost);
+                userData.balance = clampBalance(currentBalance + localReceived);
 
-                saveCreditsDB(creditsDB);
-                saveGlobalCreditsDB(globalCreditsDB);
+                saveCredits(creditsDB);
 
                 return await interaction.reply({
                     embeds: [
@@ -528,10 +458,10 @@ module.exports = {
                             .setColor(0x00FFC8)
                             .setDescription(`Converted Global Credits to Local Credits!`)
                             .addFields(
-                                { name: 'Global Spent', value: `**-${formatNumber(globalCost)}** ۞`, inline: true },
+                                { name: 'Global Spent', value: `**-${formatNumber(globalCost)}** ${GLOBAL_CREDIT}`, inline: true },
                                 { name: 'Local Received', value: `**+${formatNumber(localReceived)}** ${CREDIT}`, inline: true },
-                                { name: 'New Global Balance', value: `**${formatNumber(globalCreditsDB[userId].balance)}** ۞`, inline: false },
-                                { name: 'New Local Balance', value: `**${formatNumber(creditsDB[userId].balance)}** ${CREDIT}`, inline: false }
+                                { name: 'New Global Balance', value: `**${formatNumber(userData.globalCredits)}** ${GLOBAL_CREDIT}`, inline: false },
+                                { name: 'New Local Balance', value: `**${formatNumber(userData.balance)}** ${CREDIT}`, inline: false }
                             )
                     ]
                 });
