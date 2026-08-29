@@ -119,14 +119,15 @@ async function saveTagsToGitHub(tagsData) {
 
 // Helper to normalize user object structure across old and new schemas
 function normalizeUserData(entry) {
-    if (!entry) return { userTags: [], transfurTags: [] };
+    if (!entry) return { username: "Unknown", userTags: [], transfurTags: [] };
     
     // Legacy array fallback
     if (Array.isArray(entry.tags)) {
-        return { userTags: entry.tags, transfurTags: [] };
+        return { username: entry.username || "Unknown", userTags: entry.tags, transfurTags: [] };
     }
 
     return {
+        username: entry.username || "Unknown",
         userTags: Array.isArray(entry.userTags) ? entry.userTags : [],
         transfurTags: Array.isArray(entry.transfurTags) ? entry.transfurTags : []
     };
@@ -135,7 +136,7 @@ function normalizeUserData(entry) {
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('tag')
-        .setDescription('Manage Pale Virus immunity keywords!')
+        .setDescription('Manage custom user tags and Pale Virus immunity keywords!')
         .setIntegrationTypes([0, 1])
         .setContexts([0, 1, 2])
         .addSubcommand(subcommand =>
@@ -146,6 +147,54 @@ module.exports = {
                     option.setName('target')
                           .setDescription('Optional: The user whose tags you want to view')
                           .setRequired(false)
+                )
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('add')
+                .setDescription('Add a tag to yourself (or another user if you are owner).')
+                .addUserOption(option =>
+                    option.setName('target')
+                          .setDescription('Optional: The user to give the tag to (Owner only for others)')
+                          .setRequired(false)
+                )
+                .addStringOption(option =>
+                    option.setName('type')
+                          .setDescription('Choose tag category')
+                          .setRequired(true)
+                          .addChoices(
+                              { name: 'User Tag', value: 'userTags' },
+                              { name: 'Transfur Tag', value: 'transfurTags' }
+                          )
+                )
+                .addStringOption(option =>
+                    option.setName('tag')
+                          .setDescription('The tag value to add')
+                          .setRequired(true)
+                )
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('remove')
+                .setDescription('Remove a tag from yourself (or another user if you are owner).')
+                .addUserOption(option =>
+                    option.setName('target')
+                          .setDescription('Optional: The user to remove the tag from (Owner only for others)')
+                          .setRequired(false)
+                )
+                .addStringOption(option =>
+                    option.setName('type')
+                          .setDescription('Choose tag category')
+                          .setRequired(true)
+                          .addChoices(
+                              { name: 'User Tag', value: 'userTags' },
+                              { name: 'Transfur Tag', value: 'transfurTags' }
+                          )
+                )
+                .addStringOption(option =>
+                    option.setName('tag')
+                          .setDescription('The tag value to remove')
+                          .setRequired(true)
                 )
         )
         .addSubcommand(subcommand =>
@@ -186,6 +235,75 @@ module.exports = {
                 allUserTags._meta.immuneTags = ['latex', 'transfur', 'dark latex', 'white latex', 'protogen', 'synth', 'tiger shark', 'shark', 'squid dog'];
             }
 
+            // --- ADD TAG SUBCOMMAND ---
+            if (subcommand === 'add') {
+                const targetUser = interaction.options.getUser('target') || interaction.user;
+                const tagType = interaction.options.getString('type');
+                const tagValue = interaction.options.getString('tag').trim();
+
+                // If targeting someone else, verify ownership
+                if (targetUser.id !== userId && !isOwner) {
+                    return await interaction.editReply({ content: `❌ You can only add tags to yourself! Only the bot owner can modify other users' tags.` });
+                }
+
+                if (!allUserTags[targetUser.id]) {
+                    allUserTags[targetUser.id] = {
+                        username: targetUser.username,
+                        userTags: [],
+                        transfurTags: []
+                    };
+                }
+
+                const normalized = normalizeUserData(allUserTags[targetUser.id]);
+                allUserTags[targetUser.id].username = targetUser.username;
+
+                const targetList = tagType === 'userTags' ? normalized.userTags : normalized.transfurTags;
+
+                if (targetList.includes(tagValue)) {
+                    return await interaction.editReply({ content: `⚠️ <@${targetUser.id}> already has the ${tagType === 'userTags' ? 'user tag' : 'transfur tag'} **\`${tagValue}\`**!` });
+                }
+
+                targetList.push(tagValue);
+                allUserTags[targetUser.id].userTags = normalized.userTags;
+                allUserTags[targetUser.id].transfurTags = normalized.transfurTags;
+
+                await saveTagsToGitHub(allUserTags);
+                return await interaction.editReply({ content: `✅ Added **\`${tagValue}\`** to <@${targetUser.id}>'s \`${tagType}\` list!` });
+            }
+
+            // --- REMOVE TAG SUBCOMMAND ---
+            if (subcommand === 'remove') {
+                const targetUser = interaction.options.getUser('target') || interaction.user;
+                const tagType = interaction.options.getString('type');
+                const tagValue = interaction.options.getString('tag').trim();
+
+                // If targeting someone else, verify ownership
+                if (targetUser.id !== userId && !isOwner) {
+                    return await interaction.editReply({ content: `❌ You can only remove tags from yourself! Only the bot owner can modify other users' tags.` });
+                }
+
+                if (!allUserTags[targetUser.id]) {
+                    return await interaction.editReply({ content: `⚠️ <@${targetUser.id}> does not have any recorded tags!` });
+                }
+
+                const normalized = normalizeUserData(allUserTags[targetUser.id]);
+                const targetList = tagType === 'userTags' ? normalized.userTags : normalized.transfurTags;
+
+                // Case-insensitive search to make removal easier
+                const index = targetList.findIndex(t => t.toLowerCase() === tagValue.toLowerCase());
+                if (index === -1) {
+                    return await interaction.editReply({ content: `⚠️ Could not find tag **\`${tagValue}\`** in <@${targetUser.id}>'s \`${tagType}\` list!` });
+                }
+
+                targetList.splice(index, 1);
+                allUserTags[targetUser.id].userTags = normalized.userTags;
+                allUserTags[targetUser.id].transfurTags = normalized.transfurTags;
+
+                await saveTagsToGitHub(allUserTags);
+                return await interaction.editReply({ content: `🗑️ Removed tag from <@${targetUser.id}>'s \`${tagType}\` list!` });
+            }
+
+            // --- IMMUNITY SUBCOMMAND ---
             if (subcommand === 'immunity') {
                 const action = interaction.options.getString('action');
                 const keyword = interaction.options.getString('keyword')?.trim().toLowerCase();
@@ -227,6 +345,7 @@ module.exports = {
                 }
             }
 
+            // --- LIST SUBCOMMAND ---
             if (subcommand === 'list') {
                 const targetUser = interaction.options.getUser('target') || interaction.user;
                 const rawData = allUserTags[targetUser.id];
@@ -240,7 +359,7 @@ module.exports = {
                     return await interaction.editReply({ content: message });
                 }
 
-                let response = `📂 **Tags for <@${targetUser.id}> (${rawData?.username || 'Unknown'}):**\n`;
+                let response = `📂 **Tags for <@${targetUser.id}> (${rawData?.username || targetUser.username}):**\n`;
                 if (userTags.length > 0) {
                     response += `**User Tags:**\n${userTags.map((t, i) => `${i + 1}. \`${t}\``).join('\n')}\n`;
                 }
