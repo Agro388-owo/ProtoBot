@@ -39,7 +39,14 @@ const FALLBACK_ITEMS = [
     { id: "mox_fuel", name: "a MOX Fuel Assembly", emoji: "☣️", catchCredits: 7500n, sellValue: 4000n, chance: 0.2, sellable: true },
     { id: "ring", name: "Ancient Stargate Dialing Ring", emoji: "<:InsaneCat:1538666024251953152>", catchCredits: 2500n, sellValue: 250n, chance: 0.5, sellable: false },
     { id: "shorkboi", name: "Shorkboi", emoji: "<:Shorkboi:1542381402526449704>", catchCredits: 5000n, sellValue: 0n, chance: 0.5, sellable: false },
-    { id: "spytheproot", name: "SpyTheProot", emoji: "<:SpyTheProot:1542483331734573148>", catchCredits: 5000n, sellValue: 0n, chance: 0.5, sellable: false }
+    { id: "spytheproot", name: "SpyTheProot", emoji: "<:SpyTheProot:1542483331734573148>", catchCredits: 5000n, sellValue: 0n, chance: 0.5, sellable: false },
+    // Mined Ores with significantly reduced sell values compared to their initial processing values
+    { id: "raw_iron", name: "Raw Iron", emoji: "🪙", catchCredits: 45n, sellValue: 10n, chance: 0, sellable: true },
+    { id: "raw_gold", name: "Raw Gold", emoji: "🧈", catchCredits: 120n, sellValue: 25n, chance: 0, sellable: true },
+    { id: "raw_ram", name: "Raw RAM Stick", emoji: "<:Ram:1541508957216964668>", catchCredits: 250n, sellValue: 50n, chance: 0, sellable: true },
+    { id: "raw_iridium", name: "Raw Iridium", emoji: "🧊", catchCredits: 600n, sellValue: 120n, chance: 0, sellable: true },
+    { id: "raw_uranium", name: "Raw Uranium", emoji: "☢️", catchCredits: 1500n, sellValue: 300n, chance: 0, sellable: true },
+    { id: "red_fox", name: "Red Fox Latex (Benjamin?)", emoji: "🦊", catchCredits: 5000n, sellValue: 0n, chance: 0, sellable: false }
 ];
 
 function loadInventoryDB() {
@@ -68,7 +75,15 @@ function loadLootDB() {
             const raw = fs.readFileSync(lootFilePath, 'utf8') || '{}';
             const parsed = JSON.parse(raw);
             if (parsed.items && parsed.items.length > 0) {
-                return parsed.items.map(item => ({
+                // Merge fallback ores/items if not present in fishing_loot.json
+                const existingIds = new Set(parsed.items.map(i => i.id.toLowerCase()));
+                const combinedItems = [...parsed.items];
+                for (const fallback of FALLBACK_ITEMS) {
+                    if (!existingIds.has(fallback.id.toLowerCase())) {
+                        combinedItems.push(fallback);
+                    }
+                }
+                return combinedItems.map(item => ({
                     ...item,
                     sellValue: BigInt(item.sellValue || "0"),
                     sellable: item.sellable ?? true
@@ -202,7 +217,7 @@ module.exports = {
                     },
                     {
                         name: '💰 Salvage & Resale',
-                        value: `Sell caught items directly from your \`/inventory\` for credits.\n` +
+                        value: `Sell caught items or mined ores directly from your \`/inventory\` for credits.\n` +
                                `• Single Item: \`/shop sell item_id:<ID>\`\n` +
                                `• Bulk Resale: \`/shop sell_all\``,
                         inline: false
