@@ -54,6 +54,10 @@ const emojiMap = {
     'RobloxiNoliStatue': '<:RobloxiNoliStatue:1542834047494131712>',
     'BloxyStatue': '<:BloxyStatue:1542833919651610695>',
     'Blobfish': '<:blobfish:1543061627216072714>', 
+    'Strange Symbols': '<:strangesymbols:1543071450909638837>', 
+    'Strange City': '<:strangecity:1543071452390101022>', 
+    'Earth Symbol': '<:earthsymbol:1543071647106343073>', 
+    'Strange Ring': '<:strangering:1543071454055112875>', 
 
     // --- PAGE 4 (Items 61+) ---
     'snapper': '<:snapper:1542959982012534784>',
