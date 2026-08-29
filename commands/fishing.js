@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const botConfig = require('../config.js');
@@ -696,22 +696,85 @@ module.exports = {
             if (subcommand === 'list') {
                 const config = loadFishingConfig();
                 const activeMode = config.prizeMode || "economy";
-                const itemsList = lootConfig.items.map(item => {
-                    const globalCount = getGlobalItemCount(item.id);
-                    const currentReward = getCalculatedReward(item);
-                    const sign = currentReward < 0n ? "" : "+";
-                    const tag = item.abyssalOnly ? " `[Abyssal Only]`" : "";
-                    return `• ${item.emoji} **${item.name}** (\`${item.id}\`)${tag}\n` +
-                           `  └ Global Supply: \`${globalCount}x\` | Payout: **${sign}${formatNumber(currentReward)}**${CREDIT} *(Base: ${formatNumber(item.catchCredits)})*`;
-                }).join('\n');
+                const items = lootConfig.items || [];
 
-                const embed = new EmbedBuilder()
-                    .setTitle('📈 Fishing Economy & Loot Supply')
-                    .setColor(0x3498DB)
-                    .setDescription(`*Active Prize Mode: \`${activeMode.toUpperCase()}\`*\n\n${itemsList || '*No items configured.*'}`)
-                    .setFooter({ text: `Total Unique Registry Items: ${lootConfig.items.length}` });
+                if (items.length === 0) {
+                    return await interaction.reply({
+                        content: '⚠️ No items found in the loot registry.',
+                        flags: MessageFlags.Ephemeral
+                    });
+                }
 
-                await interaction.reply({ embeds: [embed] });
+                const pageSize = 10;
+                const totalPages = Math.ceil(items.length / pageSize);
+                let currentPage = 0;
+
+                const generateEmbed = (page) => {
+                    const start = page * pageSize;
+                    const pageItems = items.slice(start, start + pageSize);
+
+                    const lines = pageItems.map(item => {
+                        const globalCount = getGlobalItemCount(item.id);
+                        const currentReward = getCalculatedReward(item);
+                        const sign = currentReward < 0n ? "" : "+";
+                        const tag = item.abyssalOnly ? " `[Abyssal Only]`" : "";
+                        return `• ${item.emoji} **${item.name}** (\`${item.id}\`)${tag}\n` +
+                               `  └ Global Supply: \`${globalCount}x\` | Payout: **${sign}${formatNumber(currentReward)}**${CREDIT} *(Base: ${formatNumber(item.catchCredits)})*`;
+                    });
+
+                    return new EmbedBuilder()
+                        .setTitle('📈 Fishing Economy & Loot Supply')
+                        .setColor(0x3498DB)
+                        .setDescription(`*Active Prize Mode: \`${activeMode.toUpperCase()}\`*\n\n${lines.join('\n')}`)
+                        .setFooter({ text: `Page ${page + 1}/${totalPages} | Total Registry Items: ${items.length}` });
+                };
+
+                const getButtons = (page) => {
+                    return new ActionRowBuilder().addComponents(
+                        new ButtonBuilder()
+                            .setCustomId('loot_prev')
+                            .setLabel('◀️ Previous')
+                            .setStyle(ButtonStyle.Primary)
+                            .setDisabled(page === 0),
+                        new ButtonBuilder()
+                            .setCustomId('loot_next')
+                            .setLabel('Next ▶️')
+                            .setStyle(ButtonStyle.Primary)
+                            .setDisabled(page >= totalPages - 1)
+                    );
+                };
+
+                if (totalPages === 1) {
+                    return await interaction.reply({ embeds: [generateEmbed(0)] });
+                }
+
+                const response = await interaction.reply({
+                    embeds: [generateEmbed(currentPage)],
+                    components: [getButtons(currentPage)],
+                    fetchReply: true
+                });
+
+                const collector = response.createMessageComponentCollector({
+                    filter: i => i.user.id === interaction.user.id,
+                    time: 60000
+                });
+
+                collector.on('collect', async i => {
+                    if (i.customId === 'loot_prev') currentPage = Math.max(0, currentPage - 1);
+                    if (i.customId === 'loot_next') currentPage = Math.min(totalPages - 1, currentPage + 1);
+
+                    await i.update({
+                        embeds: [generateEmbed(currentPage)],
+                        components: [getButtons(currentPage)]
+                    });
+                });
+
+                collector.on('end', async () => {
+                    const disabledButtons = getButtons(currentPage);
+                    disabledButtons.components.forEach(btn => btn.setDisabled(true));
+                    await interaction.editReply({ components: [disabledButtons] }).catch(() => {});
+                });
+
                 return true;
             }
 
