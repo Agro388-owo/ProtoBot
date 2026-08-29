@@ -4,38 +4,38 @@ const path = require('path');
 const botConfig = require('../config.js');
 
 const CREDIT = '<:Credit:1541934198791737475>';
-const MAX_CREDIT_CAP = 10n ** 153n; // 1 Quinquagintillion (beyond 64-bit)
+const MAX_CREDIT_CAP = 10n ** 153n;
 const DEFAULT_BALANCE = 1000n;
 const DAILY_REWARD = 250n;
 const creditsFilePath = path.join(__dirname, '../credits.json');
+
+const units = [
+    { value: 10n ** 60n, symbol: 'Nd' },
+    { value: 10n ** 57n, symbol: 'Od' },
+    { value: 10n ** 54n, symbol: 'Sp' },
+    { value: 10n ** 51n, symbol: 'Sx' },
+    { value: 10n ** 48n, symbol: 'Qi' },
+    { value: 10n ** 45n, symbol: 'Qa' },
+    { value: 10n ** 42n, symbol: 'Td' },
+    { value: 10n ** 39n, symbol: 'Dd' },
+    { value: 10n ** 36n, symbol: 'Ud' },
+    { value: 10n ** 33n, symbol: 'Dc' },
+    { value: 10n ** 30n, symbol: 'No' },
+    { value: 10n ** 27n, symbol: 'Oc' },
+    { value: 10n ** 24n, symbol: 'Sp' },
+    { value: 10n ** 21n, symbol: 'Sx' },
+    { value: 10n ** 18n, symbol: 'E' },
+    { value: 10n ** 15n, symbol: 'P' },
+    { value: 10n ** 12n, symbol: 'T' },
+    { value: 10n ** 9n,  symbol: 'B' },
+    { value: 10n ** 6n,  symbol: 'M' },
+    { value: 10n ** 3n,  symbol: 'K' }
+];
 
 function formatNumber(num) {
     const n = BigInt(num);
     const abs = n < 0n ? -n : n;
     const sign = n < 0n ? '-' : '';
-
-    const units = [
-        { value: 10n ** 60n, symbol: 'Nd' },
-        { value: 10n ** 57n, symbol: 'Od' },
-        { value: 10n ** 54n, symbol: 'Sp' },
-        { value: 10n ** 51n, symbol: 'Sx' },
-        { value: 10n ** 48n, symbol: 'Qi' },
-        { value: 10n ** 45n, symbol: 'Qa' },
-        { value: 10n ** 42n, symbol: 'Td' },
-        { value: 10n ** 39n, symbol: 'Dd' },
-        { value: 10n ** 36n, symbol: 'Ud' },
-        { value: 10n ** 33n, symbol: 'Dc' },
-        { value: 10n ** 30n, symbol: 'No' },
-        { value: 10n ** 27n, symbol: 'Oc' },
-        { value: 10n ** 24n, symbol: 'Sp' },
-        { value: 10n ** 21n, symbol: 'Sx' },
-        { value: 10n ** 18n, symbol: 'E' },
-        { value: 10n ** 15n, symbol: 'P' },
-        { value: 10n ** 12n, symbol: 'T' },
-        { value: 10n ** 9n,  symbol: 'B' },
-        { value: 10n ** 6n,  symbol: 'M' },
-        { value: 10n ** 3n,  symbol: 'K' }
-    ];
 
     for (const { value, symbol } of units) {
         if (abs >= value) {
@@ -126,7 +126,7 @@ module.exports = {
         )
         .addSubcommand(sub =>
             sub.setName('info')
-               .setDescription('Display economy parameters and bot memory status')
+               .setDescription('Display credit unit definitions')
         )
         .addSubcommand(sub =>
             sub.setName('pay')
@@ -197,23 +197,18 @@ module.exports = {
             });
         }
 
-        // 3. System Info
+        // 3. System Info (Only displays the units array structure)
         if (subcommand === 'info') {
-            const memUsage = process.memoryUsage();
-            const usedMB = (memUsage.rss / 1024 / 1024).toFixed(2);
-            const heapMB = (memUsage.heapUsed / 1024 / 1024).toFixed(2);
-            const totalAllocatedMB = (memUsage.heapTotal / 1024 / 1024).toFixed(2);
+            const half = Math.ceil(units.length / 2);
+            const unitsPart1 = units.slice(0, half).map(u => `  { value: 10n ** ${u.value.toString().length - 1}n, symbol: '${u.symbol}' }`).join(',\n');
+            const unitsPart2 = units.slice(half).map(u => `  { value: 10n ** ${u.value.toString().length - 1}n, symbol: '${u.symbol}' }`).join(',\n');
 
             const embed = new EmbedBuilder()
-                .setTitle('⚙️ System & Economy Information')
+                .setTitle('⚙️ Economy Units Scale')
                 .setColor('#2B2D31')
                 .addFields(
-                    { name: '💰 Default Balance', value: `**${formatNumber(DEFAULT_BALANCE)}** ${CREDIT}`, inline: true },
-                    { name: '🎁 Daily Reward', value: `**${formatNumber(DAILY_REWARD)}** ${CREDIT}`, inline: true },
-                    { name: '🔝 Max Credit Cap', value: `**${formatNumber(MAX_CREDIT_CAP)}** ${CREDIT}`, inline: true },
-                    { name: '📊 Registered Users', value: `\`${Object.keys(db).length}\` accounts`, inline: true },
-                    { name: '💾 RAM Usage (RSS)', value: `\`${usedMB} MB\` / \`256 MB\``, inline: true },
-                    { name: '🧠 Heap Usage', value: `\`${heapMB} MB\` / \`${totalAllocatedMB} MB\``, inline: true }
+                    { name: '📜 Units Mapping (Part 1)', value: `\`\`\`javascript\nconst units = [\n${unitsPart1},\n\`\`\`` },
+                    { name: '📜 Units Mapping (Part 2)', value: `\`\`\`javascript\n${unitsPart2}\n];\`\`\`` }
                 )
                 .setFooter({ text: 'ProtoBot Economy System' });
 
