@@ -53,6 +53,7 @@ const emojiMap = {
     'BalkanBitcoin': '<:BalkanBitcoin:1542843185041117224>',
     'RobloxiNoliStatue': '<:RobloxiNoliStatue:1542834047494131712>',
     'BloxyStatue': '<:BloxyStatue:1542833919651610695>',
+    'Blobfish': '<:blobfish:1543061627216072714>', 
 
     // --- PAGE 4 (Items 61+) ---
     'snapper': '<:snapper:1542959982012534784>',
