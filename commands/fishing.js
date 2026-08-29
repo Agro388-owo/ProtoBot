@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const botConfig = require('../config.js');
 
-const { CREDIT, formatNumber, clampBalance } = require('./credits.js');
+const { CREDIT, formatNumber, clampBalance, isInPrison } = require('./credits.js');
 const { checkAndAwardBadges } = require('../badgeSystem.js');
 
 const SHORKBOI_ID = '1082525438015983636';
@@ -419,6 +419,21 @@ module.exports = {
         const subcommand = interaction.options.getSubcommand();
         const user = interaction.user;
         const userId = user.id;
+        const creditsDB = loadCreditsDB();
+        const userData = creditsDB[userId];
+
+        // --- PRISON LOCKDOWN CHECK ---
+        if (isInPrison(userData)) {
+            const remainingMs = userData.jailUntil - Date.now();
+            const minutes = Math.floor(remainingMs / (1000 * 60));
+            const seconds = Math.floor((remainingMs % (1000 * 60)) / 1000);
+            
+            return await interaction.reply({
+                content: `🚨 **PRISON LOCKDOWN!** You were caught attempting theft! You cannot go fishing for **${minutes}m ${seconds}s**.`,
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
         const lootConfig = loadLootDB();
 
         const ownerId = botConfig.OWNER_ID || botConfig.ownerId;
@@ -440,9 +455,8 @@ module.exports = {
         if (subcommand === 'cast' && !group) {
             const mode = interaction.options.getString('mode') || 'coastal';
             const fishingConfig = loadFishingConfig();
-            const creditsDB = loadCreditsDB();
 
-            const userRods = creditsDB[userId]?.rods || [];
+            const userRods = userData?.rods || [];
 
             // Check if Abyssal is locked OR missing Abyssal Rod
             if (mode === 'abyssal') {
@@ -495,7 +509,7 @@ module.exports = {
 
             fishingCooldowns.set(userId, now);
 
-            const userLuckLevel = creditsDB[userId]?.luckLevel || 0;
+            const userLuckLevel = userData?.luckLevel || 0;
             const itemCaught = getRandomCatch(lootConfig, mode, userLuckLevel, userRods);
 
             if (itemCaught.id === 'latex_sample') {
