@@ -1,5 +1,10 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
+const fs = require('fs');
+const path = require('path');
+
 const { CREDIT, formatNumber, clampBalance } = require('./credits.js');
+
+const creditsFilePath = path.resolve(process.cwd(), 'credits.json');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -26,13 +31,10 @@ module.exports = {
         const subcommand = interaction.options.getSubcommand();
         const userId = interaction.user.id;
 
-        const fs = require('fs');
-        const path = path.resolve(process.cwd(), 'credits.json');
-        
         let creditsDB = {};
         try {
-            if (fs.existsSync(path)) {
-                creditsDB = JSON.parse(fs.readFileSync(path, 'utf8') || '{}');
+            if (fs.existsSync(creditsFilePath)) {
+                creditsDB = JSON.parse(fs.readFileSync(creditsFilePath, 'utf8') || '{}');
             }
         } catch (e) {
             console.error('Error loading credits DB in slots:', e);
@@ -114,7 +116,7 @@ module.exports = {
             creditsDB[userId].balance = newBalance.toString();
 
             try {
-                fs.writeFileSync(path, JSON.stringify(creditsDB, null, 2));
+                fs.writeFileSync(creditsFilePath, JSON.stringify(creditsDB, null, 2));
             } catch (e) {
                 console.error('Failed to save slot earnings:', e);
             }
