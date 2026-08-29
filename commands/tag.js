@@ -153,11 +153,6 @@ module.exports = {
             subcommand
                 .setName('add')
                 .setDescription('Add a tag to yourself (or another user if you are owner).')
-                .addUserOption(option =>
-                    option.setName('target')
-                          .setDescription('Optional: The user to give the tag to (Owner only for others)')
-                          .setRequired(false)
-                )
                 .addStringOption(option =>
                     option.setName('type')
                           .setDescription('Choose tag category')
@@ -172,16 +167,16 @@ module.exports = {
                           .setDescription('The tag value to add')
                           .setRequired(true)
                 )
+                .addUserOption(option =>
+                    option.setName('target')
+                          .setDescription('Optional: The user to give the tag to (Owner only for others)')
+                          .setRequired(false)
+                )
         )
         .addSubcommand(subcommand =>
             subcommand
                 .setName('remove')
                 .setDescription('Remove a tag from yourself (or another user if you are owner).')
-                .addUserOption(option =>
-                    option.setName('target')
-                          .setDescription('Optional: The user to remove the tag from (Owner only for others)')
-                          .setRequired(false)
-                )
                 .addStringOption(option =>
                     option.setName('type')
                           .setDescription('Choose tag category')
@@ -195,6 +190,11 @@ module.exports = {
                     option.setName('tag')
                           .setDescription('The tag value to remove')
                           .setRequired(true)
+                )
+                .addUserOption(option =>
+                    option.setName('target')
+                          .setDescription('Optional: The user to remove the tag from (Owner only for others)')
+                          .setRequired(false)
                 )
         )
         .addSubcommand(subcommand =>
@@ -260,7 +260,7 @@ module.exports = {
                 const targetList = tagType === 'userTags' ? normalized.userTags : normalized.transfurTags;
 
                 if (targetList.includes(tagValue)) {
-                    return await interaction.editReply({ content: `⚠️ <@${targetUser.id}> already has the ${tagType === 'userTags' ? 'user tag' : 'transfur tag'} **\`${tagValue}\`**!` });
+                    return await interaction.editReply({ content: `⚠️ <@${targetUser.id}> already has the ${tagType === 'userTags' ? 'user tag' : 'transfur tag'} **\`{tagValue}\`**!` });
                 }
 
                 targetList.push(tagValue);
@@ -268,7 +268,7 @@ module.exports = {
                 allUserTags[targetUser.id].transfurTags = normalized.transfurTags;
 
                 await saveTagsToGitHub(allUserTags);
-                return await interaction.editReply({ content: `✅ Added **\`${tagValue}\`** to <@${targetUser.id}>'s \`${tagType}\` list!` });
+                return await interaction.editReply({ content: `✅ Added **\`{tagValue}\`** to <@${targetUser.id}>'s \`${tagType}\` list!` });
             }
 
             // --- REMOVE TAG SUBCOMMAND ---
@@ -292,7 +292,7 @@ module.exports = {
                 // Case-insensitive search to make removal easier
                 const index = targetList.findIndex(t => t.toLowerCase() === tagValue.toLowerCase());
                 if (index === -1) {
-                    return await interaction.editReply({ content: `⚠️ Could not find tag **\`${tagValue}\`** in <@${targetUser.id}>'s \`${tagType}\` list!` });
+                    return await interaction.editReply({ content: `⚠️ Could not find tag **\`{tagValue}\`** in <@${targetUser.id}>'s \`${tagType}\` list!` });
                 }
 
                 targetList.splice(index, 1);
@@ -323,25 +323,25 @@ module.exports = {
 
                 if (action === 'add') {
                     if (allUserTags._meta.immuneTags.includes(keyword)) {
-                        return await interaction.editReply({ content: `⚠️ **\`${keyword}\`** is already in the immunity list!` });
+                        return await interaction.editReply({ content: `⚠️ **\`{keyword}\`** is already in the immunity list!` });
                     }
 
                     allUserTags._meta.immuneTags.push(keyword);
                     await saveTagsToGitHub(allUserTags);
 
-                    return await interaction.editReply({ content: `🛡️ Added **\`${keyword}\`** to the Pale Virus immunity list!` });
+                    return await interaction.editReply({ content: `🛡️ Added **\`{keyword}\`** to the Pale Virus immunity list!` });
                 }
 
                 if (action === 'remove') {
                     const index = allUserTags._meta.immuneTags.indexOf(keyword);
                     if (index === -1) {
-                        return await interaction.editReply({ content: `⚠️ Could not find **\`${keyword}\`** in the immunity list!` });
+                        return await interaction.editReply({ content: `⚠️ Could not find **\`{keyword}\`** in the immunity list!` });
                     }
 
                     allUserTags._meta.immuneTags.splice(index, 1);
                     await saveTagsToGitHub(allUserTags);
 
-                    return await interaction.editReply({ content: `🗑️ Removed **\`${keyword}\`** from the Pale Virus immunity list!` });
+                    return await interaction.editReply({ content: `🗑️ Removed **\`{keyword}\`** from the Pale Virus immunity list!` });
                 }
             }
 
