@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const botConfig = require('./config');
 const { addClient, removeClient, broadcast } = require('./websocket');
+const { handleMacroCheck } = require('./antiMacro'); // 🟢 Imported antiMacro module
 
 const app = express();
 
@@ -99,7 +100,7 @@ const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('
 
 console.log('--- Loading Commands ---');
 for (const file of commandFiles) {
-    const filePath = path.join(commandsPath, file);
+    const filePath = path.join(__dirname, 'commands', file);
     const command = require(filePath);
     if ('data' in command && 'execute' in command) {
         client.commands.set(command.data.name, command);
@@ -295,6 +296,10 @@ client.once('ready', async () => {
 
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
+
+    // 🛡️ ANTI-MACRO CHECK: Intercepts automated loops before logging or executing
+    const isMacroDetected = await handleMacroCheck(interaction);
+    if (isMacroDetected) return;
 
     syncAndLogUsers(interaction.user).catch(err => console.error(err));
     logCommandExecution(interaction);
