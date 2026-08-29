@@ -95,10 +95,15 @@ function saveCredits(data) {
 
 function ensureUser(db, userId) {
     if (!db[userId]) {
-        db[userId] = { balance: DEFAULT_BALANCE, lastDaily: null };
+        db[userId] = { balance: DEFAULT_BALANCE, lastDaily: null, jailUntil: 0, lastSteal: 0 };
         saveCredits(db);
     }
     return db[userId];
+}
+
+function isInPrison(userEntry) {
+    if (!userEntry || !userEntry.jailUntil) return false;
+    return Date.now() < userEntry.jailUntil;
 }
 
 module.exports = {
@@ -106,9 +111,10 @@ module.exports = {
     MAX_CREDIT_CAP,
     clampBalance,
     formatNumber,
+    isInPrison,
     data: new SlashCommandBuilder()
         .setName('credits')
-        .setDescription('Manage your wallet, claim daily rewards, send credits, or admin tools!')
+        .setDescription('Manage your wallet, claim daily rewards, send credits, steal, or admin tools!')
         .setIntegrationTypes([0, 1])
         .setContexts([0, 1, 2])
         .addSubcommand(sub =>
@@ -119,6 +125,11 @@ module.exports = {
         .addSubcommand(sub =>
             sub.setName('daily')
                .setDescription('Claim your daily credit reward (12h cooldown)')
+        )
+        .addSubcommand(sub =>
+            sub.setName('steal')
+               .setDescription('Attempt a risky heist to steal credits from a target (24h cooldown)')
+               .addUserOption(opt => opt.setName('target').setDescription('User to steal from').setRequired(true))
         )
         .addSubcommand(sub =>
             sub.setName('leaderboard')
@@ -158,7 +169,18 @@ module.exports = {
         const user = interaction.user;
         const db = loadCredits();
 
-        ensureUser(db, user.id);
+        const userData = ensureUser(db, user.id);
+
+        // Prison Lockdown Enforcement
+        if (isInPrison(userData)) {
+            const remainingMs = userData.jailUntil - Date.now();
+            const minutes = Math.floor(remainingMs / (1000 * 60));
+            const seconds = Math.floor((remainingMs % (1000 * 60)) / 1000);
+            return await interaction.reply({
+                content: `🚨 **PRISON LOCKDOWN!** You were caught attempting theft! You cannot perform economic actions for **${minutes}m ${seconds}s**.`,
+                ephemeral: true
+            });
+        }
 
         // 1. Balance
         if (subcommand === 'balance') {
@@ -175,7 +197,7 @@ module.exports = {
         if (subcommand === 'daily') {
             const NOW = Date.now();
             const COOLDOWN = 12 * 60 * 60 * 1000;
-            const lastDaily = db[user.id].lastDaily || 0;
+            const lastDaily = userData.lastDaily || 0;
 
             if (NOW - lastDaily < COOLDOWN) {
                 const remainingMs = COOLDOWN - (NOW - lastDaily);
@@ -187,17 +209,81 @@ module.exports = {
                 });
             }
 
-            db[user.id].balance = clampBalance(db[user.id].balance + DAILY_REWARD);
-            db[user.id].lastDaily = NOW;
+            userData.balance = clampBalance(userData.balance + DAILY_REWARD);
+            userData.lastDaily = NOW;
             saveCredits(db);
 
             return await interaction.reply({
-                content: `<:Puro_Blush6:1536430029104353380> You claimed your daily reward of **+${formatNumber(DAILY_REWARD)}**${CREDIT}!\nNew Balance: **${formatNumber(db[user.id].balance)}** ${CREDIT}`,
+                content: `<:Puro_Blush6:1536430029104353380> You claimed your daily reward of **+${formatNumber(DAILY_REWARD)}**${CREDIT}!\nNew Balance: **${formatNumber(userData.balance)}** ${CREDIT}`,
                 ephemeral: true
             });
         }
 
-        // 3. System Units (Public Gold Embed)
+        // 3. Steal Subcommand
+        if (subcommand === 'steal') {
+            const target = interaction.options.getUser('target');
+            const NOW = Date.now();
+            const STEAL_COOLDOWN = 24 * 60 * 60 * 1000;
+            const PRISON_DURATION = 5 * 60 * 1000;
+            const SUCCESS_CHANCE = 0.08; // 8% success chance
+
+            if (target.id === user.id) {
+                return await interaction.reply({
+                    content: `<:Puroadorable:1536364133392457818> You can't steal from yourself!`,
+                    ephemeral: true
+                });
+            }
+            if (target.bot) {
+                return await interaction.reply({
+                    content: `<:puronervous:1536367581995335750> You can't steal from bots!`,
+                    ephemeral: true
+                });
+            }
+
+            const targetData = ensureUser(db, target.id);
+            const lastSteal = userData.lastSteal || 0;
+
+            if (NOW - lastSteal < STEAL_COOLDOWN) {
+                const remainingMs = STEAL_COOLDOWN - (NOW - lastSteal);
+                const hours = Math.floor(remainingMs / (1000 * 60 * 60));
+                const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+                return await interaction.reply({
+                    content: `<:puronervous:1536367581995335750> High security alert! You can attempt another theft in **${hours}h ${minutes}m**.`,
+                    ephemeral: true
+                });
+            }
+
+            if (targetData.balance <= 0n) {
+                return await interaction.reply({
+                    content: `<:puronervous2:1538551211207430234> **<@${target.id}>** has no credits to steal!`,
+                    ephemeral: true
+                });
+            }
+
+            userData.lastSteal = NOW;
+
+            if (Math.random() < SUCCESS_CHANCE) {
+                const percentToSteal = BigInt(Math.floor(Math.random() * 11) + 5);
+                const stolenAmount = (targetData.balance * percentToSteal) / 100n || 1n;
+
+                userData.balance = clampBalance(userData.balance + stolenAmount);
+                targetData.balance = clampBalance(targetData.balance - stolenAmount);
+                saveCredits(db);
+
+                return await interaction.reply({
+                    content: `🥷 **HEIST SUCCESSFUL!** <@${user.id}> sneaked past security and stole **${formatNumber(stolenAmount)}** ${CREDIT} from <@${target.id}>!`
+                });
+            } else {
+                userData.jailUntil = NOW + PRISON_DURATION;
+                saveCredits(db);
+
+                return await interaction.reply({
+                    content: `🚨 **HEIST FAILED!** <@${user.id}> was caught trying to steal from <@${target.id}>! You have been sent to **PRISON** 🚔 for 5 minutes and cannot gamble, fish, or steal!`
+                });
+            }
+        }
+
+        // 4. Units Scale
         if (subcommand === 'units') {
             const half = Math.ceil(units.length / 2);
             
@@ -222,7 +308,7 @@ module.exports = {
             return await interaction.reply({ embeds: [embed] });
         }
 
-        // 4. Leaderboard
+        // 5. Leaderboard
         if (subcommand === 'leaderboard') {
             const sorted = Object.entries(db)
                 .map(([id, data]) => ({ id, balance: data.balance ?? DEFAULT_BALANCE }))
@@ -258,7 +344,7 @@ module.exports = {
                     .setDescription(lines.join('\n'))
                     .setColor('#FFD700')
                     .setFooter({ 
-                        text: `Page ${page + 1}/${totalPages} | Your Rank: ${userRankText} | Balance: ${formatNumber(db[user.id].balance)}` 
+                        text: `Page ${page + 1}/${totalPages} | Your Rank: ${userRankText} | Balance: ${formatNumber(userData.balance)}` 
                     });
             };
 
@@ -311,7 +397,7 @@ module.exports = {
             return;
         }
 
-        // 5. Pay
+        // 6. Pay
         if (subcommand === 'pay') {
             const target = interaction.options.getUser('target');
             const amountInput = interaction.options.getString('amount');
@@ -336,17 +422,17 @@ module.exports = {
                     ephemeral: true 
                 });
             }
-            if (db[user.id].balance < amount) {
+            if (userData.balance < amount) {
                 return await interaction.reply({
-                    content: `<:puronervous2:1538551211207430234> Insufficient funds! You only have **${formatNumber(db[user.id].balance)}**${CREDIT}`,
+                    content: `<:puronervous2:1538551211207430234> Insufficient funds! You only have **${formatNumber(userData.balance)}**${CREDIT}`,
                     ephemeral: true
                 });
             }
 
-            ensureUser(db, target.id);
+            const targetData = ensureUser(db, target.id);
 
-            db[user.id].balance = clampBalance(db[user.id].balance - amount);
-            db[target.id].balance = clampBalance(db[target.id].balance + amount);
+            userData.balance = clampBalance(userData.balance - amount);
+            targetData.balance = clampBalance(targetData.balance + amount);
             saveCredits(db);
 
             return await interaction.reply({
@@ -354,7 +440,7 @@ module.exports = {
             });
         }
 
-        // Admin Subcommands (Owner Only)
+        // Admin Subcommands
         const adminSubcommands = ['add', 'remove', 'set'];
         if (adminSubcommands.includes(subcommand)) {
             const ownerId = botConfig.OWNER_ID || botConfig.ownerId;
@@ -376,35 +462,34 @@ module.exports = {
                 });
             }
 
-            ensureUser(db, target.id);
+            const targetData = ensureUser(db, target.id);
 
             if (subcommand === 'add') {
-                db[target.id].balance = clampBalance(db[target.id].balance + amount);
+                targetData.balance = clampBalance(targetData.balance + amount);
                 saveCredits(db);
                 return await interaction.reply({
-                    content: `⚙️ **[ADMIN]** Added **+${formatNumber(amount)}** ${CREDIT} to **<@${target.id}>**!\nNew Balance: **${formatNumber(db[target.id].balance)}**${CREDIT}`,
+                    content: `⚙️ **[ADMIN]** Added **+${formatNumber(amount)}** ${CREDIT} to **<@${target.id}>**!\nNew Balance: **${formatNumber(targetData.balance)}**${CREDIT}`,
                     ephemeral: true
                 });
             }
 
             if (subcommand === 'remove') {
-                db[target.id].balance = clampBalance(db[target.id].balance - amount);
+                targetData.balance = clampBalance(targetData.balance - amount);
                 saveCredits(db);
                 return await interaction.reply({
-                    content: `⚙️ **[ADMIN]** Removed **-${formatNumber(amount)}** ${CREDIT} from **<@${target.id}>**!\nNew Balance: **${formatNumber(db[target.id].balance)}**${CREDIT}`,
+                    content: `⚙️ **[ADMIN]** Removed **-${formatNumber(amount)}** ${CREDIT} from **<@${target.id}>**!\nNew Balance: **${formatNumber(targetData.balance)}**${CREDIT}`,
                     ephemeral: true
                 });
             }
 
             if (subcommand === 'set') {
-                db[target.id].balance = clampBalance(amount);
+                targetData.balance = clampBalance(amount);
                 saveCredits(db);
                 return await interaction.reply({
-                    content: `⚙️ **[ADMIN]** Set **<@${target.id}>**'s balance to **${formatNumber(db[target.id].balance)}**${CREDIT}!`,
+                    content: `⚙️ **[ADMIN]** Set **<@${target.id}>**'s balance to **${formatNumber(targetData.balance)}**${CREDIT}!`,
                     ephemeral: true
                 });
             }
         }
     }
 };
- 
