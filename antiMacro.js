@@ -1,5 +1,9 @@
 // antiMacro.js
+const fs = require('fs');
+const path = require('path');
+
 const timingTracker = new Map();
+const detectionCounts = new Map(); // Tracks total macro detections per user ID
 
 // List of commands and subcommands protected from macro loops
 const PROTECTED_COMMANDS = [
@@ -11,15 +15,30 @@ const PROTECTED_COMMANDS = [
 ];
 
 /**
+ * Appends macro detection events to a log file on disk.
+ */
+function logMacroDetection(user, fullCommand, variance, totalDetections) {
+    try {
+        const logPath = path.join(__dirname, 'macro-detections.log');
+        const timestamp = new Date().toISOString();
+        const logEntry = `[${timestamp}] 🚨 MACRO DETECTED | User: ${user.username} (${user.id}) | Total Detections: ${totalDetections} | Command: /${fullCommand} | Variance: ${variance.toFixed(2)}ms\n`;
+
+        fs.appendFileSync(logPath, logEntry, 'utf8');
+        console.warn(`\x1b[33m[ANTI-MACRO]\x1b[0m Flagged ${user.username} (${user.id}) | Total Warnings: ${totalDetections} | Cmd: /${fullCommand} (Variance: ${variance.toFixed(2)}ms)`);
+    } catch (err) {
+        console.error('[ANTI-MACRO LOGGER ERROR] Failed to write log:', err);
+    }
+}
+
+/**
  * Global macro check to intercept automated commands.
  * @param {import('discord.js').Interaction} interaction 
- * @param {Object} [userData] Optional user object to apply jail time directly
  * @returns {Promise<boolean>} Returns true if command execution should be BLOCKED.
  */
-async function handleMacroCheck(interaction, userData = null) {
+async function handleMacroCheck(interaction) {
     if (!interaction.isChatInputCommand()) return false;
 
-    // Build command path string (handles both single commands and subcommands)
+    // Build command path string (handles single commands and subcommands)
     const group = interaction.options.getSubcommandGroup(false);
     const sub = interaction.options.getSubcommand(false);
     const fullCommand = [interaction.commandName, group, sub].filter(Boolean).join(' ');
@@ -51,13 +70,16 @@ async function handleMacroCheck(interaction, userData = null) {
 
         // Variance under 60ms indicates unnatural, millisecond-precise macro playback
         if (variance < 60) {
-            if (userData) {
-                userData.jailUntil = Date.now() + (15 * 60 * 1000); // 15-minute jail penalty
-            }
+            // Increment total detection counter for this user
+            const currentCount = (detectionCounts.get(userId) || 0) + 1;
+            detectionCounts.set(userId, currentCount);
+
+            // Log detection with user details and total count
+            logMacroDetection(interaction.user, fullCommand, variance, currentCount);
 
             await interaction.reply({
-                content: `🚨 **AUTOMATION DETECTED!** Unnatural input timing detected across your commands. You have been placed in prison for **15 minutes**.`,
-                flags: 64 // Ephemeral response
+                content: `⚠️ **Anti-Macro Warning:** Unnatural command timing detected. Please slow down or turn off automated macros. *(Warning #${currentCount})*`,
+                flags: 64 // Ephemeral response (visible only to the user)
             });
 
             return true; // Stop command execution
