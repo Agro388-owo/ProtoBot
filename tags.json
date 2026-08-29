@@ -1,66 +1,73 @@
 {
-  "_meta": {
-    "immuneTags": [
-      "latex",
-      "transfur",
-      "dark latex",
-      "white latex",
-      "protogen",
-      "synth",
-      "tiger shark",
-      "shark",
-      "squid dog"
-    ]
-  },
-  "1048579285687996466": {
-    "username": "agrobaticfinger",
-    "userTags": [
-      "protogen",
-      "owner"
-    ],
-    "transfurTags": [
-      "protogen",
-      "transfur"
-    ]
-  },
-  "1521264771389984940": {
-    "username": "bloxybash",
-    "userTags": [
-      "THE BLOXYMAN"
-    ],
-    "transfurTags": []
-  },
-  "1464072486651170931": {
-    "username": "spytheproot",
-    "userTags": [
-      "Primagen",
-      "Protogen"
-    ],
-    "transfurTags": [
-      "primagen",
-      "protogen",
-      "transfur"
-    ]
-  },
-  "1082525438015983636": {
-    "username": "Unknown",
-    "userTags": [
-      "Tiger Shark"
-    ],
-    "transfurTags": [
-      "tiger shark",
-      "transfur"
-    ]
-  },
-  "1200848729880670330": {
-    "username": "ostwindmalfoybloodylady",
-    "userTags": [
-      "DemonGirl",
-      "ostwindmalfoybloodylady", 
-      "demon"
-    ],
-    "transfurTags": [
-      "demon"
-    ]
-  }
+    "_meta": {
+        "immuneTags": [
+            "latex",
+            "transfur",
+            "dark latex",
+            "white latex",
+            "protogen",
+            "synth",
+            "tiger shark",
+            "shark",
+            "squid dog"
+        ]
+    },
+    "1048579285687996466": {
+        "username": "agrobaticfinger",
+        "userTags": [
+            "protogen",
+            "owner"
+        ],
+        "transfurTags": [
+            "protogen",
+            "transfur"
+        ]
+    },
+    "1521264771389984940": {
+        "username": "bloxybash",
+        "userTags": [
+            "THE BLOXYMAN"
+        ],
+        "transfurTags": []
+    },
+    "1464072486651170931": {
+        "username": "spytheproot",
+        "userTags": [
+            "Primagen",
+            "Protogen"
+        ],
+        "transfurTags": [
+            "primagen",
+            "protogen",
+            "transfur"
+        ]
+    },
+    "1082525438015983636": {
+        "username": "Unknown",
+        "userTags": [
+            "Tiger Shark"
+        ],
+        "transfurTags": [
+            "tiger shark",
+            "transfur"
+        ]
+    },
+    "1200848729880670330": {
+        "username": "ostwindmalfoybloodylady",
+        "userTags": [
+            "DemonGirl",
+            "ostwindmalfoybloodylady",
+            "demon"
+        ],
+        "transfurTags": [
+            "demon"
+        ]
+    },
+    "1536203903022931968": {
+        "username": "ProtoBot",
+        "userTags": [
+            "protobot"
+        ],
+        "transfurTags": []
+    }
 }
