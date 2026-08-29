@@ -2,7 +2,7 @@ const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js'
 const fs = require('fs');
 const path = require('path');
 
-const { CREDIT, formatNumber, clampBalance } = require('./credits.js');
+const { CREDIT, formatNumber, clampBalance, isInPrison } = require('./credits.js');
 
 const creditsFilePath = path.resolve(process.cwd(), 'credits.json');
 
@@ -40,9 +40,6 @@ module.exports = {
             console.error('Error loading credits DB in slots:', e);
         }
 
-        // ==========================================
-        // 1. INFO SUBCOMMAND
-        // ==========================================
         if (subcommand === 'info') {
             const infoEmbed = new EmbedBuilder()
                 .setTitle('🎰 Slot Machine — Rules & Payouts')
@@ -73,14 +70,24 @@ module.exports = {
             return await interaction.reply({ embeds: [infoEmbed] });
         }
 
-        // ==========================================
-        // 2. PLAY SUBCOMMAND
-        // ==========================================
         if (subcommand === 'play') {
+            const userEntry = creditsDB[userId];
+
+            // Prison Check
+            if (isInPrison(userEntry)) {
+                const remainingMs = userEntry.jailUntil - Date.now();
+                const minutes = Math.floor(remainingMs / (1000 * 60));
+                const seconds = Math.floor((remainingMs % (1000 * 60)) / 1000);
+                return await interaction.reply({
+                    content: `🚨 **PRISON LOCKDOWN!** You are currently in prison! You cannot play slots for another **${minutes}m ${seconds}s**.`,
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
             const betInput = interaction.options.getInteger('amount');
             const bet = BigInt(betInput);
 
-            const userBalance = creditsDB[userId]?.balance ? BigInt(creditsDB[userId].balance) : 0n;
+            const userBalance = userEntry?.balance ? BigInt(userEntry.balance) : 0n;
 
             if (userBalance < bet) {
                 return await interaction.reply({
