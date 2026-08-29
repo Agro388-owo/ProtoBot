@@ -12,9 +12,15 @@ const inventoryFilePath = path.resolve(process.cwd(), 'inventory.json');
 const LUCK_UPGRADE_BASE_COST = 2000n;
 const LUCK_UPGRADE_COST_MULTIPLIER = 1.8;
 const MAX_LUCK_LEVEL = 5;
-const EXCHANGE_RATE = 1000n; // Rate: 1,000 Local = 1 Global ۞
+const EXCHANGE_RATE = 1000n;
 
-// Default items fallback from fishing command
+const ROD_CATALOG = {
+    quick_reel: { name: '⚡ Quick Reel Rod', cost: 10000n, desc: 'Cuts fishing cooldown in half (15s instead of 30s).' },
+    magnetic: { name: '🧲 Magnetic Fishing Rod', cost: 15000n, desc: 'Increases metal salvage catch chance by +150%.' },
+    stealth: { name: '🛡️ Reinforced Stealth Rod', cost: 20000n, desc: 'Lowers ambush risk (Transfur / Cult Trackers) by 75%.' },
+    abyss_rod: { name: '🌌 Abyssal Trench Rod', cost: 1000000000n, desc: 'Unlocks access to fish in the Abyssal Zone.' }
+};
+
 const FALLBACK_ITEMS = [
     { id: "pipe", name: "a Rusty Metal Pipe", emoji: "<:thing:1537616433171796149>", catchCredits: 5n, sellValue: 5n, chance: 18, sellable: true },
     { id: "soda_can", name: "an Aluminum Soda Can", emoji: "🥤", catchCredits: 8n, sellValue: 2n, chance: 16, sellable: true },
@@ -47,6 +53,7 @@ function loadCreditsDB() {
                 if (parsed[id].balance !== undefined) {
                     parsed[id].balance = clampBalance(BigInt(parsed[id].balance));
                 }
+                if (!parsed[id].rods) parsed[id].rods = [];
             }
             return parsed;
         }
@@ -147,22 +154,26 @@ function getUpgradeCost(currentLevel) {
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('shop')
-        .setDescription('ProtoBot Marketplace - Buy upgrades, sell salvage, or convert credits!')
+        .setDescription('ProtoBot Marketplace - Buy rod upgrades, sell salvage, or convert credits!')
         .setIntegrationTypes([0, 1])
         .setContexts([0, 1, 2])
         .addSubcommand(sub =>
             sub.setName('view')
-               .setDescription('View items, upgrades, and currency exchange rates')
+               .setDescription('View items, rod upgrades, and currency exchange rates')
         )
         .addSubcommand(sub =>
             sub.setName('buy')
-               .setDescription('Buy an upgrade or item from the shop')
+               .setDescription('Buy an upgrade or fishing rod from the shop')
                .addStringOption(opt =>
                    opt.setName('item')
-                      .setDescription('The item or upgrade to purchase')
+                      .setDescription('The item or rod upgrade to purchase')
                       .setRequired(true)
                       .addChoices(
-                          { name: '🍀 Fishing Luck Upgrade (+15% Rare Catch Chance)', value: 'luck_upgrade' }
+                          { name: '🍀 Fishing Luck Upgrade (+15% Rare Catch Chance)', value: 'luck_upgrade' },
+                          { name: '⚡ Quick Reel Rod (10,000 Credits)', value: 'quick_reel' },
+                          { name: '🧲 Magnetic Rod (15,000 Credits)', value: 'magnetic' },
+                          { name: '🛡️ Stealth Rod (20,000 Credits)', value: 'stealth' },
+                          { name: '🌌 Abyssal Trench Rod (1,000,000,000 Credits)', value: 'abyss_rod' }
                       )
                )
         )
@@ -205,19 +216,25 @@ module.exports = {
         const creditsDB = loadCreditsDB();
 
         if (!creditsDB[userId]) {
-            creditsDB[userId] = { balance: 1000n, lastDaily: null, badges: [], luckLevel: 0 };
+            creditsDB[userId] = { balance: 1000n, lastDaily: null, badges: [], luckLevel: 0, rods: [] };
         }
+        if (!creditsDB[userId].rods) creditsDB[userId].rods = [];
 
         const userLuckLevel = creditsDB[userId].luckLevel || 0;
+        const userRods = creditsDB[userId].rods;
         const currentBalance = creditsDB[userId].balance;
 
-        // === 1. VIEW SHOP ===
         if (subcommand === 'view') {
             const nextCost = getUpgradeCost(userLuckLevel);
             const costDisplay = nextCost !== null ? `**${formatNumber(nextCost)}** ${CREDIT}` : '`MAX LEVEL REACHED`';
 
             const globalCreditsDB = loadGlobalCreditsDB();
             const userGlobalBalance = globalCreditsDB[userId]?.balance || 0n;
+
+            const rodDisplayList = Object.entries(ROD_CATALOG).map(([key, item]) => {
+                const owned = userRods.includes(key) ? '✅ `OWNED`' : `**${formatNumber(item.cost)}** ${CREDIT}`;
+                return `• **${item.name}**: ${owned}\n  *${item.desc}*`;
+            }).join('\n');
 
             const embed = new EmbedBuilder()
                 .setTitle('🛒 ProtoBot Marketplace')
@@ -229,16 +246,20 @@ module.exports = {
                 )
                 .addFields(
                     {
-                        name: '🍀 Fishing Luck Upgrade (Auto-Applied)',
+                        name: '🍀 Fishing Luck Upgrade (Passive Stacking)',
                         value: `Current Level: **${userLuckLevel} / ${MAX_LUCK_LEVEL}** (+${userLuckLevel * 15}% rare drop chance)\n` +
                                `Next Level Cost: ${costDisplay}\n` +
                                `*Command:* \`/shop buy item:luck_upgrade\``,
                         inline: false
                     },
                     {
+                        name: '🎣 Specialized Fishing Rods',
+                        value: `${rodDisplayList}\n*Command:* \`/shop buy item:<rod_choice>\``,
+                        inline: false
+                    },
+                    {
                         name: '💱 Bidirectional Currency Exchange',
-                        value: `Convert freely between Local Credits and Global Credits.\n` +
-                               `• Local ➔ Global: **1,000** ${CREDIT} ➔ **1** ۞\n` +
+                        value: `• Local ➔ Global: **1,000** ${CREDIT} ➔ **1** ۞\n` +
                                `• Global ➔ Local: **1** ۞ ➔ **1,000** ${CREDIT}\n` +
                                `*Command:* \`/shop exchange direction:<direction> amount:<amount>\``,
                         inline: false
@@ -256,7 +277,6 @@ module.exports = {
             return await interaction.reply({ embeds: [embed] });
         }
 
-        // === 2. BUY SUBCOMMAND ===
         if (subcommand === 'buy') {
             const itemKey = interaction.options.getString('item');
 
@@ -269,7 +289,6 @@ module.exports = {
                 }
 
                 const cost = getUpgradeCost(userLuckLevel);
-
                 if (currentBalance < cost) {
                     return await interaction.reply({
                         content: `❌ You need **${formatNumber(cost)}** ${CREDIT} to purchase a luck upgrade, but you only have **${formatNumber(currentBalance)}** ${CREDIT}!`,
@@ -277,29 +296,60 @@ module.exports = {
                     });
                 }
 
-                const newLuckLevel = userLuckLevel + 1;
                 creditsDB[userId].balance = clampBalance(currentBalance - cost);
-                creditsDB[userId].luckLevel = newLuckLevel;
+                creditsDB[userId].luckLevel = userLuckLevel + 1;
                 saveCreditsDB(creditsDB);
 
-                const embed = new EmbedBuilder()
-                    .setTitle('🍀 LUCK UPGRADE PURCHASED')
-                    .setColor(0x2ECC71)
-                    .setDescription(
-                        `Upgraded Fishing Luck to **Level ${newLuckLevel} / ${MAX_LUCK_LEVEL}**!\n` +
-                        `*Effect auto-applied: Your rare drop chance in \`/fishing cast\` is now increased by **+${newLuckLevel * 15}%**.*`
-                    )
-                    .addFields(
-                        { name: 'Cost Paid', value: `**-${formatNumber(cost)}** ${CREDIT}`, inline: true },
-                        { name: 'Remaining Balance', value: `**${formatNumber(creditsDB[userId].balance)}** ${CREDIT}`, inline: true }
-                    )
-                    .setFooter({ text: 'ProtoBot Trade Subsystem' });
+                return await interaction.reply({
+                    embeds: [
+                        new EmbedBuilder()
+                            .setTitle('🍀 LUCK UPGRADE PURCHASED')
+                            .setColor(0x2ECC71)
+                            .setDescription(`Upgraded Fishing Luck to **Level ${creditsDB[userId].luckLevel} / ${MAX_LUCK_LEVEL}**!\n*Rare drop chances increased by +15%.*`)
+                            .addFields(
+                                { name: 'Cost Paid', value: `**-${formatNumber(cost)}** ${CREDIT}`, inline: true },
+                                { name: 'Remaining Balance', value: `**${formatNumber(creditsDB[userId].balance)}** ${CREDIT}`, inline: true }
+                            )
+                    ]
+                });
+            }
 
-                return await interaction.reply({ embeds: [embed] });
+            if (ROD_CATALOG[itemKey]) {
+                const rod = ROD_CATALOG[itemKey];
+
+                if (userRods.includes(itemKey)) {
+                    return await interaction.reply({
+                        content: `⚠️ You already own the **${rod.name}**!`,
+                        flags: MessageFlags.Ephemeral
+                    });
+                }
+
+                if (currentBalance < rod.cost) {
+                    return await interaction.reply({
+                        content: `❌ You need **${formatNumber(rod.cost)}** ${CREDIT} to purchase the **${rod.name}**, but you only have **${formatNumber(currentBalance)}** ${CREDIT}!`,
+                        flags: MessageFlags.Ephemeral
+                    });
+                }
+
+                creditsDB[userId].balance = clampBalance(currentBalance - rod.cost);
+                creditsDB[userId].rods.push(itemKey);
+                saveCreditsDB(creditsDB);
+
+                return await interaction.reply({
+                    embeds: [
+                        new EmbedBuilder()
+                            .setTitle('🎣 NEW FISHING ROD UNLOCKED!')
+                            .setColor(0x3498DB)
+                            .setDescription(`Successfully purchased **${rod.name}**!\n*${rod.desc}*`)
+                            .addFields(
+                                { name: 'Cost Paid', value: `**-${formatNumber(rod.cost)}** ${CREDIT}`, inline: true },
+                                { name: 'Remaining Balance', value: `**${formatNumber(creditsDB[userId].balance)}** ${CREDIT}`, inline: true }
+                            )
+                    ]
+                });
             }
         }
 
-        // === 3. SELL SUBCOMMAND ===
         if (subcommand === 'sell') {
             const itemId = interaction.options.getString('item_id').trim().toLowerCase();
             const lootItems = loadLootDB();
@@ -342,20 +392,20 @@ module.exports = {
             creditsDB[userId].balance = clampBalance(currentBalance + earned);
             saveCreditsDB(creditsDB);
 
-            const embed = new EmbedBuilder()
-                .setTitle('💰 SALVAGE TRADE COMPLETED')
-                .setColor(0xF1C40F)
-                .setDescription(`Sold ${targetItem.emoji} **${targetItem.name}** from your inventory!`)
-                .addFields(
-                    { name: 'Payout Received', value: `**+${formatNumber(earned)}** ${CREDIT}`, inline: true },
-                    { name: 'New Balance', value: `**${formatNumber(creditsDB[userId].balance)}** ${CREDIT}`, inline: true }
-                )
-                .setFooter({ text: 'ProtoBot Scrapper Network' });
-
-            return await interaction.reply({ embeds: [embed] });
+            return await interaction.reply({
+                embeds: [
+                    new EmbedBuilder()
+                        .setTitle('💰 SALVAGE TRADE COMPLETED')
+                        .setColor(0xF1C40F)
+                        .setDescription(`Sold ${targetItem.emoji} **${targetItem.name}** from your inventory!`)
+                        .addFields(
+                            { name: 'Payout Received', value: `**+${formatNumber(earned)}** ${CREDIT}`, inline: true },
+                            { name: 'New Balance', value: `**${formatNumber(creditsDB[userId].balance)}** ${CREDIT}`, inline: true }
+                        )
+                ]
+            });
         }
 
-        // === 4. SELL ALL SUBCOMMAND ===
         if (subcommand === 'sell_all') {
             const inventoryDB = loadInventoryDB();
             const userInventory = inventoryDB[userId] || [];
@@ -393,42 +443,35 @@ module.exports = {
                 });
             }
 
-            // Save updated inventory and balance
             inventoryDB[userId] = remainingInventory;
             saveInventoryDB(inventoryDB);
 
             creditsDB[userId].balance = clampBalance(currentBalance + totalEarned);
             saveCreditsDB(creditsDB);
 
-            const unsoldKeepers = remainingInventory.length;
-
-            const embed = new EmbedBuilder()
-                .setTitle('📦 BULK SALVAGE TRADE COMPLETED')
-                .setColor(0x2ECC71)
-                .setDescription(`Successfully liquidated all sellable inventory items!`)
-                .addFields(
-                    { name: 'Items Liquidated', value: `**${soldCount}** item(s)`, inline: true },
-                    { name: 'Total Payout', value: `**+${formatNumber(totalEarned)}** ${CREDIT}`, inline: true },
-                    { name: 'New Balance', value: `**${formatNumber(creditsDB[userId].balance)}** ${CREDIT}`, inline: true },
-                    { name: 'Kept Unsellable Items', value: `**${unsoldKeepers}** item(s) retained`, inline: false }
-                )
-                .setFooter({ text: 'ProtoBot Scrapper Network' });
-
-            return await interaction.reply({ embeds: [embed] });
+            return await interaction.reply({
+                embeds: [
+                    new EmbedBuilder()
+                        .setTitle('📦 BULK SALVAGE TRADE COMPLETED')
+                        .setColor(0x2ECC71)
+                        .setDescription(`Successfully liquidated all sellable inventory items!`)
+                        .addFields(
+                            { name: 'Items Liquidated', value: `**${soldCount}** item(s)`, inline: true },
+                            { name: 'Total Payout', value: `**+${formatNumber(totalEarned)}** ${CREDIT}`, inline: true },
+                            { name: 'New Balance', value: `**${formatNumber(creditsDB[userId].balance)}** ${CREDIT}`, inline: true }
+                        )
+                ]
+            });
         }
 
-        // === 5. EXCHANGE SUBCOMMAND (BIDIRECTIONAL) ===
         if (subcommand === 'exchange') {
             const direction = interaction.options.getString('direction');
             const targetAmount = BigInt(interaction.options.getInteger('amount'));
 
             const globalCreditsDB = loadGlobalCreditsDB();
-            if (!globalCreditsDB[userId]) {
-                globalCreditsDB[userId] = { balance: 0n };
-            }
+            if (!globalCreditsDB[userId]) globalCreditsDB[userId] = { balance: 0n };
             const currentGlobalBalance = globalCreditsDB[userId].balance || 0n;
 
-            // --- LOCAL TO GLOBAL (1,000 Local -> 1 Global) ---
             if (direction === 'local_to_global') {
                 const totalLocalCost = targetAmount * EXCHANGE_RATE;
 
@@ -445,22 +488,22 @@ module.exports = {
                 saveCreditsDB(creditsDB);
                 saveGlobalCreditsDB(globalCreditsDB);
 
-                const embed = new EmbedBuilder()
-                    .setTitle('💱 CURRENCY EXCHANGE (LOCAL ➔ GLOBAL)')
-                    .setColor(0x00FFC8)
-                    .setDescription(`Converted Local Credits to Global Credits!`)
-                    .addFields(
-                        { name: 'Converted Cost', value: `**-${formatNumber(totalLocalCost)}** ${CREDIT}`, inline: true },
-                        { name: 'Global Received', value: `**+${formatNumber(targetAmount)}** ۞`, inline: true },
-                        { name: 'New Local Balance', value: `**${formatNumber(creditsDB[userId].balance)}** ${CREDIT}`, inline: false },
-                        { name: 'New Global Balance', value: `**${formatNumber(globalCreditsDB[userId].balance)}** ۞`, inline: false }
-                    )
-                    .setFooter({ text: 'ProtoBot Exchange Subsystem' });
-
-                return await interaction.reply({ embeds: [embed] });
+                return await interaction.reply({
+                    embeds: [
+                        new EmbedBuilder()
+                            .setTitle('💱 CURRENCY EXCHANGE (LOCAL ➔ GLOBAL)')
+                            .setColor(0x00FFC8)
+                            .setDescription(`Converted Local Credits to Global Credits!`)
+                            .addFields(
+                                { name: 'Converted Cost', value: `**-${formatNumber(totalLocalCost)}** ${CREDIT}`, inline: true },
+                                { name: 'Global Received', value: `**+${formatNumber(targetAmount)}** ۞`, inline: true },
+                                { name: 'New Local Balance', value: `**${formatNumber(creditsDB[userId].balance)}** ${CREDIT}`, inline: false },
+                                { name: 'New Global Balance', value: `**${formatNumber(globalCreditsDB[userId].balance)}** ۞`, inline: false }
+                            )
+                    ]
+                });
             }
 
-            // --- GLOBAL TO LOCAL (1 Global -> 1,000 Local) ---
             if (direction === 'global_to_local') {
                 const globalCost = targetAmount;
                 const localReceived = targetAmount * EXCHANGE_RATE;
@@ -478,19 +521,20 @@ module.exports = {
                 saveCreditsDB(creditsDB);
                 saveGlobalCreditsDB(globalCreditsDB);
 
-                const embed = new EmbedBuilder()
-                    .setTitle('💱 CURRENCY EXCHANGE (GLOBAL ➔ LOCAL)')
-                    .setColor(0x00FFC8)
-                    .setDescription(`Converted Global Credits to Local Credits!`)
-                    .addFields(
-                        { name: 'Global Spent', value: `**-${formatNumber(globalCost)}** ۞`, inline: true },
-                        { name: 'Local Received', value: `**+${formatNumber(localReceived)}** ${CREDIT}`, inline: true },
-                        { name: 'New Global Balance', value: `**${formatNumber(globalCreditsDB[userId].balance)}** ۞`, inline: false },
-                        { name: 'New Local Balance', value: `**${formatNumber(creditsDB[userId].balance)}** ${CREDIT}`, inline: false }
-                    )
-                    .setFooter({ text: 'ProtoBot Exchange Subsystem' });
-
-                return await interaction.reply({ embeds: [embed] });
+                return await interaction.reply({
+                    embeds: [
+                        new EmbedBuilder()
+                            .setTitle('💱 CURRENCY EXCHANGE (GLOBAL ➔ LOCAL)')
+                            .setColor(0x00FFC8)
+                            .setDescription(`Converted Global Credits to Local Credits!`)
+                            .addFields(
+                                { name: 'Global Spent', value: `**-${formatNumber(globalCost)}** ۞`, inline: true },
+                                { name: 'Local Received', value: `**+${formatNumber(localReceived)}** ${CREDIT}`, inline: true },
+                                { name: 'New Global Balance', value: `**${formatNumber(globalCreditsDB[userId].balance)}** ۞`, inline: false },
+                                { name: 'New Local Balance', value: `**${formatNumber(creditsDB[userId].balance)}** ${CREDIT}`, inline: false }
+                            )
+                    ]
+                });
             }
         }
     }
