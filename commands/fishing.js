@@ -18,9 +18,36 @@ const creditsFilePath = path.resolve(process.cwd(), 'credits.json');
 const inventoryFilePath = path.resolve(process.cwd(), 'inventory.json');
 const rolesFilePath = path.resolve(process.cwd(), 'command_roles.json');
 const configFilePath = path.resolve(process.cwd(), 'fishing_config.json');
+const accessConfigFilePath = path.resolve(process.cwd(), 'fishing_access.json');
 
 const METAL_ITEMS = ['pipe', 'soda_can', 'ram', 'copper_wire', 'battery', 'pc', 'iridium_cube'];
 
+// ---------------------------------------------------------------------
+// Server / Global Access Storage Helpers
+// ---------------------------------------------------------------------
+function loadServerAccessConfig() {
+    try {
+        if (fs.existsSync(accessConfigFilePath)) {
+            const raw = fs.readFileSync(accessConfigFilePath, 'utf8').trim();
+            return raw ? JSON.parse(raw) : { access_mode: 'all', allowed_servers: [] };
+        }
+    } catch (e) {
+        console.error('Failed to load fishing_access.json:', e);
+    }
+    return { access_mode: 'all', allowed_servers: [] };
+}
+
+function saveServerAccessConfig(config) {
+    try {
+        fs.writeFileSync(accessConfigFilePath, JSON.stringify(config, null, 2), 'utf8');
+    } catch (e) {
+        console.error('Failed to save fishing_access.json:', e);
+    }
+}
+
+// ---------------------------------------------------------------------
+// Fishing Config Helpers
+// ---------------------------------------------------------------------
 function loadFishingConfig() {
     try {
         if (fs.existsSync(configFilePath)) {
@@ -339,6 +366,29 @@ module.exports = {
                .addUserOption(opt => opt.setName('target').setDescription('The target user').setRequired(true))
                .addStringOption(opt => opt.setName('item_id').setDescription('ID of the item to give').setRequired(true))
         )
+        .addSubcommand(sub =>
+            sub.setName('toggle')
+               .setDescription('[Owner Only] Set the global access mode for fishing')
+               .addStringOption(opt =>
+                   opt.setName('mode')
+                      .setDescription('Who can access fishing')
+                      .setRequired(true)
+                      .addChoices(
+                          { name: 'All (Everyone)', value: 'all' },
+                          { name: 'Server Only (Whitelisted Guilds)', value: 'server' },
+                          { name: 'Owner Only', value: 'owner' }
+                      )
+               )
+        )
+        .addSubcommand(sub =>
+            sub.setName('allow')
+               .setDescription('[Owner Only] Whitelist a specific server ID')
+               .addStringOption(opt =>
+                   opt.setName('server_id')
+                      .setDescription('The 17-20 digit Discord Server ID')
+                      .setRequired(true)
+               )
+        )
         .addSubcommandGroup(group =>
             group.setName('loot')
                 .setDescription('View or manage fishing loot table')
@@ -365,16 +415,12 @@ module.exports = {
                 )
         )
         .addSubcommandGroup(group =>
-            group.setName('toggle')
-                .setDescription('[Owner/Admin] Toggle specific fishing features or zones')
+            group.setName('config')
+                .setDescription('[Owner/Admin] Configure global fishing mechanics')
                 .addSubcommand(sub =>
                     sub.setName('abyssal')
                        .setDescription('Toggle whether the Abyssal zone is locked to the owner only')
                 )
-        )
-        .addSubcommandGroup(group =>
-            group.setName('config')
-                .setDescription('[Owner/Admin] Configure global fishing mechanics')
                 .addSubcommand(sub =>
                     sub.setName('prizemode')
                        .setDescription('Set the active prize/economy calculation mode')
@@ -418,6 +464,102 @@ module.exports = {
         const user = interaction.user;
         const userId = user.id;
 
+        const ownerId = botConfig.OWNER_ID || botConfig.ownerId;
+        const isOwner = userId === ownerId;
+        const isAdmin = interaction.memberPermissions?.has(8n);
+
+        // -------------------------------------------------------------
+        // Global Access Control Enforcer
+        // -------------------------------------------------------------
+        const serverAccessConfig = loadServerAccessConfig();
+        
+        if (serverAccessConfig.access_mode === 'owner' && !isOwner) {
+            return await interaction.reply({
+                content: '🔒 Fishing commands are currently set to **Owner Only** mode.',
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        if (serverAccessConfig.access_mode === 'server') {
+            const isAllowedGuild = serverAccessConfig.allowed_servers.includes(interaction.guildId);
+            if (!isAllowedGuild && !isOwner) {
+                const row = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setLabel('Join ProtoBot Server')
+                        .setStyle(ButtonStyle.Link)
+                        .setURL('https://dc.gg/protobotdev')
+                );
+
+                return await interaction.reply({
+                    embeds: [
+                        new EmbedBuilder()
+                            .setColor(0xFF5555)
+                            .setTitle('🔒 Server Restricted')
+                            .setDescription('Fishing is currently set to **Server Only** mode. Join the official ProtoBot server to use this command!')
+                    ],
+                    components: [row],
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+        }
+
+        // -------------------------------------------------------------
+        // Subcommand: /fishing toggle [mode]
+        // -------------------------------------------------------------
+        if (subcommand === 'toggle' && !group) {
+            if (!isOwner) {
+                return await interaction.reply({
+                    content: '❌ Only the bot owner can change global server access modes.',
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            const selectedMode = interaction.options.getString('mode');
+            serverAccessConfig.access_mode = selectedMode;
+            saveServerAccessConfig(serverAccessConfig);
+
+            return await interaction.reply({
+                content: `⚙️ Global fishing access mode set to: **${selectedMode.toUpperCase()}**`,
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        // -------------------------------------------------------------
+        // Subcommand: /fishing allow [server_id]
+        // -------------------------------------------------------------
+        if (subcommand === 'allow' && !group) {
+            if (!isOwner) {
+                return await interaction.reply({
+                    content: '❌ Only the bot owner can add whitelisted server IDs.',
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            const targetServerId = interaction.options.getString('server_id');
+
+            if (!/^\d{17,20}$/.test(targetServerId)) {
+                return await interaction.reply({
+                    content: '❌ Invalid Server ID format. Must be a 17 to 20 digit numeric Snowflake ID.',
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            if (serverAccessConfig.allowed_servers.includes(targetServerId)) {
+                return await interaction.reply({
+                    content: `⚠️ Server ID \`${targetServerId}\` is already whitelisted.`,
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            serverAccessConfig.allowed_servers.push(targetServerId);
+            saveServerAccessConfig(serverAccessConfig);
+
+            return await interaction.reply({
+                content: `✅ Server ID \`${targetServerId}\` has been successfully whitelisted.`,
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
         const creditsDB = loadCreditsDB();
         const userData = creditsDB[userId] || {};
 
@@ -430,16 +572,12 @@ module.exports = {
             const seconds = Math.floor((remainingMs % (1000 * 60)) / 1000);
 
             return await interaction.reply({
-                content: `🚨 **PRISON LOCKDOWN!** You are currently locked in prison! You cannot go fishing for **${minutes}m ${seconds}s**[span_0](start_span)[span_0](end_span).`,
+                content: `🚨 **PRISON LOCKDOWN!** You are currently locked in prison! You cannot go fishing for **${minutes}m ${seconds}s**.`,
                 flags: MessageFlags.Ephemeral
             });
         }
 
         const lootConfig = loadLootDB();
-
-        const ownerId = botConfig.OWNER_ID || botConfig.ownerId;
-        const isOwner = userId === ownerId;
-        const isAdmin = interaction.memberPermissions?.has(8n);
         const isPublic = botConfig.CAST_MESSAGE_PUBLIC ?? true;
 
         const rolesDB = loadRolesDB();
@@ -467,18 +605,6 @@ module.exports = {
                                 .setColor(0xFF0000)
                                 .setTitle('🌌 ABYSSAL ZONE RESTRICTED')
                                 .setDescription('The Abyssal trench is currently locked away and restricted strictly to the **Bot Owner**!')
-                        ],
-                        flags: MessageFlags.Ephemeral
-                    });
-                }
-
-                if (!userRods.includes('abyss_rod') && !isOwner) {
-                    return await interaction.reply({
-                        embeds: [
-                            new EmbedBuilder()
-                                .setColor(0x9B59B6)
-                                .setTitle('🌌 ABYSSAL ROD REQUIRED')
-                                .setDescription('You need an **Abyssal Trench Rod** to venture into the abyssal trench!\nBuy it in `/shop buy item:abyss_rod` for **1,000,000,000** credits.')
                         ],
                         flags: MessageFlags.Ephemeral
                     });
@@ -718,7 +844,7 @@ module.exports = {
 
             const collector = response.createMessageComponentCollector({ time: 60 * 1000 });
 
-                        collector.on('collect', async (i) => {
+            collector.on('collect', async (i) => {
                 if (i.customId === 'loot_prev') {
                     currentPage = Math.max(0, currentPage - 1);
                 } else if (i.customId === 'loot_next') {
@@ -730,7 +856,6 @@ module.exports = {
                     components: [getButtons(currentPage)]
                 });
             });
-
 
             collector.on('end', () => {
                 interaction.editReply({ components: [] }).catch(() => {});
