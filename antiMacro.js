@@ -5,7 +5,7 @@ const botConfig = require('./config');
 
 const TIMINGS_FILE = path.join(__dirname, 'macro-timings.json');
 const WARNINGS_FILE = path.join(__dirname, 'macro-warnings.json');
-const USERS_FILE = path.join(__dirname, 'users.json');
+const CREDITS_FILE = path.join(__dirname, 'credits.json');
 
 let timingTracker = new Map();
 let detectionData = new Map(); // Stores { warnings: Number, totalFlaggedCredits: Number }
@@ -32,7 +32,7 @@ function initStorage() {
 
         if (fs.existsSync(TIMINGS_FILE)) {
             const raw = fs.readFileSync(TIMINGS_FILE, 'utf8');
-            if (raw.trim()) timingTracker = new Map(Object.entries(JSON.parse(raw)));
+            if (raw.trim()) timingTracker = new Map(Object.entries(raw));
         } else {
             fs.writeFileSync(TIMINGS_FILE, JSON.stringify({}, null, 2), 'utf8');
         }
@@ -43,22 +43,34 @@ function initStorage() {
 initStorage();
 
 /**
- * Gets user's current credit balance from users.json.
+ * Reads user's current balance directly from credits.json.
+ * Supports both array format [{ id, credits }] and key-value format { "userId": 5000 }.
  */
-function getUserBalance(userId) {
+function getUserCredits(userId) {
     try {
-        if (fs.existsSync(USERS_FILE)) {
-            const raw = fs.readFileSync(USERS_FILE, 'utf8');
+        if (fs.existsSync(CREDITS_FILE)) {
+            const raw = fs.readFileSync(CREDITS_FILE, 'utf8');
             if (raw.trim()) {
-                const users = JSON.parse(raw);
-                const user = users.find(u => u.id === userId);
-                if (user && typeof user.credits === 'number') return user.credits;
-                if (user && typeof user.balance === 'number') return user.balance;
-                if (user && typeof user.money === 'number') return user.money;
+                const data = JSON.parse(raw);
+
+                // Check if credits.json is an array of user objects
+                if (Array.isArray(data)) {
+                    const found = data.find(u => u.id === userId || u.userId === userId);
+                    if (found) {
+                        return found.credits ?? found.balance ?? found.amount ?? 0;
+                    }
+                } 
+                // Check if credits.json is a key-value object { "userId": 10000 }
+                else if (typeof data === 'object') {
+                    if (typeof data[userId] === 'number') return data[userId];
+                    if (typeof data[userId] === 'object') {
+                        return data[userId].credits ?? data[userId].balance ?? 0;
+                    }
+                }
             }
         }
     } catch (err) {
-        console.error('[ANTI-MACRO ERROR] Could not read user balance:', err);
+        console.error('[ANTI-MACRO ERROR] Could not read credits.json:', err);
     }
     return 0;
 }
@@ -119,7 +131,7 @@ function logDetection(user, fullCommand, variance, totalDetections, currentCredi
     try {
         const logPath = path.join(__dirname, 'macro-detections.log');
         const timestamp = new Date().toISOString();
-        const entry = `[${timestamp}] 🚨 MACRO BLOCKED (${reason}) | User: ${user.username} (${user.id}) | Warnings: ${totalDetections} | Flagged Balance: ${currentCredits} | Cmd: /${fullCommand} | Variance: ${variance.toFixed(2)}ms\n`;
+        const entry = `[${timestamp}] 🚨 MACRO BLOCKED (${reason}) | User: ${user.username} (${user.id}) | Warnings: ${totalDetections} | Credits in JSON: ${currentCredits} | Cmd: /${fullCommand} | Variance: ${variance.toFixed(2)}ms\n`;
         fs.appendFileSync(logPath, entry, 'utf8');
         console.warn(`\x1b[31m[ANTI-MACRO]\x1b[0m Blocked ${user.username} (${user.id}) | Warning #${totalDetections} | Flagged Credits: ${currentCredits} | Reason: ${reason}`);
     } catch (err) {
@@ -167,11 +179,12 @@ async function handleMacroCheck(interaction) {
         const isConsistent = variance < 1200;
 
         if (isSpamming || isConsistent) {
-            const userBalance = getUserBalance(userId);
+            // Read credit balance directly from credits.json
+            const currentCredits = getUserCredits(userId);
             const userRecord = detectionData.get(userId) || { warnings: 0, totalFlaggedCredits: 0 };
             
             userRecord.warnings += 1;
-            userRecord.totalFlaggedCredits = Math.max(userRecord.totalFlaggedCredits, userBalance);
+            userRecord.totalFlaggedCredits = Math.max(userRecord.totalFlaggedCredits, currentCredits);
 
             detectionData.set(userId, userRecord);
             await saveState();
