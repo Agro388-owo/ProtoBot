@@ -60,6 +60,7 @@ const emojiMap = {
     'Strange Ring': '<:strangering:1543071454055112875>',
     'Chester': '<:chester:1543115393462173796>', 
     'Yobii': '<:yobii:1543113618294440056>', 
+    'Dalekino': '<:dalekino:1543379986545905664>', 
 
     // --- PAGE 4 (Items 61+) ---
     'snapper': '<:snapper:1542959982012534784>',
