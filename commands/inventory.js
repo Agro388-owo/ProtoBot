@@ -88,9 +88,14 @@ module.exports = {
         const inventoryDB = loadInventoryDB();
         const lootItems = loadLootDB();
 
+        // Safe item formatter to prevent crashes on non-string values
         const formatItemDisplay = (itemId) => {
-            const matched = lootItems.find(i => i.id.toLowerCase() === itemId.toLowerCase());
-            return matched ? `${matched.emoji} **${matched.name}** (\`${matched.id}\`)` : `📦 **${itemId}**`;
+            if (itemId === null || itemId === undefined) return '📦 **Unknown**';
+            const rawId = typeof itemId === 'object' ? (itemId.id || itemId.name || String(itemId)) : String(itemId);
+            const cleanId = rawId.trim().toLowerCase();
+
+            const matched = lootItems.find(i => String(i.id).toLowerCase() === cleanId);
+            return matched ? `${matched.emoji} **${matched.name}** (\`${matched.id}\`)` : `📦 **${cleanId}**`;
         };
 
         // === 1. VIEW SUBCOMMAND ===
@@ -98,18 +103,21 @@ module.exports = {
             const targetUser = interaction.options.getUser('user') || interaction.user;
             const userItems = inventoryDB[targetUser.id] || [];
 
+            // Aggregate counts safely
             const itemCounts = {};
             for (const item of userItems) {
-                const id = item.toLowerCase();
+                if (item === null || item === undefined) continue;
+                const rawId = typeof item === 'object' ? (item.id || item.name || '') : String(item);
+                if (!rawId) continue;
+
+                const id = rawId.trim().toLowerCase();
                 itemCounts[id] = (itemCounts[id] || 0) + 1;
             }
 
             const itemKeys = Object.keys(itemCounts);
-            
-            // Format item lines
             const formattedLines = itemKeys.map(id => `${formatItemDisplay(id)} × **${itemCounts[id]}**`);
 
-            // Paginate: 10 item types per page
+            // Pagination configuration
             const ITEMS_PER_PAGE = 10;
             const totalPages = Math.ceil(formattedLines.length / ITEMS_PER_PAGE) || 1;
             let currentPage = 0;
@@ -144,7 +152,7 @@ module.exports = {
                 );
             };
 
-            // Send initial message (only attach action row if there's more than 1 page)
+            // Send initial reply
             const response = await interaction.reply({
                 embeds: [buildEmbed(currentPage)],
                 components: totalPages > 1 ? [buildRow(currentPage)] : [],
@@ -153,7 +161,7 @@ module.exports = {
 
             if (totalPages <= 1) return null;
 
-            // Set up component collector for buttons (active for 2 minutes)
+            // Handle button interactions
             const collector = response.createMessageComponentCollector({
                 componentType: ComponentType.Button,
                 time: 120000
@@ -162,7 +170,7 @@ module.exports = {
             collector.on('collect', async i => {
                 if (i.user.id !== interaction.user.id) {
                     await i.reply({
-                        content: '❌ You cannot control this inventory pagination menu.',
+                        content: '❌ You cannot control this inventory menu.',
                         flags: MessageFlags.Ephemeral
                     });
                     return;
@@ -216,7 +224,12 @@ module.exports = {
             const targetItem = interaction.options.getString('item').trim().toLowerCase();
             const userInventory = inventoryDB[targetUser.id] || [];
 
-            const itemIndex = userInventory.findIndex(item => item.toLowerCase() === targetItem);
+            const itemIndex = userInventory.findIndex(item => {
+                if (item === null || item === undefined) return false;
+                const rawId = typeof item === 'object' ? (item.id || item.name || '') : String(item);
+                return rawId.trim().toLowerCase() === targetItem;
+            });
+
             if (itemIndex === -1) {
                 await interaction.reply({
                     content: `⚠️ Item \`${targetItem}\` was not found in <@${targetUser.id}>'s inventory.`,
