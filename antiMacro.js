@@ -6,7 +6,6 @@ const botConfig = require('./config');
 const timingTracker = new Map();
 const DATA_FILE = path.join(__dirname, 'macro-warnings.json');
 
-// Ensure macro-warnings.json exists on startup
 let detectionCounts = new Map();
 
 function initDataFile() {
@@ -25,18 +24,14 @@ function initDataFile() {
                 detectionCounts = new Map(Object.entries(parsed));
             }
         } catch (err) {
-            console.error('[ANTI-MACRO ERROR] Failed parsing macro-warnings.json, resetting local map:', err);
+            console.error('[ANTI-MACRO ERROR] Failed parsing macro-warnings.json:', err);
             detectionCounts = new Map();
         }
     }
 }
 
-// Run initial check on require
 initDataFile();
 
-/**
- * Syncs macro-warnings.json to your GitHub repository.
- */
 async function syncWarningsToGitHub(jsonContent) {
     const owner = "Agro388-owo";
     const repo = "ProtoBot";
@@ -82,9 +77,6 @@ async function syncWarningsToGitHub(jsonContent) {
     }
 }
 
-/**
- * Saves current warning counts to disk & GitHub.
- */
 async function saveWarningsToDisk() {
     try {
         const obj = Object.fromEntries(detectionCounts);
@@ -96,9 +88,6 @@ async function saveWarningsToDisk() {
     }
 }
 
-/**
- * Appends macro detection events to disk log.
- */
 function logMacroDetection(user, fullCommand, variance, totalDetections, reason) {
     try {
         const logPath = path.join(__dirname, 'macro-detections.log');
@@ -106,21 +95,17 @@ function logMacroDetection(user, fullCommand, variance, totalDetections, reason)
         const logEntry = `[${timestamp}] 🚨 MACRO DETECTED (${reason}) | User: ${user.username} (${user.id}) | Total Detections: ${totalDetections} | Command: /${fullCommand} | Variance: ${variance.toFixed(2)}ms\n`;
 
         fs.appendFileSync(logPath, logEntry, 'utf8');
-        console.warn(`\x1b[31m[ANTI-MACRO]\x1b[0m Flagged ${user.username} (${user.id}) | Warning #${totalDetections} | Reason: ${reason} | Cmd: /${fullCommand}`);
+        console.warn(`\x1b[31m[ANTI-MACRO]\x1b[0m Blocked ${user.username} (${user.id}) | Warning #${totalDetections} | Reason: ${reason} | Cmd: /${fullCommand}`);
     } catch (err) {
         console.error('[ANTI-MACRO LOGGER ERROR] Failed writing log:', err);
     }
 }
 
-/**
- * Global macro check to intercept automated inputs across all slash commands.
- */
 async function handleMacroCheck(interaction) {
     if (!interaction.isChatInputCommand()) return false;
 
     const rootCommand = interaction.commandName;
 
-    // Safely parse full command string
     let fullCommand = rootCommand;
     try {
         const group = interaction.options.getSubcommandGroup(false);
@@ -135,16 +120,16 @@ async function handleMacroCheck(interaction) {
     const history = timingTracker.get(userId) || [];
 
     history.push(now);
-    if (history.length > 4) history.shift(); // Keep last 4 runs
+    if (history.length > 4) history.shift();
     timingTracker.set(userId, history);
 
     if (history.length >= 4) {
         const totalDuration = history[history.length - 1] - history[0];
         
-        // 1. RAPID FIRE CHECK: 4 executions under 12 seconds total
+        // Rapid Fire Check: 4 commands in under 12s
         const isSpamming = totalDuration < 12000;
 
-        // 2. TIMING CONSISTENCY CHECK: Variance threshold relaxed to 800ms
+        // Pattern Check: Variance under 800ms
         const intervals = [];
         for (let i = 1; i < history.length; i++) {
             intervals.push(history[i] - history[i - 1]);
@@ -161,12 +146,16 @@ async function handleMacroCheck(interaction) {
             const reason = isSpamming ? 'Rapid Execution Speed' : `Consistent Pattern (${variance.toFixed(0)}ms variance)`;
             logMacroDetection(interaction.user, fullCommand, variance, currentCount, reason);
 
-            await interaction.reply({
-                content: `⚠️ **VIOLATION OF RULE #1:** *No Macros or Automation*\nAutomated execution timing detected across commands. Turn off auto-clickers/macros immediately. *(Warning #${currentCount})*`,
-                flags: 64
-            });
+            const warningMsg = `⚠️ **VIOLATION OF RULE #1:** *No Macros or Automation*\nAutomated execution timing detected across commands. Turn off auto-clickers/macros immediately. *(Warning #${currentCount})*`;
 
-            return true;
+            // Prevent double-reply errors if already replied or deferred
+            if (interaction.replied || interaction.deferred) {
+                await interaction.followUp({ content: warningMsg, flags: 64 }).catch(() => {});
+            } else {
+                await interaction.reply({ content: warningMsg, flags: 64 }).catch(() => {});
+            }
+
+            return true; // 🛑 STRICT BLOCK
         }
     }
 
