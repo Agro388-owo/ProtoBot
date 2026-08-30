@@ -3,16 +3,33 @@ const fs = require('fs');
 const path = require('path');
 
 const timingTracker = new Map();
-const detectionCounts = new Map(); // Tracks total macro detections per user ID
+const DATA_FILE = path.join(__dirname, 'macro-warnings.json');
 
-// List of commands and subcommands protected from macro loops
-const PROTECTED_COMMANDS = [
-    'fishing cast',
-    'slot-machine',
-    'gamble',
-    'lottery',
-    'mine'
-];
+// Load stored detection counts from disk into memory
+let detectionCounts = new Map();
+if (fs.existsSync(DATA_FILE)) {
+    try {
+        const rawData = fs.readFileSync(DATA_FILE, 'utf8');
+        if (rawData.trim()) {
+            const parsed = JSON.parse(rawData);
+            detectionCounts = new Map(Object.entries(parsed));
+        }
+    } catch (err) {
+        console.error('[ANTI-MACRO ERROR] Failed loading macro-warnings.json:', err);
+    }
+}
+
+/**
+ * Saves current warning counts to disk.
+ */
+function saveWarningsToDisk() {
+    try {
+        const obj = Object.fromEntries(detectionCounts);
+        fs.writeFileSync(DATA_FILE, JSON.stringify(obj, null, 2), 'utf8');
+    } catch (err) {
+        console.error('[ANTI-MACRO ERROR] Failed saving macro-warnings.json:', err);
+    }
+}
 
 /**
  * Appends macro detection events to a log file on disk.
@@ -31,24 +48,24 @@ function logMacroDetection(user, fullCommand, variance, totalDetections) {
 }
 
 /**
- * Global macro check to intercept automated commands.
+ * Global macro check to intercept automated commands across ALL command inputs.
  * @param {import('discord.js').Interaction} interaction 
  * @returns {Promise<boolean>} Returns true if command execution should be BLOCKED.
  */
 async function handleMacroCheck(interaction) {
     if (!interaction.isChatInputCommand()) return false;
 
-    // Build command path string (handles single commands and subcommands)
-    const group = interaction.options.getSubcommandGroup(false);
-    const sub = interaction.options.getSubcommand(false);
-    const fullCommand = [interaction.commandName, group, sub].filter(Boolean).join(' ');
+    const rootCommand = interaction.commandName;
 
-    // Match full command path (e.g. "fishing cast") or root command name (e.g. "gamble")
-    const isProtected = PROTECTED_COMMANDS.some(cmd => 
-        cmd === fullCommand || cmd === interaction.commandName
-    );
-
-    if (!isProtected) return false;
+    // Safely build full command string for logging
+    let fullCommand = rootCommand;
+    try {
+        const group = interaction.options.getSubcommandGroup(false);
+        const sub = interaction.options.getSubcommand(false);
+        fullCommand = [rootCommand, group, sub].filter(Boolean).join(' ');
+    } catch (e) {
+        fullCommand = rootCommand;
+    }
 
     const userId = interaction.user.id;
     const now = Date.now();
@@ -68,18 +85,19 @@ async function handleMacroCheck(interaction) {
         const avg = intervals.reduce((a, b) => a + b, 0) / intervals.length;
         const variance = intervals.reduce((a, b) => a + Math.pow(b - avg, 2), 0) / intervals.length;
 
-        // Variance under 60ms indicates unnatural, millisecond-precise macro playback
+        // Variance under 60ms indicates unnatural timing consistency
         if (variance < 60) {
-            // Increment total detection counter for this user
+            // Increment total detection counter and persist to JSON file
             const currentCount = (detectionCounts.get(userId) || 0) + 1;
             detectionCounts.set(userId, currentCount);
+            saveWarningsToDisk();
 
-            // Log detection with user details and total count
+            // Log detection with user details and updated total count
             logMacroDetection(interaction.user, fullCommand, variance, currentCount);
 
             await interaction.reply({
                 content: `⚠️ **VIOLATION OF RULE #1:** *No Macros or Automation*\nUnnatural command execution timing detected. Auto-clickers, self-bots, and macros are strictly forbidden. Please turn off your automated macro and play manually. *(Warning #${currentCount})*`,
-                flags: 64 // Ephemeral response (visible only to the user)
+                flags: 64 // Ephemeral response
             });
 
             return true; // Stop command execution
@@ -90,6 +108,5 @@ async function handleMacroCheck(interaction) {
 }
 
 module.exports = {
-    handleMacroCheck,
-    PROTECTED_COMMANDS
+    handleMacroCheck
 };
