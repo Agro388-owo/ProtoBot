@@ -1,4 +1,12 @@
-const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
+const { 
+    SlashCommandBuilder, 
+    EmbedBuilder, 
+    ActionRowBuilder, 
+    ButtonBuilder, 
+    ButtonStyle, 
+    ComponentType,
+    MessageFlags 
+} = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const botConfig = require('../config.js');
@@ -97,18 +105,86 @@ module.exports = {
             }
 
             const itemKeys = Object.keys(itemCounts);
-            const itemList = itemKeys.length > 0
-                ? itemKeys.map(id => `${formatItemDisplay(id)} × **${itemCounts[id]}**`).join('\n')
-                : '*Inventory is currently empty.*';
+            
+            // Format item lines
+            const formattedLines = itemKeys.map(id => `${formatItemDisplay(id)} × **${itemCounts[id]}**`);
 
-            const embed = new EmbedBuilder()
-                .setTitle(`🎒 ${targetUser.username}'s Inventory`)
-                .setColor(0x5865F2)
-                .setDescription(itemList)
-                .setThumbnail(targetUser.displayAvatarURL({ size: 128 }))
-                .setFooter({ text: `Total Items: ${userItems.length}` });
+            // Paginate: 10 item types per page
+            const ITEMS_PER_PAGE = 10;
+            const totalPages = Math.ceil(formattedLines.length / ITEMS_PER_PAGE) || 1;
+            let currentPage = 0;
 
-            await interaction.reply({ embeds: [embed] });
+            const buildEmbed = (page) => {
+                const start = page * ITEMS_PER_PAGE;
+                const pageItems = formattedLines.slice(start, start + ITEMS_PER_PAGE);
+                const description = pageItems.length > 0
+                    ? pageItems.join('\n')
+                    : '*Inventory is currently empty.*';
+
+                return new EmbedBuilder()
+                    .setTitle(`🎒 ${targetUser.username}'s Inventory`)
+                    .setColor(0x5865F2)
+                    .setDescription(description)
+                    .setThumbnail(targetUser.displayAvatarURL({ size: 128 }))
+                    .setFooter({ text: `Page ${page + 1} of ${totalPages} • Total Items: ${userItems.length}` });
+            };
+
+            const buildRow = (page) => {
+                return new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('inv_prev')
+                        .setLabel('◀ Previous')
+                        .setStyle(ButtonStyle.Primary)
+                        .setDisabled(page === 0),
+                    new ButtonBuilder()
+                        .setCustomId('inv_next')
+                        .setLabel('Next ▶')
+                        .setStyle(ButtonStyle.Primary)
+                        .setDisabled(page === totalPages - 1)
+                );
+            };
+
+            // Send initial message (only attach action row if there's more than 1 page)
+            const response = await interaction.reply({
+                embeds: [buildEmbed(currentPage)],
+                components: totalPages > 1 ? [buildRow(currentPage)] : [],
+                fetchReply: true
+            });
+
+            if (totalPages <= 1) return null;
+
+            // Set up component collector for buttons (active for 2 minutes)
+            const collector = response.createMessageComponentCollector({
+                componentType: ComponentType.Button,
+                time: 120000
+            });
+
+            collector.on('collect', async i => {
+                if (i.user.id !== interaction.user.id) {
+                    await i.reply({
+                        content: '❌ You cannot control this inventory pagination menu.',
+                        flags: MessageFlags.Ephemeral
+                    });
+                    return;
+                }
+
+                if (i.customId === 'inv_prev' && currentPage > 0) currentPage--;
+                else if (i.customId === 'inv_next' && currentPage < totalPages - 1) currentPage++;
+
+                await i.update({
+                    embeds: [buildEmbed(currentPage)],
+                    components: [buildRow(currentPage)]
+                });
+            });
+
+            collector.on('end', async () => {
+                const disabledRow = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId('inv_prev').setLabel('◀ Previous').setStyle(ButtonStyle.Primary).setDisabled(true),
+                    new ButtonBuilder().setCustomId('inv_next').setLabel('Next ▶').setStyle(ButtonStyle.Primary).setDisabled(true)
+                );
+                await interaction.editReply({ components: [disabledRow] }).catch(() => {});
+            });
+
             return null;
         }
 
