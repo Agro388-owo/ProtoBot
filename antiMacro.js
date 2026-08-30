@@ -1,58 +1,201 @@
 // antiMacro.js
-const historyCache = new Map();
-const HISTORY_LIMIT = 4;
-const VARIANCE_THRESHOLD_MS = 15.0; // Tolerance threshold (perfect millisecond intervals indicate an automated macro)
+const fs = require('fs');
+const path = require('path');
+const botConfig = require('./config');
+
+const TIMINGS_FILE = path.join(__dirname, 'macro-timings.json');
+const WARNINGS_FILE = path.join(__dirname, 'macro-warnings.json');
+const USERS_FILE = path.join(__dirname, 'users.json');
+
+let timingTracker = new Map();
+let detectionData = new Map(); // Stores { warnings: Number, totalFlaggedCredits: Number }
+
+// Initialize local JSON storage and auto-heal missing files
+function initStorage() {
+    try {
+        if (fs.existsSync(WARNINGS_FILE)) {
+            const raw = fs.readFileSync(WARNINGS_FILE, 'utf8');
+            if (raw.trim()) {
+                const parsed = JSON.parse(raw);
+                for (const [userId, data] of Object.entries(parsed)) {
+                    if (typeof data === 'number') {
+                        // Migrate legacy single-number warning format
+                        detectionData.set(userId, { warnings: data, totalFlaggedCredits: 0 });
+                    } else {
+                        detectionData.set(userId, data);
+                    }
+                }
+            }
+        } else {
+            fs.writeFileSync(WARNINGS_FILE, JSON.stringify({}, null, 2), 'utf8');
+        }
+
+        if (fs.existsSync(TIMINGS_FILE)) {
+            const raw = fs.readFileSync(TIMINGS_FILE, 'utf8');
+            if (raw.trim()) timingTracker = new Map(Object.entries(JSON.parse(raw)));
+        } else {
+            fs.writeFileSync(TIMINGS_FILE, JSON.stringify({}, null, 2), 'utf8');
+        }
+    } catch (err) {
+        console.error('[ANTI-MACRO INIT ERROR]:', err);
+    }
+}
+initStorage();
 
 /**
- * Validates interaction timing behavior to intercept macro scripts.
- * @param {import('discord.js').ChatInputCommandInteraction} interaction 
- * @returns {Promise<boolean>} true if macro loop is found (blocks command), false if clear.
+ * Gets user's current credit balance from users.json.
  */
-async function handleMacroCheck(interaction) {
-    const userId = interaction.user.id;
-    const now = Date.now();
-
-    // Initialize history trace cache array if empty
-    if (!historyCache.has(userId)) {
-        historyCache.set(userId, []);
-    }
-
-    const history = historyCache.get(userId);
-    history.push(now);
-
-    // Keep memory cache limited to standard analytics baseline size
-    if (history.length > HISTORY_LIMIT) {
-        history.shift();
-    }
-
-    // Begin variance calculations once historical baseline data array is fully built
-    if (history.length === HISTORY_LIMIT) {
-        const deltas = [];
-        for (let i = 1; i < history.length; i++) {
-            deltas.push(history[i] - history[i - 1]);
-        }
-
-        // Calculate Standard Deviation over millisecond timing intervals
-        const mean = deltas.reduce((a, b) => a + b, 0) / deltas.length;
-        const varianceSum = deltas.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b, 0);
-        const stdDev = Math.sqrt(varianceSum / deltas.length);
-
-        // Macro Detected: Standard Deviation under 15ms means mechanical precision
-        if (stdDev < VARIANCE_THRESHOLD_MS) {
-            try {
-                // Return an ephemeral reply to let the human know why it stopped
-                await interaction.reply({
-                    content: "⚠️ **Automation Detected.** Please pause and try again naturally.",
-                    flags: 64 // Clean Discord.js v14/v16 ephemeral message flag structure
-                });
-            } catch (err) {
-                console.error("[ANTI-MACRO REPLY ERROR]", err.message);
+function getUserBalance(userId) {
+    try {
+        if (fs.existsSync(USERS_FILE)) {
+            const raw = fs.readFileSync(USERS_FILE, 'utf8');
+            if (raw.trim()) {
+                const users = JSON.parse(raw);
+                const user = users.find(u => u.id === userId);
+                if (user && typeof user.credits === 'number') return user.credits;
+                if (user && typeof user.balance === 'number') return user.balance;
+                if (user && typeof user.money === 'number') return user.money;
             }
-            return true; // ⚠️ Signal true to match the execution block: if (isMacroDetected) return;
         }
+    } catch (err) {
+        console.error('[ANTI-MACRO ERROR] Could not read user balance:', err);
     }
-
-    return false; // ✅ Behaviour looks human, permit execution trace down the stack
+    return 0;
 }
 
-module.exports = { handleMacroCheck };
+async function syncToGitHub(fileName, content) {
+    const owner = "Agro388-owo";
+    const repo = "ProtoBot";
+    const branch = "main";
+    const token = botConfig.GITHUB_TOKEN || process.env.GITHUB_TOKEN;
+    if (!token) return;
+
+    const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${fileName}`;
+
+    try {
+        let sha = null;
+        const getRes = await fetch(apiUrl, {
+            headers: { "Authorization": `Bearer ${token}`, "User-Agent": "ProtoBot-Macro" }
+        });
+        if (getRes.ok) {
+            const data = await getRes.json();
+            sha = data.sha;
+        }
+
+        await fetch(apiUrl, {
+            method: "PUT",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json",
+                "User-Agent": "ProtoBot-Macro"
+            },
+            body: JSON.stringify({
+                message: `update: Sync ${fileName}`,
+                content: Buffer.from(content).toString('base64'),
+                sha,
+                branch
+            })
+        });
+    } catch (err) {
+        console.error(`[GITHUB SYNC ERROR] ${fileName}:`, err);
+    }
+}
+
+async function saveState() {
+    try {
+        const warningsObj = Object.fromEntries(detectionData);
+        const warningsJson = JSON.stringify(warningsObj, null, 2);
+        fs.writeFileSync(WARNINGS_FILE, warningsJson, 'utf8');
+        await syncToGitHub('macro-warnings.json', warningsJson);
+
+        const timingsObj = Object.fromEntries(timingTracker);
+        fs.writeFileSync(TIMINGS_FILE, JSON.stringify(timingsObj, null, 2), 'utf8');
+    } catch (err) {
+        console.error('[ANTI-MACRO SAVE ERROR]:', err);
+    }
+}
+
+function logDetection(user, fullCommand, variance, totalDetections, currentCredits, reason) {
+    try {
+        const logPath = path.join(__dirname, 'macro-detections.log');
+        const timestamp = new Date().toISOString();
+        const entry = `[${timestamp}] 🚨 MACRO BLOCKED (${reason}) | User: ${user.username} (${user.id}) | Warnings: ${totalDetections} | Flagged Balance: ${currentCredits} | Cmd: /${fullCommand} | Variance: ${variance.toFixed(2)}ms\n`;
+        fs.appendFileSync(logPath, entry, 'utf8');
+        console.warn(`\x1b[31m[ANTI-MACRO]\x1b[0m Blocked ${user.username} (${user.id}) | Warning #${totalDetections} | Flagged Credits: ${currentCredits} | Reason: ${reason}`);
+    } catch (err) {
+        console.error('[ANTI-MACRO LOG ERROR]:', err);
+    }
+}
+
+/**
+ * Checks interaction for macro execution. Returns TRUE if execution MUST be blocked.
+ */
+async function handleMacroCheck(interaction) {
+    if (!interaction.isChatInputCommand()) return false;
+
+    const rootCommand = interaction.commandName;
+    let fullCommand = rootCommand;
+    try {
+        const group = interaction.options.getSubcommandGroup(false);
+        const sub = interaction.options.getSubcommand(false);
+        fullCommand = [rootCommand, group, sub].filter(Boolean).join(' ');
+    } catch (e) {
+        fullCommand = rootCommand;
+    }
+
+    const userId = interaction.user.id;
+    const now = Date.now();
+    const history = timingTracker.get(userId) || [];
+
+    history.push(now);
+    if (history.length > 4) history.shift();
+    timingTracker.set(userId, history);
+
+    if (history.length >= 4) {
+        const totalDuration = history[history.length - 1] - history[0];
+        
+        // 1. RAPID SPAM CHECK: 4 executions in under 14 seconds
+        const isSpamming = totalDuration < 14000;
+
+        // 2. TIMING CONSISTENCY CHECK: Variance under 1200ms
+        const intervals = [];
+        for (let i = 1; i < history.length; i++) {
+            intervals.push(history[i] - history[i - 1]);
+        }
+        const avg = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+        const variance = intervals.reduce((a, b) => a + Math.pow(b - avg, 2), 0) / intervals.length;
+        const isConsistent = variance < 1200;
+
+        if (isSpamming || isConsistent) {
+            const userBalance = getUserBalance(userId);
+            const userRecord = detectionData.get(userId) || { warnings: 0, totalFlaggedCredits: 0 };
+            
+            userRecord.warnings += 1;
+            userRecord.totalFlaggedCredits = Math.max(userRecord.totalFlaggedCredits, userBalance);
+
+            detectionData.set(userId, userRecord);
+            await saveState();
+
+            const reason = isSpamming ? 'Rapid Execution Speed' : `Consistent Pattern (${variance.toFixed(0)}ms variance)`;
+            logDetection(interaction.user, fullCommand, variance, userRecord.warnings, userRecord.totalFlaggedCredits, reason);
+
+            const warningMsg = `⚠️ **VIOLATION OF RULE #1:** *No Macros or Automation*\nAutomated execution timing detected across commands. Turn off auto-clickers/macros immediately. *(Warning #${userRecord.warnings})*`;
+
+            try {
+                if (interaction.replied || interaction.deferred) {
+                    await interaction.followUp({ content: warningMsg, flags: 64 });
+                } else {
+                    await interaction.reply({ content: warningMsg, flags: 64 });
+                }
+            } catch (err) {}
+
+            return true; // 🛑 STRICT BLOCK
+        }
+    }
+
+    return false;
+}
+
+module.exports = {
+    handleMacroCheck
+};
