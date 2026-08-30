@@ -1,86 +1,8 @@
 const { Client, GatewayIntentBits, REST, Routes, Collection, ActivityType } = require('discord.js');
-const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const botConfig = require('./config');
-const { addClient, removeClient, broadcast } = require('./websocket');
 const { handleMacroCheck } = require('./antiMacro'); // 🟢 Imported antiMacro module
-
-const app = express();
-
-// Set up multi-port array (detects process.env.PORT, custom port 25364, and Render port 3000)
-const PORTS = [
-    process.env.PORT,
-    25364,
-    3000
-].filter(Boolean).map(p => Number(p));
-
-// Deduplicate port numbers in case process.env.PORT matches 25364 or 3000
-const uniquePorts = [...new Set(PORTS)];
-
-app.use(express.static(path.join(__dirname, 'public')));
-
-// SSE Endpoint for instant live website streaming
-app.get('/api/events', (req, res) => {
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.flushHeaders();
-
-    addClient(res);
-
-    req.on('close', () => {
-        removeClient(res);
-    });
-});
-
-app.get('/api/status', (req, res) => {
-    res.json(getStatusPayload());
-});
-
-function getStatusPayload() {
-    let activityTypeString = 'Playing';
-    if (botConfig.activityType === 1) activityTypeString = 'Streaming';
-    if (botConfig.activityType === 2) activityTypeString = 'Listening to';
-    if (botConfig.activityType === 3) activityTypeString = 'Watching';
-    if (botConfig.activityType === 5) activityTypeString = 'Competing in';
-
-    const uptimeSeconds = client.uptime ? Math.floor(client.uptime / 1000) : 0;
-    const hours = Math.floor(uptimeSeconds / 3600);
-    const minutes = Math.floor((uptimeSeconds % 3600) / 60);
-    const seconds = uptimeSeconds % 60;
-
-    return {
-        online: client.isReady(),
-        activityName: botConfig.activityName,
-        activityTypeString: activityTypeString,
-        status: botConfig.status,
-        uptime: client.isReady() ? `${hours}h ${minutes}m ${seconds}s` : 'Starting up...',
-        avatarUrl: client.user ? client.user.displayAvatarURL({ size: 256 }) : null,
-        bannerUrl: client.user ? client.user.bannerURL({ size: 512 }) : null,
-        debugMode: botConfig.debugMode
-    };
-}
-
-// 🟢 Continuous uptime ticker
-setInterval(() => {
-    if (client.isReady()) {
-        broadcast(getStatusPayload());
-    }
-}, 1000);
-
-// 🌐 Bind Express server to all unique ports
-uniquePorts.forEach(port => {
-    app.listen(port, () => {
-        console.log(`[EXPRESS] Web server listening on port ${port}`);
-    }).on('error', (err) => {
-        if (err.code === 'EADDRINUSE') {
-            console.log(`[EXPRESS] Port ${port} is already in use or restricted on this host (Ignored).`);
-        } else {
-            console.error(`[EXPRESS ERROR] Failed to bind on port ${port}:`, err.message);
-        }
-    });
-});
 
 const client = new Client({
     intents: [
