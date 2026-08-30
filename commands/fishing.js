@@ -560,6 +560,109 @@ module.exports = {
             });
         }
 
+        // -------------------------------------------------------------
+        // Subcommand Group: /fishing config
+        // -------------------------------------------------------------
+        if (group === 'config') {
+            if (!isOwner && !isAdmin) {
+                return await interaction.reply({
+                    content: '❌ Only administrators or the bot owner can change fishing configurations.',
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            const fishingConfig = loadFishingConfig();
+
+            if (subcommand === 'abyssal') {
+                fishingConfig.abyssalLocked = !fishingConfig.abyssalLocked;
+                saveFishingConfig(fishingConfig);
+
+                const status = fishingConfig.abyssalLocked ? '🔒 **LOCKED** (Owner Only)' : '🔓 **UNLOCKED** (Open to Everyone)';
+                return await interaction.reply({
+                    content: `🌌 Abyssal zone access is now ${status}.`,
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            if (subcommand === 'prizemode') {
+                const newMode = interaction.options.getString('mode');
+                fishingConfig.prizeMode = newMode;
+                saveFishingConfig(fishingConfig);
+
+                return await interaction.reply({
+                    content: `⚙️ Fishing economy mode updated to: **${newMode.toUpperCase()}**`,
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+        }
+
+        // -------------------------------------------------------------
+        // Subcommand Group: /fishing perm
+        // -------------------------------------------------------------
+        if (group === 'perm') {
+            if (!isOwner && !isAdmin) {
+                return await interaction.reply({
+                    content: '❌ Only administrators or the bot owner can manage permissions.',
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            const rolesDB = loadRolesDB();
+
+            if (subcommand === 'grant') {
+                const targetUser = interaction.options.getUser('user');
+                const permNode = interaction.options.getString('permission').toLowerCase().trim();
+
+                if (!rolesDB[targetUser.id]) rolesDB[targetUser.id] = [];
+                if (!rolesDB[targetUser.id].includes(permNode)) {
+                    rolesDB[targetUser.id].push(permNode);
+                    saveRolesDB(rolesDB);
+                }
+
+                return await interaction.reply({
+                    content: `✅ Granted permission node \`${permNode}\` to <@${targetUser.id}>.`,
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            if (subcommand === 'revoke') {
+                const targetUser = interaction.options.getUser('user');
+                const permNode = interaction.options.getString('permission').toLowerCase().trim();
+
+                if (rolesDB[targetUser.id]) {
+                    rolesDB[targetUser.id] = rolesDB[targetUser.id].filter(p => p !== permNode);
+                    saveRolesDB(rolesDB);
+                }
+
+                return await interaction.reply({
+                    content: `🗑️ Revoked permission node \`${permNode}\` from <@${targetUser.id}>.`,
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            if (subcommand === 'list') {
+                const targetUser = interaction.options.getUser('user');
+
+                if (targetUser) {
+                    const userPerms = rolesDB[targetUser.id] || [];
+                    return await interaction.reply({
+                        content: `📋 **Permissions for <@${targetUser.id}>:** ${userPerms.length > 0 ? userPerms.map(p => `\`${p}\``).join(', ') : '*None*'}`,
+                        flags: MessageFlags.Ephemeral
+                    });
+                }
+
+                let listStr = '**📋 Registered Fishing Permissions:**\n';
+                for (const uId in rolesDB) {
+                    listStr += `<@${uId}>: ${rolesDB[uId].map(p => `\`${p}\``).join(', ')}\n`;
+                }
+
+                return await interaction.reply({
+                    content: listStr.substring(0, 2000),
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+        }
+
         const creditsDB = loadCreditsDB();
         const userData = creditsDB[userId] || {};
 
@@ -591,6 +694,9 @@ module.exports = {
             userPerms.includes('fishing') || 
             userPerms.includes('*');
 
+        // -------------------------------------------------------------
+        // Subcommand: /fishing cast
+        // -------------------------------------------------------------
         if (subcommand === 'cast' && !group) {
             const mode = interaction.options.getString('mode') || 'coastal';
             const fishingConfig = loadFishingConfig();
@@ -749,6 +855,9 @@ module.exports = {
             return true;
         }
 
+        // -------------------------------------------------------------
+        // Subcommand: /fishing catch
+        // -------------------------------------------------------------
         if (subcommand === 'catch' && !group) {
             if (!hasPerm('catch')) {
                 return await interaction.reply({ content: '❌ You do not have permission to force a catch!', flags: MessageFlags.Ephemeral });
@@ -787,79 +896,138 @@ module.exports = {
             });
         }
 
-        if (group === 'loot' && subcommand === 'list') {
-            const freshLoot = loadLootDB();
-            const items = freshLoot.items || [];
-            
-            if (items.length === 0) {
-                return await interaction.reply({ content: '⚠️ The fishing loot table is currently empty!', flags: MessageFlags.Ephemeral });
-            }
-
-            const ITEMS_PER_PAGE = 5;
-            const totalPages = Math.ceil(items.length / ITEMS_PER_PAGE);
-            let currentPage = 0;
-
-            const generateEmbed = (page) => {
-                const start = page * ITEMS_PER_PAGE;
-                const currentItems = items.slice(start, start + ITEMS_PER_PAGE);
-                
-                let description = `**Active Economy Mode:** \`${freshLoot.mode}\`\n\n`;
-                
-                currentItems.forEach((item) => {
-                    const currentCount = getGlobalItemCount(item.id);
-                    const dynamicVal = getCalculatedReward(item);
-                    description += `${item.emoji} **${item.name}** (\`${item.id}\`)\n` +
-                                   `> Chance: \`${item.chance}%\` | Base: \`${item.catchCredits}\`${CREDIT} | Val: \`${dynamicVal}\`${CREDIT} | Total: \`${currentCount}\`\n\n`;
-                });
-
-                return new EmbedBuilder()
-                    .setColor(0x0099FF)
-                    .setTitle('🎣 Fishing Loot Table & Market Values')
-                    .setDescription(description)
-                    .setFooter({ text: `Page ${page + 1} of ${totalPages} • Values dynamically shift based on supply & demand!` });
-            };
-
-            const getButtons = (page) => {
-                return new ActionRowBuilder().addComponents(
-                    new ButtonBuilder()
-                        .setCustomId('loot_prev')
-                        .setEmoji('◀️')
-                        .setStyle(ButtonStyle.Primary)
-                        .setDisabled(page === 0),
-                    new ButtonBuilder()
-                        .setCustomId('loot_next')
-                        .setEmoji('▶️')
-                        .setStyle(ButtonStyle.Primary)
-                        .setDisabled(page === totalPages - 1)
-                );
-            };
-
-            const response = await interaction.reply({
-                embeds: [generateEmbed(currentPage)],
-                components: totalPages > 1 ? [getButtons(currentPage)] : [],
-                fetchReply: true
-            });
-
-            if (totalPages <= 1) return;
-
-            const collector = response.createMessageComponentCollector({ time: 60 * 1000 });
-
-            collector.on('collect', async (i) => {
-                if (i.customId === 'loot_prev') {
-                    currentPage = Math.max(0, currentPage - 1);
-                } else if (i.customId === 'loot_next') {
-                    currentPage = Math.min(totalPages - 1, currentPage + 1);
+        // -------------------------------------------------------------
+        // Subcommand Group: /fishing loot
+        // -------------------------------------------------------------
+        if (group === 'loot') {
+            if (subcommand === 'add') {
+                if (!hasPerm('loot')) {
+                    return await interaction.reply({ content: '❌ You do not have permission to edit the loot table!', flags: MessageFlags.Ephemeral });
                 }
 
-                await i.update({
-                    embeds: [generateEmbed(currentPage)],
-                    components: [getButtons(currentPage)]
-                });
-            });
+                const newItem = {
+                    id: interaction.options.getString('id').trim().toLowerCase(),
+                    name: interaction.options.getString('name').trim(),
+                    emoji: interaction.options.getString('emoji').trim(),
+                    chance: interaction.options.getNumber('chance'),
+                    catchCredits: BigInt(interaction.options.getString('catch_credits')),
+                    sellValue: BigInt(interaction.options.getString('sell_value')),
+                    sellable: interaction.options.getBoolean('sellable') ?? true,
+                    abyssalOnly: interaction.options.getBoolean('abyssal_only') ?? false
+                };
 
-            collector.on('end', () => {
-                interaction.editReply({ components: [] }).catch(() => {});
-            });
+                const currentLoot = loadLootDB();
+                const existingIndex = currentLoot.items.findIndex(i => i.id === newItem.id);
+
+                if (existingIndex !== -1) {
+                    currentLoot.items[existingIndex] = newItem;
+                } else {
+                    currentLoot.items.push(newItem);
+                }
+
+                saveLootDB(currentLoot);
+                return await interaction.reply({
+                    content: `✅ Successfully added/updated item **${newItem.name}** (\`${newItem.id}\`) in the loot table!`,
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            if (subcommand === 'remove') {
+                if (!hasPerm('loot')) {
+                    return await interaction.reply({ content: '❌ You do not have permission to edit the loot table!', flags: MessageFlags.Ephemeral });
+                }
+
+                const removeId = interaction.options.getString('id').trim().toLowerCase();
+                const currentLoot = loadLootDB();
+                const initialLength = currentLoot.items.length;
+
+                currentLoot.items = currentLoot.items.filter(i => i.id !== removeId);
+
+                if (currentLoot.items.length === initialLength) {
+                    return await interaction.reply({ content: `⚠️ No item found with ID \`${removeId}\`.`, flags: MessageFlags.Ephemeral });
+                }
+
+                saveLootDB(currentLoot);
+                return await interaction.reply({
+                    content: `🗑️ Successfully removed item \`${removeId}\` from the loot table.`,
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            if (subcommand === 'list') {
+                const freshLoot = loadLootDB();
+                const items = freshLoot.items || [];
+                
+                if (items.length === 0) {
+                    return await interaction.reply({ content: '⚠️ The fishing loot table is currently empty!', flags: MessageFlags.Ephemeral });
+                }
+
+                const ITEMS_PER_PAGE = 5;
+                const totalPages = Math.ceil(items.length / ITEMS_PER_PAGE);
+                let currentPage = 0;
+
+                const generateEmbed = (page) => {
+                    const start = page * ITEMS_PER_PAGE;
+                    const currentItems = items.slice(start, start + ITEMS_PER_PAGE);
+                    
+                    let description = `**Active Economy Mode:** \`${freshLoot.mode}\`\n\n`;
+                    
+                    currentItems.forEach((item) => {
+                        const currentCount = getGlobalItemCount(item.id);
+                        const dynamicVal = getCalculatedReward(item);
+                        description += `${item.emoji} **${item.name}** (\`${item.id}\`)\n` +
+                                       `> Chance: \`${item.chance}%\` | Base: \`${item.catchCredits}\`${CREDIT} | Val: \`${dynamicVal}\`${CREDIT} | Total: \`${currentCount}\`\n\n`;
+                    });
+
+                    return new EmbedBuilder()
+                        .setColor(0x0099FF)
+                        .setTitle('🎣 Fishing Loot Table & Market Values')
+                        .setDescription(description)
+                        .setFooter({ text: `Page ${page + 1} of ${totalPages} • Values dynamically shift based on supply & demand!` });
+                };
+
+                const getButtons = (page) => {
+                    return new ActionRowBuilder().addComponents(
+                        new ButtonBuilder()
+                            .setCustomId('loot_prev')
+                            .setEmoji('◀️')
+                            .setStyle(ButtonStyle.Primary)
+                            .setDisabled(page === 0),
+                        new ButtonBuilder()
+                            .setCustomId('loot_next')
+                            .setEmoji('▶️')
+                            .setStyle(ButtonStyle.Primary)
+                            .setDisabled(page === totalPages - 1)
+                    );
+                };
+
+                const response = await interaction.reply({
+                    embeds: [generateEmbed(currentPage)],
+                    components: totalPages > 1 ? [getButtons(currentPage)] : [],
+                    fetchReply: true
+                });
+
+                if (totalPages <= 1) return;
+
+                const collector = response.createMessageComponentCollector({ time: 60 * 1000 });
+
+                collector.on('collect', async (i) => {
+                    if (i.customId === 'loot_prev') {
+                        currentPage = Math.max(0, currentPage - 1);
+                    } else if (i.customId === 'loot_next') {
+                        currentPage = Math.min(totalPages - 1, currentPage + 1);
+                    }
+
+                    await i.update({
+                        embeds: [generateEmbed(currentPage)],
+                        components: [getButtons(currentPage)]
+                    });
+                });
+
+                collector.on('end', () => {
+                    interaction.editReply({ components: [] }).catch(() => {});
+                });
+            }
         }
     }
 };
