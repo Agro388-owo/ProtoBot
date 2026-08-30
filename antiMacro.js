@@ -78,7 +78,7 @@ async function handleMacroCheck(interaction) {
             logMacroDetection(interaction.user, fullCommand, variance, currentCount);
 
             await interaction.reply({
-                content: `⚠️ **Anti-Macro Warning:** Unnatural command timing detected. Please slow down or turn off automated macros. *(Warning #${currentCount})*`,
+                content: `⚠️ **VIOLATION OF RULE #1:** *No Macros or Automation*\nUnnatural command execution timing detected. Auto-clickers, self-bots, and macros are strictly forbidden. Please turn off your automated macro and play manually. *(Warning #${currentCount})*`,
                 flags: 64 // Ephemeral response (visible only to the user)
             });
 
