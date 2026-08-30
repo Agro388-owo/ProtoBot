@@ -105,14 +105,11 @@ function saveCredits(data) {
 
 function ensureUser(db, userId) {
     if (!db[userId]) {
-        db[userId] = { balance: DEFAULT_BALANCE, globalCredits: 0n, lastDaily: null, jailUntil: 0, isBailable: true, lastSteal: 0, luckLevel: 0, rods: [] };
+        db[userId] = { balance: DEFAULT_BALANCE, globalCredits: 0n, lastDaily: null, jailUntil: 0, lastSteal: 0, luckLevel: 0, rods: [] };
         saveCredits(db);
     }
     if (db[userId].globalCredits === undefined) {
         db[userId].globalCredits = 0n;
-    }
-    if (db[userId].isBailable === undefined) {
-        db[userId].isBailable = true;
     }
     return db[userId];
 }
@@ -213,22 +210,8 @@ module.exports = {
                    ))
         )
         .addSubcommand(sub =>
-            sub.setName('prison')
-               .setDescription('[ADMIN] Put a user in prison for a specified time')
-               .addUserOption(opt => opt.setName('target').setDescription('User to imprison').setRequired(true))
-               .addIntegerOption(opt => opt.setName('duration').setDescription('Amount of time to imprison').setRequired(true))
-               .addStringOption(opt => opt.setName('unit')
-                   .setDescription('Time unit')
-                   .setRequired(true)
-                   .addChoices(
-                       { name: 'Minutes', value: 'm' },
-                       { name: 'Seconds', value: 's' }
-                   ))
-               .addBooleanOption(opt => opt.setName('bailable').setDescription('Is this prison sentence bailable? (Default: true)').setRequired(false))
-        )
-        .addSubcommand(sub =>
             sub.setName('prison_time')
-               .setDescription('[ADMIN] Set the default prison duration on failed steal (0 = no prison)')
+               .setDescription('[ADMIN] Set the prison duration on failed steal (0 = no prison)')
                .addIntegerOption(opt => opt.setName('duration').setDescription('Amount of time (0 to disable)').setRequired(true))
                .addStringOption(opt => opt.setName('unit')
                    .setDescription('Time unit')
@@ -246,10 +229,12 @@ module.exports = {
 
         const userData = ensureUser(db, user.id);
 
-        // Prison check for economic commands
         if (isInPrison(userData) && subcommand !== 'bail') {
+            const remainingMs = userData.jailUntil - Date.now();
+            const minutes = Math.floor(remainingMs / (1000 * 60));
+            const seconds = Math.floor((remainingMs % (1000 * 60)) / 1000);
             return await interaction.reply({
-                content: `🎣 you cast the fishing rod and caught: nothing! There’s nothing on the concrete floor`,
+                content: `🚨 **PRISON LOCKDOWN!** You were caught attempting theft! You cannot perform economic actions for **${minutes}m ${seconds}s**.`,
                 ephemeral: true
             });
         }
@@ -349,7 +334,6 @@ module.exports = {
             } else {
                 if (PRISON_DURATION > 0) {
                     userData.jailUntil = NOW + PRISON_DURATION;
-                    userData.isBailable = true; // Theft prison is always bailable by default
                     saveCredits(db);
 
                     const prisonMin = Math.floor(PRISON_DURATION / (1000 * 60));
@@ -391,13 +375,6 @@ module.exports = {
             if (!isInPrison(targetData)) {
                 return await interaction.reply({
                     content: `<:Puroadorable:1536364133392457818> **<@${target.id}>** is not currently in prison!`,
-                    ephemeral: true
-                });
-            }
-
-            if (targetData.isBailable === false) {
-                return await interaction.reply({
-                    content: `🔒 **NO BAIL ALLOWED!** **<@${target.id}>** was locked away under a non-bailable sentence!`,
                     ephemeral: true
                 });
             }
@@ -604,43 +581,12 @@ module.exports = {
         }
 
         // Admin Subcommands
-        const adminSubcommands = ['add', 'remove', 'set', 'prison', 'prison_time'];
+        const adminSubcommands = ['add', 'remove', 'set', 'prison_time'];
         if (adminSubcommands.includes(subcommand)) {
             const ownerId = botConfig.OWNER_ID || botConfig.ownerId;
             if (user.id !== ownerId) {
                 return await interaction.reply({
                     content: `<:puronervous2:1538551211207430234> Access Denied! Only the bot owner can use admin commands.`,
-                    ephemeral: true
-                });
-            }
-
-            // Direct Prison Command
-            if (subcommand === 'prison') {
-                const target = interaction.options.getUser('target');
-                const duration = interaction.options.getInteger('duration');
-                const unit = interaction.options.getString('unit');
-                const isBailable = interaction.options.getBoolean('bailable') ?? true;
-
-                if (duration <= 0) {
-                    return await interaction.reply({
-                        content: `<:puronervous2:1538551211207430234> Duration must be greater than 0!`,
-                        ephemeral: true
-                    });
-                }
-
-                const multiplier = unit === 'm' ? 60 * 1000 : 1000;
-                const durationMs = duration * multiplier;
-
-                const targetData = ensureUser(db, target.id);
-                targetData.jailUntil = Date.now() + durationMs;
-                targetData.isBailable = isBailable;
-                saveCredits(db);
-
-                const label = unit === 'm' ? 'minutes' : 'seconds';
-                const bailableStatus = isBailable ? 'Bailable' : 'Non-bailable';
-
-                return await interaction.reply({
-                    content: `🚔 **[ADMIN]** Imprisoned **<@${target.id}>** for **${duration} ${label}**! Status: **${bailableStatus}**.`,
                     ephemeral: true
                 });
             }
