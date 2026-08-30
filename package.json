@@ -1,11 +1,11 @@
 {
   "name": "ProtoBot",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "Just a silly ProtoBot",
   "main": "index.js",
   "license": "AGPL-3.0-only",
   "engines": {
-    "node": "20.x"
+    "node": ">=20.x"
   },
   "scripts": {
     "start": "node index.js"
@@ -13,7 +13,6 @@
   "dependencies": {
     "@napi-rs/canvas": "^0.1.65",
     "discord.js": "^14.14.1",
-    "express": "^4.18.2",
-    "sharp": "^0.33.2"
+    "sharp": "^0.33.5"
   }
 }
