@@ -63,12 +63,39 @@ const emojiMap = {
     'Dalekino': '<:dalekino:1543379986545905664>', 
     'Void': '<:void:1543489597646835732>', 
 
-    // --- PAGE 4 (Items 61+) ---
+    // --- PAGE 4 (Items 61 - 80) ---
     'snapper': '<:snapper:1542959982012534784>',
     'flippinguoff': '<:flippinguoff:1542959978682253413>',
     'prettyimg': '<:prettyimg:1542959976622985226>',
     'axehit': '<:axehit:1542959974617976974>',
-    'strangcreature': '<:strangcreature:1542959970658685040>'
+    'strangcreature': '<:strangcreature:1542959970658685040>',
+    'statue': '<:statue:1544043471088918558>',
+    'lithiumbattery': '<:lithiumbattery:1544043469801001104>',
+    'latexcore': '<:latexcore:1544043468329058364>',
+    'desktoppc': '<:desktoppc:1544043466726711487>',
+    'salmon': '<:salmon:1544043465195913287>',
+    'newram': '<:newram:1544043463790825555>',
+    'copperwire': '<:copperwire:1544043462259773622>',
+    'rubberduck': '<:rubberduck:1544043460678651944>',
+    'oldrustypipe': '<:oldrustypipe:1544043459219038308>',
+    'alluminiumcan': '<:alluminiumcan:1544043457746575401>',
+    'fishingrodabyss': '<:fishingrodabyss:1544043456257720341>',
+    'newglobalcredit': '<:newglobalcredit:1544043454668218570>',
+    'newcredit': '<:newcredit:1544043453258924053>',
+    'fishingluck': '<:fishingluck:1544043451534934076>',
+    'electricrod': '<:electricrod:1544043450075316285>',
+
+    // --- PAGE 5 (Items 81+) ---
+    'magnetrod': '<:magnetrod:1544043448544530433>',
+    'voidmatter': '<:voidmatter:1544043446472540272>',
+    'abyssalpearl': '<:abyssalpearl:1544043445004279938>',
+    'leviatanscale': '<:leviatanscale:1544043443511107695>',
+    'culttracker': '<:culttracker:1544043441334263896>',
+    'iriscrystal': '<:iriscrystal:1544043439610531900>',
+    'dialring': '<:dialring:1544043437978816512>',
+    'mox': '<:mox:1544043436599017652>',
+    '762x39ammo': '<:762x39ammo:1544043435235872948>',
+    'uox': '<:uox:1544043433453289473>'
 };
 
 const allKeys = Object.keys(emojiMap);
