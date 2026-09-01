@@ -193,23 +193,39 @@ function getCalculatedReward(item) {
 }
 
 function loadLootDB() {
+    const defaultMasterList = [...DEFAULT_LOOT_CONFIG.items, ...ABYSSAL_EXCLUSIVE_ITEMS];
+    
     try {
         if (fs.existsSync(lootFilePath)) {
             const raw = fs.readFileSync(lootFilePath, 'utf8').trim();
             if (raw) {
                 const parsed = JSON.parse(raw);
-                let items = (parsed.items || []).map(item => ({
-                    ...item,
-                    catchCredits: BigInt(item.catchCredits || item.credits || "5"),
-                    sellValue: BigInt(item.sellValue || "5"),
-                    chance: parseFloat(item.chance),
-                    sellable: item.sellable ?? true,
-                    abyssalOnly: item.abyssalOnly ?? false
-                }));
+                const fileItems = parsed.items || [];
 
-                for (const abyssalItem of ABYSSAL_EXCLUSIVE_ITEMS) {
-                    if (!items.some(i => i.id === abyssalItem.id)) {
-                        items.push(abyssalItem);
+                let items = defaultMasterList.map(defaultItem => {
+                    const savedMatch = fileItems.find(i => i.id === defaultItem.id);
+                    return {
+                        ...savedMatch,
+                        ...defaultItem, // Prioritizes code defaults for name, emoji, values, chance
+                        catchCredits: BigInt(defaultItem.catchCredits || "5"),
+                        sellValue: BigInt(defaultItem.sellValue || "5"),
+                        chance: parseFloat(defaultItem.chance),
+                        sellable: defaultItem.sellable ?? true,
+                        abyssalOnly: defaultItem.abyssalOnly ?? false
+                    };
+                });
+
+                // Keep custom items dynamically added via /fishing loot add
+                for (const fileItem of fileItems) {
+                    if (!items.some(i => i.id === fileItem.id)) {
+                        items.push({
+                            ...fileItem,
+                            catchCredits: BigInt(fileItem.catchCredits || fileItem.credits || "5"),
+                            sellValue: BigInt(fileItem.sellValue || "5"),
+                            chance: parseFloat(fileItem.chance),
+                            sellable: fileItem.sellable ?? true,
+                            abyssalOnly: fileItem.abyssalOnly ?? false
+                        });
                     }
                 }
 
@@ -222,7 +238,7 @@ function loadLootDB() {
     
     const defaultLoot = {
         ...DEFAULT_LOOT_CONFIG,
-        items: [...DEFAULT_LOOT_CONFIG.items, ...ABYSSAL_EXCLUSIVE_ITEMS]
+        items: defaultMasterList
     };
     saveLootDB(defaultLoot);
     return defaultLoot;
