@@ -84,33 +84,33 @@ function saveFishingConfig(config) {
 const DEFAULT_LOOT_CONFIG = {
     mode: "economy",
     items: [
-        { id: "pipe", name: "a Rusty Metal Pipe", emoji: "<:thing:1537616433171796149>", catchCredits: 5n, sellValue: 5n, chance: 18, sellable: true },
-        { id: "soda_can", name: "an Aluminum Soda Can", emoji: "🥤", catchCredits: 8n, sellValue: 2n, chance: 16, sellable: true },
-        { id: "duck", name: "a Squeaky Rubber Duck", emoji: "<:Goober:1538666294948270190>", catchCredits: 10n, sellValue: 5n, chance: 14, sellable: true },
+        { id: "pipe", name: "a Rusty Metal Pipe", emoji: "<:oldrustypipe:1544043459219038308>", catchCredits: 5n, sellValue: 5n, chance: 18, sellable: true },
+        { id: "soda_can", name: "an Aluminum Soda Can", emoji: "<:alluminiumcan:1544043457746575401>", catchCredits: 8n, sellValue: 2n, chance: 16, sellable: true },
+        { id: "duck", name: "a Squeaky Rubber Duck", emoji: "<:rubberduck:1544043460678651944>", catchCredits: 10n, sellValue: 5n, chance: 14, sellable: true },
         { id: "latex_sample", name: "a Strange Latex Puddle", emoji: "<:puroshock:1536366927230799972>", catchCredits: -150n, sellValue: 0n, chance: 8, sellable: false },
-        { id: "salmon", name: "a Fresh Salmon", emoji: "<:Puro_doing_a_swim:1538666516680282233>", catchCredits: 25n, sellValue: 10n, chance: 12, sellable: true },
-        { id: "ram", name: "a High-Speed DDR5 RAM Stick", emoji: "<:Ram:1541508957216964668>", catchCredits: 50n, sellValue: 15n, chance: 9, sellable: true },
-        { id: "copper_wire", name: "a Bundle of Copper Wire", emoji: "<:BalkanBitcoin:1542843185041117224>", catchCredits: 120n, sellValue: 80n, chance: 7, sellable: true },
-        { id: "battery", name: "a Heavy Lithium Battery", emoji: "<:puroshock:1536366927230799972>", catchCredits: 100n, sellValue: 25n, chance: 5, sellable: true },
-        { id: "core", name: "a Glowing Latex Core", emoji: "<:CuteBlackCub:1538665557325254737>", catchCredits: 250n, sellValue: 50n, chance: 4, sellable: true },
-        { id: "cult_tracker", name: "a Cult Tracker", emoji: "👁️", catchCredits: -250n, sellValue: 0n, chance: 0.1, sellable: false },
-        { id: "pc", name: "an Entire Desktop Tower", emoji: "<:protogenirl:1536430038751121499>", catchCredits: 500n, sellValue: 100n, chance: 2.5, sellable: true },
+        { id: "salmon", name: "a Fresh Salmon", emoji: "<:salmon:1544043465195913287>", catchCredits: 25n, sellValue: 10n, chance: 12, sellable: true },
+        { id: "ram", name: "a High-Speed DDR5 RAM Stick", emoji: "<:newram:1544043463790825555>", catchCredits: 50n, sellValue: 15n, chance: 9, sellable: true },
+        { id: "copper_wire", name: "a Bundle of Copper Wire", emoji: "<:copperwire:1544043462259773622>", catchCredits: 120n, sellValue: 80n, chance: 7, sellable: true },
+        { id: "battery", name: "a Heavy Lithium Battery", emoji: "<:lithiumbattery:1544043469801001104>", catchCredits: 100n, sellValue: 25n, chance: 5, sellable: true },
+        { id: "core", name: "a Glowing Latex Core", emoji: "<:latexcore:1544043468329058364>", catchCredits: 250n, sellValue: 50n, chance: 4, sellable: true },
+        { id: "cult_tracker", name: "a Cult Tracker", emoji: "<:culttracker:1544043441334263896>", catchCredits: -250n, sellValue: 0n, chance: 0.1, sellable: false },
+        { id: "pc", name: "an Entire Desktop Tower", emoji: "<:desktoppc:1544043466726711487>", catchCredits: 500n, sellValue: 100n, chance: 2.5, sellable: true },
         { id: "statue", name: "GOLDEN BLOXY STATUE", emoji: "<:BloxyStatue:1542833919651610695>", catchCredits: 1000n, sellValue: 150n, chance: 1.2, sellable: true },
         { id: "robloxinoli", name: "GOLDEN ROBLOXINOLI STATUE", emoji: "<:RobloxiNoliStatue:1542834047494131712>", catchCredits: 1750n, sellValue: 200n, chance: 1, sellable: true },
-        { id: "iridium_cube", name: "a Solid Iridium Cube", emoji: "🧊", catchCredits: 3200n, sellValue: 1500n, chance: 0.8, sellable: true },
-        { id: "tracer_ammo", name: "a Box of 7.62×39mm Red Tracer Rounds", emoji: "📦", catchCredits: 4500n, sellValue: 2200n, chance: 0.5, sellable: true },
-        { id: "uox_fuel", name: "a UOX Fuel Assembly", emoji: "☢️", catchCredits: 6000n, sellValue: 3000n, chance: 0.3, sellable: true, flavor: "*Surprisingly, it's still warm after sitting underwater for 30 years...*" },
-        { id: "mox_fuel", name: "a MOX Fuel Assembly", emoji: "☣️", catchCredits: 7500n, sellValue: 4000n, chance: 0.2, sellable: true, flavor: "*Faintly glowing, and still noticeably warm after 30 years underwater...*" },
-        { id: "ring", name: "Ancient Stargate Dialing Ring", emoji: "<:InsaneCat:1538666024251953152>", catchCredits: 2500n, sellValue: 250n, chance: 0.5, sellable: false },
+        { id: "iridium_cube", name: "a Solid Iridium Cube", emoji: "<:iridiumcube:1544043430886375425>", catchCredits: 3200n, sellValue: 1500n, chance: 0.8, sellable: true },
+        { id: "tracer_ammo", name: "a Box of 7.62×39mm Red Tracer Rounds", emoji: "<:762x39ammo:1544043435235872948>", catchCredits: 4500n, sellValue: 2200n, chance: 0.5, sellable: true },
+        { id: "uox_fuel", name: "a UOX Fuel Assembly", emoji: "<:uox:1544043433453289473>", catchCredits: 6000n, sellValue: 3000n, chance: 0.3, sellable: true, flavor: "*Surprisingly, it's still warm after sitting underwater for 30 years...*" },
+        { id: "mox_fuel", name: "a MOX Fuel Assembly", emoji: "<:mox:1544043436599017652>", catchCredits: 7500n, sellValue: 4000n, chance: 0.2, sellable: true, flavor: "*Faintly glowing, and still noticeably warm after 30 years underwater...*" },
+        { id: "ring", name: "Ancient Stargate Dialing Ring", emoji: "<:dialring:1544043437978816512>", catchCredits: 2500n, sellValue: 250n, chance: 0.5, sellable: false },
         { id: "shorkboi", name: "Shorkboi", emoji: "<:Shorkboi:1542381402526449704>", catchCredits: 5000n, sellValue: 0n, chance: 0.5, sellable: false },
         { id: "spytheproot", name: "SpyTheProot", emoji: "<:SpyTheProot:1542483331734573148>", catchCredits: 5000n, sellValue: 0n, chance: 0.5, sellable: false }
     ]
 };
 
 const ABYSSAL_EXCLUSIVE_ITEMS = [
-    { id: "abyssal_pearl", name: "an Iridescent Abyssal Pearl", emoji: "🔮", catchCredits: 750n, sellValue: 400n, chance: 12, sellable: true, flavor: "*It pulses with a cold, otherworldly luminescence from the crushing depths.*", abyssalOnly: true },
-    { id: "void_shard", name: "a Shard of Pure Void Matter", emoji: "🌌", catchCredits: 1200n, sellValue: 650n, chance: 7, sellable: true, flavor: "*Light seems to bend around its jagged edges, whispering secrets of the deep trench.*", abyssalOnly: true },
-    { id: "leviathan_scale", name: "an Ancient Leviathan Scale", emoji: "🛡️", catchCredits: 1800n, sellValue: 950n, chance: 3, sellable: true, flavor: "*Heavy as solid steel and impossibly resilient to extreme pressure.*", abyssalOnly: true }
+    { id: "abyssal_pearl", name: "an Iridescent Abyssal Pearl", emoji: "<:abyssalpearl:1544043445004279938>", catchCredits: 750n, sellValue: 400n, chance: 12, sellable: true, flavor: "*It pulses with a cold, otherworldly luminescence from the crushing depths.*", abyssalOnly: true },
+    { id: "void_shard", name: "a Shard of Pure Void Matter", emoji: "<:voidmatter:1544043446472540272>", catchCredits: 1200n, sellValue: 650n, chance: 7, sellable: true, flavor: "*Light seems to bend around its jagged edges, whispering secrets of the deep trench.*", abyssalOnly: true },
+    { id: "leviathan_scale", name: "an Ancient Leviathan Scale", emoji: "<:leviatanscale:1544043443511107695>", catchCredits: 1800n, sellValue: 950n, chance: 3, sellable: true, flavor: "*Heavy as solid steel and impossibly resilient to extreme pressure.*", abyssalOnly: true }
 ];
 
 function loadRolesDB() {
@@ -773,7 +773,7 @@ module.exports = {
                         embeds: [
                             new EmbedBuilder()
                                 .setColor(0x8B0000)
-                                .setTitle('👁️ CULT TRACKER AMBUSH!')
+                                .setTitle('<:culttracker:1544043441334263896> CULT TRACKER AMBUSH!')
                                 .setDescription(`${nameDisplay} reeled in a glowing Abyssal Cult Tracker!\n\n*"They demand absolute fealty!"* Shadowy cultists emerge from the ocean trench, rough you up, and empty your pockets!`)
                                 .addFields(
                                     { name: 'Crystal Reclamation', value: `**-${formatNumber(coreValue)}**${CREDIT}`, inline: true },
