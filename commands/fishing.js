@@ -206,7 +206,7 @@ function loadLootDB() {
                     const savedMatch = fileItems.find(i => i.id === defaultItem.id);
                     return {
                         ...savedMatch,
-                        ...defaultItem, // Prioritizes code defaults for name, emoji, values, chance
+                        ...defaultItem,
                         catchCredits: BigInt(defaultItem.catchCredits || "5"),
                         sellValue: BigInt(defaultItem.sellValue || "5"),
                         chance: parseFloat(defaultItem.chance),
@@ -215,7 +215,6 @@ function loadLootDB() {
                     };
                 });
 
-                // Keep custom items dynamically added via /fishing loot add
                 for (const fileItem of fileItems) {
                     if (!items.some(i => i.id === fileItem.id)) {
                         items.push({
@@ -680,246 +679,37 @@ module.exports = {
                 }
             }
 
-            const creditsDB = loadCreditsDB();
-            const userData = creditsDB[userId] || {};
-
-            const now = Date.now();
-            const jailTime = Number(userData.jailUntil || 0);
-
-            if ((typeof isInPrison === 'function' && isInPrison(userData)) || jailTime > now) {
-                const remainingMs = Math.max(0, jailTime - now);
-                const minutes = Math.floor(remainingMs / (1000 * 60));
-                const seconds = Math.floor((remainingMs % (1000 * 60)) / 1000);
-
-                return await interaction.reply({
-                    content: `🚨 **PRISON LOCKDOWN!** You are currently locked in prison! You cannot go fishing for **${minutes}m ${seconds}s**.`,
-                    flags: MessageFlags.Ephemeral
-                });
-            }
-
-            const lootConfig = loadLootDB();
-            const isPublic = botConfig.CAST_MESSAGE_PUBLIC ?? true;
-
-            const rolesDB = loadRolesDB();
-            const userPerms = rolesDB[userId] || [];
-
-            const hasPerm = (permName) => 
-                isOwner || 
-                isAdmin || 
-                userId === DEFAULT_ALLOWED_USER_ID ||
-                userPerms.includes(permName) || 
-                userPerms.includes('fishing') || 
-                userPerms.includes('*');
-
-            // Subcommand: /fishing cast
-            if (subcommand === 'cast' && !group) {
-                const mode = interaction.options.getString('mode') || 'coastal';
-                const fishingConfig = loadFishingConfig();
-
-                const userRods = userData?.rods || [];
-
-                if (mode === 'abyssal') {
-                    if (fishingConfig.abyssalLocked && !isOwner) {
-                        return await interaction.reply({
-                            embeds: [
-                                new EmbedBuilder()
-                                    .setColor(0xFF0000)
-                                    .setTitle('🌌 ABYSSAL ZONE RESTRICTED')
-                                    .setDescription('The Abyssal trench is currently locked away and restricted strictly to the **Bot Owner**!')
-                            ],
-                            flags: MessageFlags.Ephemeral
-                        });
-                    }
-                }
-
-                await interaction.deferReply({ flags: isPublic ? 0 : MessageFlags.Ephemeral });
-
-                const currentCooldown = userRods.includes('quick_reel') ? BASE_COOLDOWN_DURATION / 2 : BASE_COOLDOWN_DURATION;
-
-                if (fishingCooldowns.has(userId)) {
-                    const expirationTime = fishingCooldowns.get(userId) + currentCooldown;
-                    if (now < expirationTime) {
-                        const timeLeft = Math.ceil((expirationTime - now) / 1000);
-                        return await interaction.followUp({
-                            embeds: [
-                                new EmbedBuilder()
-                                    .setColor(0xFFA500)
-                                    .setTitle('<:puronervous2:1538551211207430234> Fishing Line Tangled!')
-                                    .setDescription(`Please wait **${timeLeft} seconds** before casting again.`)
-                            ],
-                            flags: MessageFlags.Ephemeral
-                        });
-                    }
-                }
-
-                fishingCooldowns.set(userId, now);
-
-                const userLuckLevel = userData?.luckLevel || 0;
-                const itemCaught = getRandomCatch(lootConfig, mode, userLuckLevel, userRods);
-
-                if (itemCaught.id === 'latex_sample') {
-                    const loss = mode === 'abyssal' ? -500n : mode === 'deepsea' ? -300n : -150n;
-                    const newBalance = addFishingReward(userId, loss);
-                    const nameDisplay = botConfig.PING_ON_PUBLIC_MESSAGES ? `<@${userId}>` : `**${user.username}**`;
-
-                    return await interaction.editReply({
-                        embeds: [
-                            new EmbedBuilder()
-                                .setColor(0x1F1F1F)
-                                .setTitle('<:CuteBlackCub:1538665557325254737> AMBUSHED BY LATEX!')
-                                .setDescription(`${nameDisplay} reeled in a suspicious dark puddle in the ${mode.toUpperCase()} zone... but it violently surged out of the dark water!\n\n*You got heavily transfurred during the struggle and dropped your pouch into the abyss!*`)
-                                .addFields(
-                                    { name: 'Stolen / Lost Credits', value: `**-${formatNumber(loss < 0n ? -loss : loss)}**${CREDIT}`, inline: true },
-                                    { name: 'Remaining Balance', value: `**${formatNumber(newBalance)}**${CREDIT}`, inline: true }
-                                )
-                        ]
-                    });
-                }
-
-                if (itemCaught.id === 'cult_tracker') {
-                    const coreItem = lootConfig.items.find(i => i.id === 'core');
-                    const coreValue = coreItem ? coreItem.catchCredits : 250n;
-                    const extraStolen = BigInt(Math.floor(Math.random() * 250) + 100);
-                    const totalDeducted = coreValue + extraStolen;
-
-                    const newBalance = addFishingReward(userId, -totalDeducted);
-                    const nameDisplay = botConfig.PING_ON_PUBLIC_MESSAGES ? `<@${userId}>` : `**${user.username}**`;
-
-                    return await interaction.editReply({
-                        embeds: [
-                            new EmbedBuilder()
-                                .setColor(0x8B0000)
-                                .setTitle('<:culttracker:1544043441334263896> CULT TRACKER AMBUSH!')
-                                .setDescription(`${nameDisplay} reeled in a glowing Abyssal Cult Tracker!\n\n*"They demand absolute fealty!"* Shadowy cultists emerge from the ocean trench, rough you up, and empty your pockets!`)
-                                .addFields(
-                                    { name: 'Crystal Reclamation', value: `**-${formatNumber(coreValue)}**${CREDIT}`, inline: true },
-                                    { name: 'Stolen Wallet Cash', value: `**-${formatNumber(extraStolen)}**${CREDIT}`, inline: true },
-                                    { name: 'Remaining Balance', value: `**${formatNumber(newBalance)}**${CREDIT}`, inline: false }
-                                )
-                        ]
-                    });
-                }
-
-                let finalReward = getCalculatedReward(itemCaught);
-                if (mode === 'deepsea' && finalReward > 0n) {
-                    finalReward = (finalReward * 15n) / 10n;
-                } else if (mode === 'abyssal' && finalReward > 0n) {
-                    finalReward = (finalReward * 25n) / 10n;
-                }
-
-                addItemToInventory(userId, itemCaught.id);
-
-                const newBalance = addFishingReward(userId, finalReward);
-                const nameDisplay = botConfig.PING_ON_PUBLIC_MESSAGES ? `<@${userId}>` : `**${user.username}**`;
-
-                if (itemCaught.id === 'shorkboi') {
-                    return await interaction.editReply({
-                        embeds: [
-                            new EmbedBuilder()
-                                .setColor(0x0099FF)
-                                .setTitle('🚨 SHORK ENCOUNTER!')
-                                .setDescription(`${nameDisplay} cast their line into the ${mode} and reeled in <@${SHORKBOI_ID}>! 🦈`)
-                                .addFields(
-                                    { name: 'Reward (Calculated)', value: `**+${formatNumber(finalReward)}**${CREDIT}`, inline: true },
-                                    { name: 'Current Balance', value: `**${formatNumber(newBalance)}**${CREDIT}`, inline: true }
-                                )
-                        ]
-                    });
-                }
-
-                if (itemCaught.id === 'spytheproot') {
-                    return await interaction.editReply({
-                        embeds: [
-                            new EmbedBuilder()
-                                .setColor(0x00FFCC)
-                                .setTitle('🔍 PROOT ENCOUNTER!')
-                                .setDescription(`${nameDisplay} cast their line into the ${mode} and fished out <@${SPYTHEPROOT_ID}> ${itemCaught.emoji}!`)
-                                .addFields(
-                                    { name: 'Reward (Calculated)', value: `**+${formatNumber(finalReward)}**${CREDIT}`, inline: true },
-                                    { name: 'Current Balance', value: `**${formatNumber(newBalance)}**${CREDIT}`, inline: true }
-                                )
-                        ]
-                    });
-                }
-
-                if (finalReward >= 1000n || itemCaught.abyssalOnly) {
-                    let rareDesc = `${nameDisplay} cast their line into the ${mode.toUpperCase()} void and reeled in a legendary abyss artifact!`;
-                    if (itemCaught.flavor) rareDesc += `\n\n${itemCaught.flavor}`;
-
-                    return await interaction.editReply({
-                        embeds: [
-                            new EmbedBuilder()
-                                .setColor(itemCaught.abyssalOnly ? 0x9B59B6 : 0xFFD700)
-                                .setTitle(itemCaught.abyssalOnly ? '🌌 ABYSSAL EXCLUSIVE CATCH! 🌌' : '🌟 ULTRA RARE CATCH! 🌟')
-                                .setDescription(rareDesc)
-                                .addFields(
-                                    { name: 'Item Caught', value: `${itemCaught.emoji} **${itemCaught.name}**`, inline: true },
-                                    { name: 'Calculated Reward', value: `**+${formatNumber(finalReward)}**${CREDIT}`, inline: true },
-                                    { name: 'Total Balance', value: `**${formatNumber(newBalance)}**${CREDIT}`, inline: false }
-                                )
-                        ]
-                    });
-                }
-
-                let responseMessage = `${nameDisplay} cast their line into the ${mode} and reeled in **${itemCaught.name}** ${itemCaught.emoji}!\n` +
-                    `**+${formatNumber(finalReward)}**${CREDIT} *(Current Balance: **${formatNumber(newBalance)}**${CREDIT})*`;
-
-                if (itemCaught.flavor) responseMessage += `\n${itemCaught.flavor}`;
-
-                await interaction.editReply({ content: responseMessage });
-                return true;
-            }
-
-            // Subcommand: /fishing catch
-            if (subcommand === 'catch' && !group) {
-                if (!hasPerm('catch')) {
-                    return await interaction.reply({ content: '❌ You do not have permission to force a catch!', flags: MessageFlags.Ephemeral });
-                }
-
-                const targetUser = interaction.options.getUser('target');
-                const itemId = interaction.options.getString('item_id').trim().toLowerCase();
-
-                const itemCaught = lootConfig.items.find(i => i.id === itemId);
-                if (!itemCaught) {
-                    return await interaction.reply({ content: `⚠️ Could not find an item with ID \`${itemId}\`!`, flags: MessageFlags.Ephemeral });
-                }
-
-                addItemToInventory(targetUser.id, itemCaught.id);
-                const calculatedReward = getCalculatedReward(itemCaught);
-                const newBalance = addFishingReward(targetUser.id, calculatedReward);
-
-                const isSelf = interaction.user.id === targetUser.id;
-                const targetDisplay = botConfig.PING_ON_PUBLIC_MESSAGES ? `<@${targetUser.id}>` : `**${targetUser.username}**`;
-
-                let actionText = isSelf
-                    ? `<@${interaction.user.id}> reached into the dev database and took **${itemCaught.name}** ${itemCaught.emoji}!`
-                    : `<@${interaction.user.id}> reached into the dev database and dumped **${itemCaught.name}** ${itemCaught.emoji} directly into ${targetDisplay}'s pockets!`;
-
-                return await interaction.reply({
-                    embeds: [
-                        new EmbedBuilder()
-                            .setColor(0xFF5555)
-                            .setTitle('<:Sus:1541509245499875439> [NOT A REAL CATCH]')
-                            .setDescription(actionText)
-                            .addFields(
-                                { name: 'Calculated Credits Granted', value: `**+${formatNumber(calculatedReward)}**${CREDIT}`, inline: true },
-                                { name: 'Current Balance', value: `**${formatNumber(newBalance)}**${CREDIT}`, inline: true }
-                            )
-                    ]
-                });
-            }
-
             // Subcommand Group: /fishing loot
             if (group === 'loot') {
+                const lootDB = loadLootDB();
+
+                if (subcommand === 'list') {
+                    const embed = new EmbedBuilder()
+                        .setColor(0x0099FF)
+                        .setTitle('🎣 Fishing Loot Table & Market Values')
+                        .setDescription(`Active Prize Mode: **${(lootDB.mode || 'economy').toUpperCase()}**\n\u200B`);
+
+                    let listText = '';
+                    for (const item of lootDB.items) {
+                        const calculatedReward = getCalculatedReward(item);
+                        listText += `${item.emoji} **${item.name}** (\`${item.id}\`)\n` +
+                            `└ Chance: \`${item.chance}%\` | Reward: \`${formatNumber(calculatedReward)} C\` | Sell: \`${formatNumber(item.sellValue)} C\`\n`;
+                    }
+
+                    embed.setDescription(embed.data.description + listText.substring(0, 3900));
+
+                    return await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+                }
+
                 if (subcommand === 'add') {
-                    if (!hasPerm('loot')) {
-                        return await interaction.reply({ content: '❌ You do not have permission to edit the loot table!', flags: MessageFlags.Ephemeral });
+                    if (!isOwner && !isAdmin) {
+                        return await interaction.reply({ content: '❌ Permission denied.', flags: MessageFlags.Ephemeral });
                     }
 
                     const newItem = {
-                        id: interaction.options.getString('id').trim().toLowerCase(),
-                        name: interaction.options.getString('name').trim(),
-                        emoji: interaction.options.getString('emoji').trim(),
+                        id: interaction.options.getString('id').toLowerCase().trim(),
+                        name: interaction.options.getString('name'),
+                        emoji: interaction.options.getString('emoji'),
                         chance: interaction.options.getNumber('chance'),
                         catchCredits: BigInt(interaction.options.getString('catch_credits')),
                         sellValue: BigInt(interaction.options.getString('sell_value')),
@@ -927,16 +717,10 @@ module.exports = {
                         abyssalOnly: interaction.options.getBoolean('abyssal_only') ?? false
                     };
 
-                    const currentLoot = loadLootDB();
-                    const existingIndex = currentLoot.items.findIndex(i => i.id === newItem.id);
+                    lootDB.items = lootDB.items.filter(i => i.id !== newItem.id);
+                    lootDB.items.push(newItem);
+                    saveLootDB(lootDB);
 
-                    if (existingIndex !== -1) {
-                        currentLoot.items[existingIndex] = newItem;
-                    } else {
-                        currentLoot.items.push(newItem);
-                    }
-
-                    saveLootDB(currentLoot);
                     return await interaction.reply({
                         content: `✅ Successfully added/updated item **${newItem.name}** (\`${newItem.id}\`) in the loot table!`,
                         flags: MessageFlags.Ephemeral
@@ -944,112 +728,109 @@ module.exports = {
                 }
 
                 if (subcommand === 'remove') {
-                    if (!hasPerm('loot')) {
-                        return await interaction.reply({ content: '❌ You do not have permission to edit the loot table!', flags: MessageFlags.Ephemeral });
+                    if (!isOwner && !isAdmin) {
+                        return await interaction.reply({ content: '❌ Permission denied.', flags: MessageFlags.Ephemeral });
                     }
 
-                    const removeId = interaction.options.getString('id').trim().toLowerCase();
-                    const currentLoot = loadLootDB();
-                    const initialLength = currentLoot.items.length;
+                    const targetId = interaction.options.getString('id').toLowerCase().trim();
+                    const initialCount = lootDB.items.length;
+                    lootDB.items = lootDB.items.filter(i => i.id !== targetId);
 
-                    currentLoot.items = currentLoot.items.filter(i => i.id !== removeId);
-
-                    if (currentLoot.items.length === initialLength) {
-                        return await interaction.reply({ content: `⚠️ No item found with ID \`${removeId}\`.`, flags: MessageFlags.Ephemeral });
+                    if (lootDB.items.length === initialCount) {
+                        return await interaction.reply({ content: `⚠️ Item ID \`${targetId}\` not found.`, flags: MessageFlags.Ephemeral });
                     }
 
-                    saveLootDB(currentLoot);
-                    return await interaction.reply({
-                        content: `🗑️ Successfully removed item \`${removeId}\` from the loot table.`,
-                        flags: MessageFlags.Ephemeral
-                    });
-                }
-
-                if (subcommand === 'list') {
-                    const freshLoot = loadLootDB();
-                    const fishingConfig = loadFishingConfig();
-                    const items = freshLoot.items || [];
-                    const activeMode = fishingConfig.prizeMode || freshLoot.mode || "economy";
-
-                    if (items.length === 0) {
-                        return await interaction.reply({ content: '⚠️ The fishing loot table is currently empty!', flags: MessageFlags.Ephemeral });
-                    }
-
-                    const ITEMS_PER_PAGE = 5;
-                    const totalPages = Math.ceil(items.length / ITEMS_PER_PAGE);
-                    let currentPage = 0;
-
-                    const generateEmbed = (page) => {
-                        const start = page * ITEMS_PER_PAGE;
-                        const currentItems = items.slice(start, start + ITEMS_PER_PAGE);
-                        
-                        let description = `**Active Economy Mode:** \`${activeMode.toUpperCase()}\`\n\n`;
-                        
-                        currentItems.forEach((item) => {
-                            const currentCount = getGlobalItemCount(item.id);
-                            const dynamicVal = getCalculatedReward(item);
-                            description += `${item.emoji} **${item.name}** (\`${item.id}\`)\n` +
-                                           `> Chance: \`${item.chance}%\` | Base: \`${item.catchCredits}\`${CREDIT} | Val: \`${dynamicVal}\`${CREDIT} | Total: \`${currentCount}\`\n\n`;
-                        });
-
-                        return new EmbedBuilder()
-                            .setColor(0x0099FF)
-                            .setTitle('🎣 Fishing Loot Table & Market Values')
-                            .setDescription(description)
-                            .setFooter({ text: `Page ${page + 1} of ${totalPages} • Values dynamically shift based on supply & demand!` });
-                    };
-
-                    const getButtons = (page) => {
-                        return new ActionRowBuilder().addComponents(
-                            new ButtonBuilder()
-                                .setCustomId('loot_prev')
-                                .setEmoji('◀️')
-                                .setStyle(ButtonStyle.Primary)
-                                .setDisabled(page === 0),
-                            new ButtonBuilder()
-                                .setCustomId('loot_next')
-                                .setEmoji('▶️')
-                                .setStyle(ButtonStyle.Primary)
-                                .setDisabled(page === totalPages - 1)
-                        );
-                    };
-
-                    const response = await interaction.reply({
-                        embeds: [generateEmbed(currentPage)],
-                        components: totalPages > 1 ? [getButtons(currentPage)] : [],
-                        fetchReply: true
-                    });
-
-                    if (totalPages <= 1) return;
-
-                    const collector = response.createMessageComponentCollector({ time: 60 * 1000 });
-
-                    collector.on('collect', async (i) => {
-                        if (i.customId === 'loot_prev') {
-                            currentPage = Math.max(0, currentPage - 1);
-                        } else if (i.customId === 'loot_next') {
-                            currentPage = Math.min(totalPages - 1, currentPage + 1);
-                        }
-
-                        await i.update({
-                            embeds: [generateEmbed(currentPage)],
-                            components: [getButtons(currentPage)]
-                        });
-                    });
-
-                    collector.on('end', () => {
-                        interaction.editReply({ components: [] }).catch(() => {});
-                    });
+                    saveLootDB(lootDB);
+                    return await interaction.reply({ content: `🗑️ Removed item \`${targetId}\` from loot table.`, flags: MessageFlags.Ephemeral });
                 }
             }
+
+            // Subcommand: /fishing catch (Admin Force Catch)
+            if (subcommand === 'catch' && !group) {
+                const rolesDB = loadRolesDB();
+                const userPerms = rolesDB[userId] || [];
+                const hasCatchPerm = isOwner || isAdmin || userPerms.includes('catch') || userPerms.includes('*');
+
+                if (!hasCatchPerm) {
+                    return await interaction.reply({ content: '❌ You do not have permission to use the `/fishing catch` command.', flags: MessageFlags.Ephemeral });
+                }
+
+                const targetUser = interaction.options.getUser('target');
+                const itemId = interaction.options.getString('item_id').toLowerCase().trim();
+                const lootDB = loadLootDB();
+                const item = lootDB.items.find(i => i.id === itemId);
+
+                if (!item) {
+                    return await interaction.reply({ content: `❌ Item ID \`${itemId}\` does not exist in the loot table.`, flags: MessageFlags.Ephemeral });
+                }
+
+                addItemToInventory(targetUser.id, item.id);
+                const reward = getCalculatedReward(item);
+                const newBalance = addFishingReward(targetUser.id, reward);
+
+                return await interaction.reply({
+                    content: `🎣 Forced catch: **${item.name}** ${item.emoji} given to <@${targetUser.id}>!\nEarned: **${formatNumber(reward)} Credits**. New balance: **${formatNumber(newBalance)} Credits**.`,
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            // Subcommand: /fishing cast
+            if (subcommand === 'cast' && !group) {
+                if (isInPrison && isInPrison(userId)) {
+                    return await interaction.reply({ content: '🔒 You cannot go fishing while in prison!', flags: MessageFlags.Ephemeral });
+                }
+
+                const now = Date.now();
+                const userCooldown = fishingCooldowns.get(userId);
+                if (userCooldown && now < userCooldown) {
+                    const remaining = Math.ceil((userCooldown - now) / 1000);
+                    return await interaction.reply({ content: `⏳ You need to wait **${remaining}s** before fishing again.`, flags: MessageFlags.Ephemeral });
+                }
+
+                const mode = interaction.options.getString('mode') || 'coastal';
+                const fishingConfig = loadFishingConfig();
+
+                if (mode === 'abyssal' && fishingConfig.abyssalLocked && !isOwner) {
+                    return await interaction.reply({ content: '🔒 The Abyssal Trench is currently locked by the administrator.', flags: MessageFlags.Ephemeral });
+                }
+
+                const creditsDB = loadCreditsDB();
+                const userData = creditsDB[userId] || { luckLevel: 0, rods: [] };
+
+                const lootConfig = loadLootDB();
+                const item = getRandomCatch(lootConfig, mode, userData.luckLevel, userData.rods);
+
+                if (!item) {
+                    return await interaction.reply({ content: '🌊 You cast your line, but nothing bit today.', flags: MessageFlags.Ephemeral });
+                }
+
+                fishingCooldowns.set(userId, now + BASE_COOLDOWN_DURATION);
+                addItemToInventory(userId, item.id);
+
+                const reward = getCalculatedReward(item);
+                const newBalance = addFishingReward(userId, reward);
+
+                const embed = new EmbedBuilder()
+                    .setColor(reward >= 0n ? 0x00FF00 : 0xFF0000)
+                    .setTitle('🎣 Fishing Results')
+                    .setDescription(`You cast your line into the **${mode.toUpperCase()}** waters...\n\nYou caught **${item.name}** ${item.emoji}!`)
+                    .addFields(
+                        { name: 'Reward', value: `${formatNumber(reward)} Credits`, inline: true },
+                        { name: 'New Balance', value: `${formatNumber(newBalance)} Credits`, inline: true }
+                    );
+
+                if (item.flavor) embed.setFooter({ text: item.flavor });
+
+                return await interaction.reply({ embeds: [embed] });
+            }
+
         } catch (error) {
             console.error('Error executing fishing command:', error);
-            const errorMessage = `❌ Command execution failed: \`${error.message}\``;
-            
+            const response = { content: '❌ An error occurred while executing this command.', flags: MessageFlags.Ephemeral };
             if (interaction.deferred || interaction.replied) {
-                await interaction.editReply({ content: errorMessage }).catch(() => {});
+                await interaction.editReply(response).catch(() => {});
             } else {
-                await interaction.reply({ content: errorMessage, flags: MessageFlags.Ephemeral }).catch(() => {});
+                await interaction.reply(response).catch(() => {});
             }
         }
     }
