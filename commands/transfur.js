@@ -26,11 +26,9 @@ function addTransfurTagsToUser(userId, newTags) {
     if (!db[userId]) {
         db[userId] = { userTags: [], transfurTags: [] };
     } else if (Array.isArray(db[userId])) {
-        // Migration helper if user previously had a top-level array
         db[userId] = { userTags: db[userId], transfurTags: [] };
     }
 
-    // Merge new transfur tags into transfurTags set
     const currentTransfurTags = new Set(db[userId].transfurTags || []);
     newTags.forEach(tag => currentTransfurTags.add(tag));
     db[userId].transfurTags = Array.from(currentTransfurTags);
@@ -49,7 +47,97 @@ const formTagsMap = {
     leopard: ['white latex', 'latex', 'transfur'],
     wolf: ['dark latex', 'latex', 'transfur'],
     protobot: ['protogen', 'synth', 'latex', 'transfur'],
-    blank: ['transfur', 'latex']
+    blank: ['transfur', 'latex'], 
+    red_fox: ['red_fox', 'fox', 'latex', 'transfur']
+};
+
+// --- Custom Message Pools ---
+
+const formMessages = {
+    latex: {
+        self: [
+            "{user} steps into a puddle of living goo, watching as dark latex slowly climbs up their body and claims them! 🖤",
+            "{user} lets the smooth latex envelop them completely, turning into a sleek latex creature!",
+            "{user} feels the cool latex spread over their skin, assimilating into a new gooey form!"
+        ],
+        target: [
+            "{sender} splashes a vial of latex onto {target}, turning them into a shiny latex creature! 🖤",
+            "{sender} pulls {target} into a goo puddle, watching them get fully transfurred!",
+            "{sender} ambushes {target} with latex fluid, completely assimilating them!"
+        ]
+    },
+    protogen: {
+        self: [
+            "{user} feels mechanical plating snap over their body as a glowing visor initializes! 🤖",
+            "{user} undergoes a cybernetic transfur, turning into a high-tech Protogen!",
+            "{user} lets the nanites assimilate their form, booting up as an upgraded Protogen!"
+        ],
+        target: [
+            "{sender} attaches cybernetic armor and a visor onto {target}, forcefully turning them into a Protogen! 🤖",
+            "{sender} fires a nanite beam at {target}, turning them into a sleek Protogen synth!",
+            "{sender} overrides {target}'s form with high-tech armor plating!"
+        ]
+    },
+    shark: {
+        self: [
+            "{user} sprouts a dorsal fin and striped tail as aquatic latex turns them into a Tiger Shark! 🦈",
+            "{user} dives into the goo, emerging as a slick Tiger Shark creature!",
+            "{user} lets the blue striped latex reshape them into a aquatic predator!"
+        ],
+        target: [
+            "{sender} pushes {target} into deep latex waters, transforming them into a Tiger Shark! 🦈",
+            "{sender} douses {target} in aquatic latex, giving them a sleek fin and shark tail!",
+            "{sender} ambushes {target} with tiger-striped goo, turning them into a shark!"
+        ]
+    },
+    leopard: {
+        self: [
+            "{user} is coated in soft white latex, growing spotted ears and a fluffy tail! 🐆",
+            "{user} succumbs to the pale latex liquid, reshaping into a Snow Leopard!",
+            "{user} lets the snowy white goo cover them, becoming an agile Snow Leopard creature!"
+        ],
+        target: [
+            "{sender} covers {target} in spotted white latex, turning them into a Snow Leopard! 🐆",
+            "{sender} pounces on {target} with white latex, leaving behind a spotted feline!",
+            "{sender} transform {target} into a fluffy Snow Leopard latex creature!"
+        ]
+    },
+    wolf: {
+        self: [
+            "{user} slips on a dark latex mask, feeling black goo claim their body as a Dark Latex Wolf! 🐺",
+            "{user} gives in to the dark wolf goo, growing sharp claws and a bushy tail!",
+            "{user} lets the obsidian latex take over, fully becoming a Dark Latex Wolf!"
+        ],
+        target: [
+            "{sender} forces a wolf mask onto {target}, watching the dark latex spread and claim them! 🐺",
+            "{sender} splashes dark latex at {target}, transforming them into a Dark Latex Wolf!",
+            "{sender} surrounds {target} with obsidian goo, converting them into a wolf!"
+        ]
+    },
+    protobot: {
+        self: [
+            "{user} connects to the mainframe, armor plates closing in as ProtoBot code overwrites their system! ⚙️",
+            "{user} initializes ProtoBot protocols, upgrading their body into an administrative unit!",
+            "{user} lets system nanites transform them into a fully operational ProtoBot!"
+        ],
+        target: [
+            "{sender} uploads the ProtoBot protocol into {target}, converting them into a unit! ⚙️",
+            "{sender} locks cybernetics onto {target}, forcing a ProtoBot system conversion!",
+            "{sender} overrides {target}'s physical form with ProtoBot hardware!"
+        ]
+    },
+    red_fox: {
+        self: [
+            "{user} gets enveloped in slick, orange-and-white latex, sprouting a massive bushy fox tail and oversized vulpine ears! 🦊",
+            "{user} feels a warm latex liquid coat their body, reshaping them into an agile Red Fox latex creature!",
+            "{user} gives in to the orange goo, fully transforming into a sly, glossy Red Fox latex beast!"
+        ],
+        target: [
+            "{sender} splashes bright orange latex onto {target}! They watch in surprise as a sleek Red Fox takes their place! 🦊",
+            "{sender} corners {target} with a puddle of orange and white latex, completely converting them into a Red Fox!",
+            "{sender} pounces with latex fluid, turning {target} into a sly Red Fox latex creature!"
+        ]
+    }
 };
 
 module.exports = {
@@ -74,6 +162,7 @@ module.exports = {
                       { name: 'Snow Leopard', value: 'leopard' },
                       { name: 'Dark Latex Wolf', value: 'wolf' },
                       { name: 'ProtoBot', value: 'protobot' },
+                      { name: 'Red Fox', value: 'red_fox' },
                       { name: 'Blank / Custom', value: 'blank' }
                   )
         ),
@@ -94,95 +183,34 @@ module.exports = {
         const tagsToApply = formTagsMap[formChoice] || ['transfur', 'latex'];
         addTransfurTagsToUser(targetUser.id, tagsToApply);
 
-        // Blank option
+        // Blank / Custom option
         if (formChoice === 'blank') {
             if (interaction.user.id === targetUser.id) {
-                return `${senderName} underwent a mysterious change...`;
+                return `${targetDisplayName} steps into the latex pool, letting the mysterious liquid completely take over...`;
+            } else {
+                return `${senderName} forces ${targetDisplayName} into the latex pool, triggering a complete transformation!`;
             }
-            return `${senderName} transformed ${targetDisplayName}...`;
         }
 
-        const formMessages = {
-            latex: {
-                self: [
-                    `${senderName} took a bath in a pool of dark latex and dissolved into a shiny new form! <:protogenirl:1536430038751121499>`,
-                    `${senderName} stepped into a bubbling vat of liquid latex and merged with it completely!`,
-                    `${senderName} accidentally slipped into a latex puddle and got thoroughly absorbed!`
-                ],
-                other: [
-                    `${senderName} threw ${targetDisplayName} into a pool of dark latex, converting them completely! <:protogenirl:1536430038751121499>`,
-                    `${senderName} pushed ${targetDisplayName} into a vat of liquid latex, absorbing them into a shiny new form!`,
-                    `${senderName} splashed ${targetDisplayName} with a wave of sticky latex until they transformed!`
-                ]
-            },
-            protogen: {
-                self: [
-                    `${senderName} put on a fancy visor and became a protogen! <:protogenirl:1536430038751121499>`,
-                    `${senderName} somehow became a protogen! <:protogenirl:1536430038751121499>`
-                ],
-                other: [
-                    `${senderName} threw ${targetDisplayName} into a pool with metallic liquid, turning them into a protogen!`,
-                    `${senderName} somehow converted ${targetDisplayName} into protogen! <:protogenirl:1536430038751121499>`
-                ]
-            },
-            shark: {
-                self: [
-                    `${senderName} took a long swim in an aquatic latex pool and shifted into a striped tiger shark! 🦈`,
-                    `${senderName} plunged headfirst into a tank of shark latex, growing a sleek tail and fin!`,
-                    `${senderName} dove into a deep blue fluid reservoir and emerged as an eager tiger shark!`
-                ],
-                other: [
-                    `${senderName} threw ${targetDisplayName} into a pool of aquatic latex, converting them into a striped tiger shark! 🦈`,
-                    `${senderName} shoved ${targetDisplayName} into a deep water tank filled with shark latex!`,
-                    `${senderName} splashed ${targetDisplayName} with a heavy wave of fluid, turning them into a friendly shark!`
-                ]
-            },
-            leopard: {
-                self: [
-                    `${senderName} rolled around in a snow leopard latex deposit, taking on a fluffy spotted form!`,
-                    `${senderName} waded through a chilled basin of white and grey latex, emerging as a swift feline!`,
-                    `${senderName} absorbed a snow leopard sample from a testing pool and grew soft paws!`
-                ],
-                other: [
-                    `${senderName} threw ${targetDisplayName} into a snow leopard latex basin, transforming them into a fluffy feline!`,
-                    `${senderName} pushed ${targetDisplayName} right into a cold puddle of spotted latex!`,
-                    `${senderName} wrapped ${targetDisplayName} in a thick blanket of snow leopard goo!`
-                ]
-            },
-            wolf: {
-                self: [
-                    `${senderName} stepped into a den filled with dark latex fluid and shifted into a sleek hound!`,
-                    `${senderName} bathed in a pool of pure dark latex, embracing the pack as a wolf!`,
-                    `${senderName} sank into a murky shadow pool and rose up as a dark latex wolf!`
-                ],
-                other: [
-                    `${senderName} threw ${targetDisplayName} into a pool of dark latex, turning them into a loyal wolf!`,
-                    `${senderName} shoved ${targetDisplayName} into a shadow pit filled with receptive latex hounds!`,
-                    `${senderName} dunked ${targetDisplayName} into a dark latex vat until they completely joined the pack!`
-                ]
-            },
-            protobot: {
-                self: [
-                    `${senderName} got transfurred into <@1536203903022931968> *— now we can finally be one...* <:protogenirl:1536430038751121499>`,
-                    `${senderName} merged with a pool of metallic goo, whispering *— at last, we are one* with <@1536203903022931968> <:protogenirl:1536430038751121499>`,
-                    `${senderName} stepped into a shimmering pool and got transfurred into <@1536203903022931968> *— together, we are finally whole* <:protogenirl:1536430038751121499>`,
-                    `${senderName} was completely absorbed by a puddle of metallic goo, thinking *— now nothing can keep us apart from <@1536203903022931968>* <:protogenirl:1536430038751121499>`
-                ],
-                other: [
-                    `${targetDisplayName} got transfurred into <@1536203903022931968> *— now we can finally be one...* <:protogenirl:1536430038751121499>`,
-                    `${targetDisplayName} merged with a pool of metallic goo, whispering *— at last, we are one* with <@1536203903022931968> <:protogenirl:1536430038751121499>`,
-                    `${senderName} pulled ${targetDisplayName} into a glowing vat, getting them transfurred into <@1536203903022931968> *— together, we are finally whole* <:protogenirl:1536430038751121499>`,
-                    `${senderName} splashed ${targetDisplayName} with a wave of metallic goo, murmuring *— now nothing can keep us apart from <@1536203903022931968>* <:protogenirl:1536430038751121499>`
-                ]
+        // Form Message Lookup
+        const isSelf = interaction.user.id === targetUser.id;
+        const formPool = formMessages[formChoice];
+
+        if (formPool) {
+            if (isSelf) {
+                return getRandomMessage(formPool.self).replace('{user}', targetDisplayName);
+            } else {
+                return getRandomMessage(formPool.target)
+                    .replace('{sender}', senderName)
+                    .replace('{target}', targetDisplayName);
             }
-        };
-
-        const selectedPool = formMessages[formChoice] || formMessages.latex;
-
-        if (interaction.user.id === targetUser.id) {
-            return getRandomMessage(selectedPool.self);
         }
 
-        return getRandomMessage(selectedPool.other);
+        // Dynamic fallback for unmapped forms
+        if (isSelf) {
+            return `${targetDisplayName} succumbs to the mysterious goo and transforms into a **${formChoice.replace('_', ' ')}**!`;
+        } else {
+            return `${senderName} ambushes ${targetDisplayName}, transforming them into a **${formChoice.replace('_', ' ')}**!`;
+        }
     }
 };
