@@ -95,7 +95,8 @@ const emojiMap = {
     'dialring': '<:dialring:1544043437978816512>',
     'mox': '<:mox:1544043436599017652>',
     '762x39ammo': '<:762x39ammo:1544043435235872948>',
-    'uox': '<:uox:1544043433453289473>'
+    'uox': '<:uox:1544043433453289473>', 
+    'iridium': '<:iridiumcube:1544043430886375425>'
 };
 
 const allKeys = Object.keys(emojiMap);
