@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -25,20 +25,14 @@ module.exports = {
 
             let responseText = '';
 
-            // Check if user is leashing themselves
             if (author.id === target.id) {
                 responseText = `<@${author.id}> decided they wanted to submit by their own hand ._.`;
             } else {
                 responseText = `<@${author.id}> puts a leash on <@${target.id}>! bad <@${target.id}> :(`;
             }
 
-            const leashEmbed = new EmbedBuilder()
-                .setColor(0x95A5A6)
-                .setDescription(responseText)
-                .setTimestamp();
-
             await interaction.reply({
-                embeds: [leashEmbed],
+                content: responseText,
                 flags: isSilent ? MessageFlags.Ephemeral : 0
             });
 
