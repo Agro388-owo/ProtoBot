@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 
 const DEFAULT_REASONS = [
     "spontaneously combusted into a pile of ash.",
@@ -40,7 +40,6 @@ module.exports = {
 
             let cause = customReason;
 
-            // Pick a random default reason if no custom reason is provided
             if (!cause) {
                 const randomIndex = Math.floor(Math.random() * DEFAULT_REASONS.length);
                 cause = DEFAULT_REASONS[randomIndex];
@@ -49,19 +48,13 @@ module.exports = {
             let responseText = '';
 
             if (target.id === author.id) {
-                responseText = `<@${author.id}> ${cause}`;
+                responseText = `☠️ <@${author.id}> ${cause}`;
             } else {
-                responseText = `<@${author.id}> made <@${target.id}> ${cause}`;
+                responseText = `☠️ <@${author.id}> made <@${target.id}> ${cause}`;
             }
 
-            const dieEmbed = new EmbedBuilder()
-                .setColor(0x2B2D31)
-                .setTitle('☠️ Game Over!')
-                .setDescription(responseText)
-                .setTimestamp();
-
             await interaction.reply({
-                embeds: [dieEmbed],
+                content: responseText,
                 flags: isSilent ? MessageFlags.Ephemeral : 0
             });
 
