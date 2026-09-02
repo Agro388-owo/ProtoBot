@@ -93,7 +93,7 @@ const DEFAULT_LOOT_CONFIG = {
         { id: "copper_wire", name: "a Bundle of Copper Wire", emoji: "<:copperwire:1544043462259773622>", catchCredits: 120n, sellValue: 80n, chance: 7, sellable: true },
         { id: "battery", name: "a Heavy Lithium Battery", emoji: "<:lithiumbattery:1544043469801001104>", catchCredits: 100n, sellValue: 25n, chance: 5, sellable: true },
         { id: "core", name: "a Glowing Latex Core", emoji: "<:latexcore:1544043468329058364>", catchCredits: 250n, sellValue: 50n, chance: 4, sellable: true },
-        { id: "cult_tracker", name: "a Cult Tracker", emoji: "<:culttracker:1544043441334263896>", catchCredits: -250n, sellValue: 0n, chance: 0.1, sellable: false },
+        { id: "cult_tracker", name: "a Cult Tracker", emoji: "<:dialring:1544043437978816512>", catchCredits: -250n, sellValue: 0n, chance: 0.1, sellable: false },
         { id: "pc", name: "an Entire Desktop Tower", emoji: "<:desktoppc:1544043466726711487>", catchCredits: 500n, sellValue: 100n, chance: 2.5, sellable: true },
         { id: "statue", name: "GOLDEN BLOXY STATUE", emoji: "<:BloxyStatue:1542833919651610695>", catchCredits: 1000n, sellValue: 150n, chance: 1.2, sellable: true },
         { id: "robloxinoli", name: "GOLDEN ROBLOXINOLI STATUE", emoji: "<:RobloxiNoliStatue:1542834047494131712>", catchCredits: 1750n, sellValue: 200n, chance: 1, sellable: true },
@@ -101,7 +101,7 @@ const DEFAULT_LOOT_CONFIG = {
         { id: "tracer_ammo", name: "a Box of 7.62×39mm Red Tracer Rounds", emoji: "<:762x39ammo:1544043435235872948>", catchCredits: 4500n, sellValue: 2200n, chance: 0.5, sellable: true },
         { id: "uox_fuel", name: "a UOX Fuel Assembly", emoji: "<:uox:1544043433453289473>", catchCredits: 6000n, sellValue: 3000n, chance: 0.3, sellable: true, flavor: "*Surprisingly, it's still warm after sitting underwater for 30 years...*" },
         { id: "mox_fuel", name: "a MOX Fuel Assembly", emoji: "<:mox:1544043436599017652>", catchCredits: 7500n, sellValue: 4000n, chance: 0.2, sellable: true, flavor: "*Faintly glowing, and still noticeably warm after 30 years underwater...*" },
-        { id: "ring", name: "Ancient Stargate Dialing Ring", emoji: "<:dialring:1544043437978816512>", catchCredits: 2500n, sellValue: 250n, chance: 0.5, sellable: false },
+        { id: "ring", name: "Ancient Stargate Dialing Ring", emoji: "<:culttracker:1544043441334263898>", catchCredits: 2500n, sellValue: 250n, chance: 0.5, sellable: false },
         { id: "shorkboi", name: "Shorkboi", emoji: "<:Shorkboi:1542381402526449704>", catchCredits: 5000n, sellValue: 0n, chance: 0.5, sellable: false },
         { id: "spytheproot", name: "SpyTheProot", emoji: "<:SpyTheProot:1542483331734573148>", catchCredits: 5000n, sellValue: 0n, chance: 0.5, sellable: false }
     ]
