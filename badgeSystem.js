@@ -19,7 +19,7 @@ const DEFAULT_BADGES = {
     GAMBLER:      { id: "GAMBLER",      emoji: "<:Credit:1541934198791737475>",          name: "Gambler",               desc: "Gamble away all your saving for no reason.",        type: "manual" },
     SPYTHEPROOT:  { id: "SPYTHEPROOT",  emoji: "<:SpyTheProot:1542483331734573148>",     name: "Spy",                   desc: "<:SpyTheProot:1542483331734573148>",                 type: "manual" },
     AGRO388:      { id: "AGRO388",      emoji: "<:Agro388:1542396105738948689>",         name: "Agro388",               desc: "Agro388",                                           type: "manual" },
-    INSERVER:     { id: "INSERVER",     emoji: "<:Puro_doing_a_swim:153866516680282233>", name: "In ProtoBot Dev Server", desc: "Join the official ProtoBot Dev server :3",         type: "manual" }
+    INSERVER:     { id: "INSERVER",     emoji: "<:Puro_doing_a_swim:1538666516680282233>", name: "ProtoBot Server Member", desc: "Join the official ProtoBot Dev server :3",         type: "manual" }
 };
 
 // Load custom badges from file; auto-creates empty JSON file if non-existent
