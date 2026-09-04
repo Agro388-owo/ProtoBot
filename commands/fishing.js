@@ -6,12 +6,10 @@ const botConfig = require('../config.js');
 const { CREDIT, formatNumber, clampBalance, isInPrison } = require('./credits.js');
 const { checkAndAwardBadges } = require('../badgeSystem.js');
 
-const SHORKBOI_ID = '1082525438015983636';
-const SPYTHEPROOT_ID = '1464072486651170931';
 const DEFAULT_ALLOWED_USER_ID = '1521264771389984940';
 
 const fishingCooldowns = new Map();
-const BASE_COOLDOWN_DURATION = 30 * 1000;
+const BASE_COOLDOWN_DURATION = 30 * 1000; // 30s base
 
 const lootFilePath = path.resolve(process.cwd(), 'fishing_loot.json');
 const creditsFilePath = path.resolve(process.cwd(), 'credits.json');
@@ -22,9 +20,6 @@ const accessConfigFilePath = path.resolve(process.cwd(), 'fishing_access.json');
 
 const METAL_ITEMS = ['pipe', 'soda_can', 'ram', 'copper_wire', 'battery', 'pc', 'iridium_cube'];
 
-// ---------------------------------------------------------------------
-// Safe Writer Helper (Auto-creates missing folders & safely formats JSON)
-// ---------------------------------------------------------------------
 function safeWriteJSON(filePath, data) {
     try {
         const dir = path.dirname(filePath);
@@ -39,9 +34,6 @@ function safeWriteJSON(filePath, data) {
     }
 }
 
-// ---------------------------------------------------------------------
-// Server / Global Access Storage Helpers
-// ---------------------------------------------------------------------
 function loadServerAccessConfig() {
     try {
         if (fs.existsSync(accessConfigFilePath)) {
@@ -60,9 +52,6 @@ function saveServerAccessConfig(config) {
     safeWriteJSON(accessConfigFilePath, config);
 }
 
-// ---------------------------------------------------------------------
-// Fishing Config Helpers
-// ---------------------------------------------------------------------
 function loadFishingConfig() {
     try {
         if (fs.existsSync(configFilePath)) {
@@ -194,7 +183,6 @@ function getCalculatedReward(item) {
 
 function loadLootDB() {
     const defaultMasterList = [...DEFAULT_LOOT_CONFIG.items, ...ABYSSAL_EXCLUSIVE_ITEMS];
-    
     try {
         if (fs.existsSync(lootFilePath)) {
             const raw = fs.readFileSync(lootFilePath, 'utf8').trim();
@@ -491,7 +479,6 @@ module.exports = {
             const isOwner = userId === ownerId;
             const isAdmin = interaction.memberPermissions?.has(8n);
 
-            // Global Access Control Enforcer
             const serverAccessConfig = loadServerAccessConfig();
             
             if (serverAccessConfig.access_mode === 'owner' && !isOwner) {
@@ -524,7 +511,6 @@ module.exports = {
                 }
             }
 
-            // Subcommand Group: /fishing config
             if (group === 'config') {
                 await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
@@ -561,7 +547,6 @@ module.exports = {
                 }
             }
 
-            // Subcommand: /fishing toggle [mode]
             if (subcommand === 'toggle' && !group) {
                 if (!isOwner) {
                     return await interaction.reply({
@@ -580,7 +565,6 @@ module.exports = {
                 });
             }
 
-            // Subcommand: /fishing allow [server_id]
             if (subcommand === 'allow' && !group) {
                 if (!isOwner) {
                     return await interaction.reply({
@@ -614,7 +598,6 @@ module.exports = {
                 });
             }
 
-            // Subcommand Group: /fishing perm
             if (group === 'perm') {
                 if (!isOwner && !isAdmin) {
                     return await interaction.reply({
@@ -679,7 +662,6 @@ module.exports = {
                 }
             }
 
-            // Subcommand Group: /fishing loot
             if (group === 'loot') {
                 const lootDB = loadLootDB();
 
@@ -745,7 +727,6 @@ module.exports = {
                 }
             }
 
-            // Subcommand: /fishing catch (Admin Force Catch)
             if (subcommand === 'catch' && !group) {
                 const rolesDB = loadRolesDB();
                 const userPerms = rolesDB[userId] || [];
@@ -774,10 +755,17 @@ module.exports = {
                 });
             }
 
-            // Subcommand: /fishing cast
             if (subcommand === 'cast' && !group) {
                 if (isInPrison && isInPrison(userId)) {
                     return await interaction.reply({ content: '🔒 You cannot go fishing while in prison!', flags: MessageFlags.Ephemeral });
+                }
+
+                const creditsDB = loadCreditsDB();
+                const userData = creditsDB[userId] || { luckLevel: 0, rods: [] };
+
+                let activeCooldownDuration = BASE_COOLDOWN_DURATION;
+                if (userData.rods && userData.rods.includes('quick_reel')) {
+                    activeCooldownDuration = 15 * 1000;
                 }
 
                 const now = Date.now();
@@ -794,9 +782,6 @@ module.exports = {
                     return await interaction.reply({ content: '🔒 The Abyssal Trench is currently locked by the administrator.', flags: MessageFlags.Ephemeral });
                 }
 
-                const creditsDB = loadCreditsDB();
-                const userData = creditsDB[userId] || { luckLevel: 0, rods: [] };
-
                 const lootConfig = loadLootDB();
                 const item = getRandomCatch(lootConfig, mode, userData.luckLevel, userData.rods);
 
@@ -804,7 +789,7 @@ module.exports = {
                     return await interaction.reply({ content: '🌊 You cast your line, but nothing bit today.', flags: MessageFlags.Ephemeral });
                 }
 
-                fishingCooldowns.set(userId, now + BASE_COOLDOWN_DURATION);
+                fishingCooldowns.set(userId, now + activeCooldownDuration);
                 addItemToInventory(userId, item.id);
 
                 const reward = getCalculatedReward(item);
@@ -835,3 +820,4 @@ module.exports = {
         }
     }
 };
+
