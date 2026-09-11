@@ -21,7 +21,7 @@
     "tag": "bloxybash",
     "status": "Active (Reachable)",
     "firstSeen": "2026-08-17T22:34:18.645Z",
-    "lastSeen": "2026-09-10T04:04:26.370Z"
+    "lastSeen": "2026-09-11T07:24:49.862Z"
   },
   {
     "id": "778013452378963980",
@@ -230,5 +230,13 @@
     "status": "Active (Reachable)",
     "firstSeen": "2026-09-10T04:04:26.370Z",
     "lastSeen": "2026-09-10T04:04:26.370Z"
+  },
+  {
+    "id": "1074415251048632340",
+    "username": "server101",
+    "tag": "server101",
+    "status": "Active (Reachable)",
+    "firstSeen": "2026-09-11T07:24:49.862Z",
+    "lastSeen": "2026-09-11T07:24:49.862Z"
   }
 ]
